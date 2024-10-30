@@ -25,7 +25,7 @@ import scipy.optimize as opt
 
 # Constants
 roi_x = [900, 1150]#roi_x = [850, 1250] # Region of interest of X direction
-roi_y = [950, 1200] #[750, 1150] # Region of interest of Y direction
+roi_y = [900, 1150] #[750, 1150] # Region of interest of Y direction
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
 
@@ -124,14 +124,23 @@ else:
 
 
 rep = h5_path[-5:-3]
+# with h5py.File(h5_path, mode='r+') as f:
+#     g = hz.attributesToDictionary(f['globals'])
+#     info_dict = hz.getAttributeDict(f)
+#     images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
+#     uwave_time = float(hz.attributesToDictionary(f).get('globals').get('mw_time'))
+#     run_number = info_dict.get('run number')
+
 with h5py.File(h5_path, mode='r+') as f:
     g = hz.attributesToDictionary(f['globals'])
+    for group in g:
+        for glob in g[group]:
+            if g[group][glob][0:2] == "np":
+                loop_glob = glob
     info_dict = hz.getAttributeDict(f)
     images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
-    uwave_time = float(hz.attributesToDictionary(f).get('globals').get('uwave_time'))
+    uwave_time= float(hz.attributesToDictionary(f).get('globals').get(loop_glob))
     run_number = info_dict.get('run number')
-
-
 
 image_types = list(images.keys())
 
@@ -156,8 +165,10 @@ L = roi_MOT.shape[0]
 x_l = np.arange(L)
 y_l = np.arange(L)
 x, y = np.meshgrid(x_l, y_l)
-popt = [ 4.79446739e+03,  9.43391749e+01,  1.24435700e+02,  3.23410378e+01,
-       2.75529939e+01, -1.06328357e+01, -3.52044817e+00] # go to (Bx, By, Bz) = (0, 0, 0)mG before imaging
+# popt = np.array([7.52013393e+02, 1.27215996e+02, 1.26715820e+02, 2.22250282e+01,
+#        2.18626235e+01, 3.67469011e-01, 3.92932091e+00]) # go to (Bx, By, Bz) = (0, 0, 0)mG before imaging
+popt = np.array([ 1.34825235e+03,  1.49571060e+02,  8.11322759e+01,  2.81497008e+01,
+        2.53861579e+01, -3.44781078e-02,  1.03868908e+01])
 popt_1, pcov = opt.curve_fit(lambda xy, A, offset: gauss2D(xy, A, popt[1], popt[2],  popt[3],  popt[4], popt[5],  offset), (y, x), roi_MOT.ravel(), p0=(roi_MOT.max() ,0))
 gaussian_peak = popt_1[0]
 print(gaussian_peak)

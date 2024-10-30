@@ -41,10 +41,16 @@ folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 count_file_path = folder_path+'\\data.csv'
 
 
+# with h5py.File(h5_path, mode='r+') as f:
+#     g = hz.attributesToDictionary(f['globals'])
+#     number_of_detunings = np.size(eval(g['Optical pumping, Microwaves']['uwave_time']))
+
 with h5py.File(h5_path, mode='r+') as f:
     g = hz.attributesToDictionary(f['globals'])
-    number_of_detunings = np.size(eval(g['Optical pumping, Microwaves']['uwave_time']))
-
+    for group in g:
+        for glob in g[group]:
+            if glob == "mw_time":
+                number_of_detunings = np.size(eval(g[group][glob][:]))
 counts = []
 var = []
 

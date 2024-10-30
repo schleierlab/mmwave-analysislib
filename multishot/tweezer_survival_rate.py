@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Feb  2 15:11:12 2023
-
-@author: sslab
+@author: Lin Xin
 """
 import sys
 root_path = r"X:\userlib\analysislib"
@@ -231,8 +229,7 @@ def plot_shots_avg(data, site_roi_x,site_roi_y, n_shots =2, show_roi = True):
         ax_second_image.add_collection(PatchCollection(rect, match_original=True))
 
 
-
-def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = False, plot_double_gaussian_fit = False, plot_gaussian_poisson_fit = False, sub_bkg = False, cpa = 'default', print_value = False):
+def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = False, plot_double_gaussian_fit = False, plot_gaussian_poisson_fit = False, sub_bkg = False, cpa = 'default', print_value = False, do_neighbour_bkg_sub = True):
     import scipy.optimize as optimize
     def gaussianpoisson_pdf_fit(X, C, mu, sigma, CPA):
         kmax = 20
@@ -280,6 +277,11 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
     first_shot_roi_number = roi_number_lst[0,:]
     bkg_number_lst = first_shot_roi_number[0,:]
 
+    if do_neighbour_bkg_sub == True:
+        for i in range(roi_number_lst.shape[0]):
+            first_shot_roi_number[i,:]  = first_shot_roi_number[i,:] - np.mean(bkg_number_lst)
+
+
     if sub_bkg == True:
         bkg_mean = np.mean(bkg_number_lst)
         print(bkg_mean)
@@ -291,7 +293,7 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
 
     if plot_histagram == True:
         fig, axs = plt.subplots(nrows=1, ncols=2, constrained_layout=True)
-        fig.suptitle(f'{first_shot_roi_number.shape[0]} samples')
+        fig.suptitle(f'{all_roi_number_lst.shape[0]} samples')
         for ax in axs:
             ax.set_xlabel('counts')
             ax.set_ylabel('frequency')
@@ -397,6 +399,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
     else:
         bkg_mean = 0
 
+    if do_neighbour_bkg_sub == True:
+        for i in range(roi_number_lst.shape[0]):
+            second_shot_roi_number[i,:]  = second_shot_roi_number[i,:] - np.mean(bkg_number_lst)
+
     all_roi_number_lst = second_shot_roi_number[1:site_roi_x.shape[0],:].flatten()
 
     if plot_histagram == True:
@@ -453,10 +459,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
     (c0, mu0, s0, c1, mu1, s1) = param_optimised
     s0 = abs(s0)
     s1 = abs(s1)
-    cpa = mu1
-    th = threshold(c0, mu0, s0, c1, mu1, s1, cpa)
-    ff = prob_of_one_atom(c0,s0, c1, s1) #filling fraction
-    f = image_fidelity(mu0, s0, mu1, s1, ff, th)
+    cpa_2 = mu1
+    th_2 = threshold(c0, mu0, s0, c1, mu1, s1, cpa_2)
+    ff_2 = prob_of_one_atom(c0,s0, c1, s1) #filling fraction
+    f_2 = image_fidelity(mu0, s0, mu1, s1, ff_2, th)
 
     if plot_double_gaussian_fit == True:
         x_hist_2=np.linspace(np.min(x_hist),np.max(x_hist),500)
@@ -475,8 +481,8 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
 
     if print_value == True:
         print('2nd image Probability of one atom = ', prob_of_one_atom(c0,s0, c1, s1))
-        print('2nd image Imaging fidelity upper limit =', image_fidelity(mu0, s0, mu1, s1, ff, th))
-        print('2nd image threshold = ', th)
+        print('2nd image Imaging fidelity upper limit =', image_fidelity(mu0, s0, mu1, s1, ff_2, th_2))
+        print('2nd image threshold = ', th_2)
 
 
 
@@ -486,9 +492,13 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
     return th, cpa, ff, f
 
 
+
 def survival_rate(roi_number_lst, th, site_roi_x):
     first_shot_atom_number = roi_number_lst[0,1:site_roi_x.shape[0]+1,:]
     second_shot_atom_number = roi_number_lst[1,1:site_roi_x.shape[0]+1,:]
+
+    if th.shape[0] > 1:
+        th = th[0]
 
     survival_points = (first_shot_atom_number>th) & (second_shot_atom_number>th)
     appear_points = (first_shot_atom_number<=th) & (second_shot_atom_number>th)
@@ -566,7 +576,13 @@ folder_path = folder
 roi_number_lst_file_path = folder_path + "\\roi_number_lst.npy"
 th_file_path = folder_path + "\\th.npy"
 roi_number_lst = np.load(roi_number_lst_file_path)
-th = np.load(th_file_path)
+
+
+site_roi_x_new = np.concatenate([[np.min(site_roi_x, axis = 0)], site_roi_x])
+site_roi_y_new = np.concatenate([[np.min(site_roi_y, axis = 0) + 10], site_roi_y])
+
+th, cpa, ff, f = histagram_fit_and_threshold(roi_number_lst, site_roi_x_new, plot_histagram = True, plot_double_gaussian_fit = True, print_value=True, do_neighbour_bkg_sub= False)
+# th = np.load(th_file_path)
 
 survival_rate(roi_number_lst, th, site_roi_x)
 

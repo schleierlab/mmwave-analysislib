@@ -61,16 +61,19 @@ fig, axs = plt.subplots(nrows=2, ncols=1)
 (ax_count),(ax_temp) = axs
 fig, ax = plt.subplots(constrained_layout=True)
 
-ax_count.plot(tof , counts)
-ax_count.set_xlabel('Time of flight (s)')
+# ax_count.plot(tof , counts)
+ax_count.plot(counts)
+# ax_count.set_xlabel('Time of flight (s)')
 ax_count.set_ylabel('MOT atom count')
 
 ax_count.grid(color='0.7', which='major')
 ax_count.grid(color='0.9', which='minor')
 
-ax_temp.plot(tof , np.array(temperature_x)*1e6, label='X temperature')
-ax_temp.plot(tof , np.array(temperature_y)*1e6, label='Y temperature')
-ax_temp.set_xlabel('Time of flight (s)')
+# ax_temp.plot(tof , np.array(temperature_x)*1e6, label='X temperature')
+# ax_temp.plot(tof , np.array(temperature_y)*1e6, label='Y temperature')
+ax_temp.plot(np.array(temperature_x)*1e6, label='X temperature')
+ax_temp.plot(np.array(temperature_y)*1e6, label='Y temperature')
+# ax_temp.set_xlabel('Time of flight (s)')
 ax_temp.set_ylabel('Temperature (uK)')
 ax.legend()
 

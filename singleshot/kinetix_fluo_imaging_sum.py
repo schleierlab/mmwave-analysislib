@@ -33,9 +33,13 @@ counts_per_atom = 1 # Counts per atom 16.6 counts per atom per ms
 #roi_x = [1000, 1800] #roi_x = [750, 1250]#roi_x = [850, 1250] # Region of interest of X direction, MOT beam imaging
 #roi_y = [800, 1500] #roi_y = [800, 1000] #[750, 1150] # Region of interest of Y direction, MOT beam imaging
 
+# for dipole trap (20240507):
+roi_y = [800,1400]
+roi_x = [600,2000]
+
 #for dipole trap (20240109):
-roi_x = [800,1750]#[750, 1200]#roi_x = [850, 1250] # Region of interest of X direction, Img beam imaging
-roi_y = [1150,1300]#[1500, 2000] #[750, 1150] # Region of interest of Y direction, Img beam imaging
+# roi_x = [800,1750]#[750, 1200]#roi_x = [850, 1250] # Region of interest of X direction, Img beam imaging
+# roi_y = [1150,1300]#[1500, 2000] #[750, 1150] # Region of interest of Y direction, Img beam imaging
 
 # #for tweezer:
 # roi_y = [1150, 1220]
@@ -46,17 +50,33 @@ roi_y = [1150,1300]#[1500, 2000] #[750, 1150] # Region of interest of Y directio
 # roi_x = [1250, 1450]
 
 # tweezer, 2D (20230124)
-roi_y = [1110, 1220]
-roi_x = [1250, 1450]
+# roi_y = [1110, 1220]
+# roi_x = [1250, 1450]
 
-# roi_y = [1150, 1350]
-# roi_x = [750, 2050]
 
-roi_y = [0, 2400]
-roi_x = [0, 2400]
+# tweezer, 1D (20240522)
+# roi_y = [1070,1100] #(20240523)
+
+# roi_y = [1025,1050]
+# roi_x = [1300,1525]
+
+# roi_y = [900, 1170] #[980, 980+110]#[1000,1110]
+# # roi_x = np.array([1322, 1559])-130#[1322, 1559]
+# roi_x = [1215-500, 1412+300] #np.array([1215, 1412])
+
+# roi_y = [700, 1250]
+# roi_y = [980, 1030]
+roi_y = [500, 1400]
+# roi_x = [1200, 1400]
+roi_x = [1000, 1900]
+
+# roi_y = [0, 2400]
+# roi_x = [0, 2400]
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
-para_name = 'n_shot'
+# para_name = 'n_shot'
+# para_name = 'blue_456nm_duration'
+# para_name = 'blue_456_detuning'
 
 
 
@@ -71,10 +91,20 @@ else:
 
 with h5py.File(h5_path, mode='r+') as f:
     g = hz.attributesToDictionary(f['globals'])
+    for group in g:
+        for glob in g[group]:
+            if g[group][glob][0:2] == "np":
+                loop_glob = glob
     info_dict = hz.getAttributeDict(f)
     # images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
     images = hz.datasetsToDictionary(f['kinetix_images'], recursive=True)
-    para = float(hz.attributesToDictionary(f).get('globals').get(para_name))
+    try:
+        para = float(f['globals'].attrs.get(loop_glob))
+        print(f'The global that is looping through is {loop_glob} and currently = {loop_var}')
+    except:
+        info_dict = hz.getAttributeDict(f)
+        para = info_dict.get('run number')
+        print(f'Nothing is under loop')
     try:
         blue_on = float(hz.attributesToDictionary(f).get('globals').get('do_456nm_laser'))
     except:
@@ -121,8 +151,9 @@ electron_counts_bkg = roi_bkg.sum()
 bkg_number = electron_counts_bkg / counts_per_atom / roi_bkg.size * roi_MOT.size # average bkg floor in the size of roi_MOT
 # atom_number = int(atom_number_withbkg)
 
-# print('atom number with bkg',atom_number_withbkg)
-# print('bkg number',bkg_number)
+print('atom number with bkg',atom_number_withbkg)
+print('bkg number',bkg_number)
+print(np.shape(sub_image))
 # print(roi_bkg)
 atom_number = int(atom_number_withbkg- bkg_number)
 
@@ -165,7 +196,7 @@ ax_bkg_raw.set_title('Raw, no MOT')
 pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
 fig.colorbar(pos, ax=ax_bkg_raw)
 
-roi_image_scale = 900 #100 #500 #1000 #180 #150 #2000 #4096 #150
+roi_image_scale = 500 #180 #500 #180#500 #50 #1500#900 #100 #500 #1000 #180 #150 #2000 #4096 #150
 roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
 
 try:
@@ -305,7 +336,9 @@ folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 # count_file_path = folder_path+'\\data.csv'
 count_file_path = folder_path+'\\data.csv'
 
-if run_number == 0:
+#if run_number == 0:
+rep = h5_path[-5:-3]
+if  rep == '_0':
     with open(count_file_path, 'w') as f_object:
         f_object.write(f'{atom_number},{para}\n')
 

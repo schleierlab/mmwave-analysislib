@@ -33,6 +33,9 @@ roi_x = [700, 1700]#roi_x = [850, 1250] # Region of interest of X direction
 # roi_y = [1250, 1550]
 roi_y = [1500, 1700]
 
+roi_x = [500, 2000]
+roi_y = [500, 2000]
+
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
 
@@ -48,11 +51,27 @@ else:
 
 
 rep = h5_path[-5:-3]
+# with h5py.File(h5_path, mode='r+') as f:
+#     g = hz.attributesToDictionary(f['globals'])
+#     info_dict = hz.getAttributeDict(f)
+#     images = hz.datasetsToDictionary(f['kinetix_images'], recursive=True)
+#     uwave_detuning = float(hz.attributesToDictionary(f).get('globals').get('mw_detuning_end'))
+#     run_number = info_dict.get('run number')
+
+
 with h5py.File(h5_path, mode='r+') as f:
     g = hz.attributesToDictionary(f['globals'])
+    for group in g:
+        for glob in g[group]:
+            if g[group][glob][0:2] == "np":
+                loop_glob = glob
     info_dict = hz.getAttributeDict(f)
     images = hz.datasetsToDictionary(f['kinetix_images'], recursive=True)
-    uwave_detuning = float(hz.attributesToDictionary(f).get('globals').get('mw_detuning_end'))
+    try:
+        uwave_detuning = float(hz.attributesToDictionary(f).get('globals').get(loop_glob))
+    except:
+        uwave_detuning = float(hz.attributesToDictionary(f).get('globals').get('n_shot'))
+
     run_number = info_dict.get('run number')
 
 
@@ -91,7 +110,7 @@ for ax in axs[1]:
     ax.set_xlabel('x [px]')
     ax.set_ylabel('y [px]')
 
-image_scale = 3000 #300
+image_scale = 1000 #3000 #300
 # raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 
@@ -102,7 +121,7 @@ ax_bkg_raw.set_title('Raw, no MOT')
 pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
 fig.colorbar(pos, ax=ax_bkg_raw)
 
-image_scale = 900
+image_scale = 10
 # raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 

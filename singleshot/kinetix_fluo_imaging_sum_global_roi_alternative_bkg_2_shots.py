@@ -28,7 +28,9 @@ import os
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 
-show_site_roi = False
+show_site_roi = True #False
+load_roi = True
+threshold = 664.41858082 #402.6 #1296.38231822 #800 #1200 #1650.74963255 #2.65731089e+03 * 0.9
 
 # Constants
 px = 1 #6.5 # Pixels size
@@ -58,8 +60,12 @@ counts_per_atom = 1 # Counts per atom 16.6 counts per atom per ms
 # roi_x = [1200, 1500]
 
 # tweezer, 1D, 20 traps (20240421)
+# roi_y = [1050,1160]
+# roi_x = [1275,1475] #roi_x = [1200,1600]#[1200, 1450]
+
+# tweezer,1D, 20 traps (20240508)
 roi_y = [1050,1160]
-roi_x = [1275,1475] #roi_x = [1200,1600]#[1200, 1450]
+roi_x = [1288, 1486]
 
 # tweezer,1D, 40 traps (20240424)
 # roi_y = [1050,1160]
@@ -68,8 +74,27 @@ roi_x = [1275,1475] #roi_x = [1200,1600]#[1200, 1450]
 # roi_y = [1150, 1350]
 # roi_x = [750, 2050]
 
+# roi_y = [1000,1110]
+# roi_x = [1322, 1519]
+
+# tweezer, 1D, 20 traps, something happened to the tweezer and it get bumped (20240528)
+roi_y = [960,960+110]
+# roi_x = np.array([1322, 1559])-130#[1322, 1559]
+# roi_x = np.array([1214, 1411])
+# roi_x = np.array([1216, 1413])
+roi_x = np.array([1100, 1500]) # check overlap with dipole trap?
+roi_x = np.array([1250, 1450])
+roi_x = np.array([1258, 1455])
+roi_x = np.array([1263, 1459])
+roi_x = np.array([1463, 1660])
+roi_x = np.array([1383, 1699]) # 40 traps
+roi_x = np.array([1409, 1724])
+# roi_x = np.array([0, 2399])
+
+roi_x = [1200, 1700]
+
 # roi_y = [0, 2400]
-# roi_x = [0, 2400]
+roi_x = [0, 2400]
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
 para_name = 'manta_exposure'
@@ -92,209 +117,139 @@ with h5py.File(h5_path, mode='r+') as f:
             if g[group][glob][0:2] == "np":
                 loop_glob = glob
 
-    loop_var = float(hz.attributesToDictionary(f).get('globals').get(loop_glob))
-    print(f'The global that is looping through is {loop_glob} and currently = {loop_var}')
+    try:
+        loop_var = float(f['globals'].attrs.get(loop_glob))
+        print(f'The global that is looping through is {loop_glob} and currently = {loop_var}')
+    except:
+        info_dict = hz.getAttributeDict(f)
+        loop_var = info_dict.get('run number')
+        print(f'Nothing is under loop')
+
+
+
     info_dict = hz.getAttributeDict(f)
     # images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
     images = hz.datasetsToDictionary(f['kinetix_images'], recursive=True)
     # para = float(hz.attributesToDictionary(f).get('globals').get(para_name))
-    kinetix_roi_row= np.array(hz.attributesToDictionary(f).get('globals').get('kinetix_roi_row'))
+    kinetix_roi_row= np.array(f['globals'].attrs.get('kinetix_roi_row'))
+    print(f"kinetix_roi_row = {kinetix_roi_row}")
     run_number = info_dict.get('run number')
     #print(f'run_number = {run_number} ')
 
+if load_roi == True:
+    folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
+    site_roi_x_file_path = folder_path + "\\site_roi_x.npy"
+    site_roi_y_file_path =  folder_path + "\\site_roi_y.npy"
+    roi_x_file_path =  folder_path + "\\roi_x.npy"
+    roi_x = np.load(roi_x_file_path)
+    print(roi_x)
+    site_roi_x = np.load(site_roi_x_file_path)
+    site_roi_y = np.load(site_roi_y_file_path)
+
+    site_roi_x = np.concatenate([[np.min(site_roi_x, axis = 0)], site_roi_x])
+    site_roi_y = np.concatenate([[np.min(site_roi_y, axis = 0) + 10], site_roi_y])
+
+    print(site_roi_x)
+else:
+    #20240508
+    # site_roi_x = np.array([
+    #     [1461, 1467],
+    #     [1470, 1476],
+    #     [1425, 1431],
+    #     [1434, 1440],
+    #     [1443, 1449],
+    #     [1452, 1458],
+    #     [1353, 1359],
+    #     [1371, 1377],
+    #     [1379, 1385],
+    #     [1389, 1395],
+    #     [1398, 1404],
+    #     [1407, 1413],
+    #     [1416, 1422],
+    #     [1298, 1304],
+    #     [1308, 1314],
+    #     [1316, 1322],
+    #     [1326, 1332],
+    #     [1334, 1340],
+    #     [1344, 1350],
+    #     [1362, 1368]])
+
+    # site_roi_y = np.array([
+    #     [45, 51],
+    #     [45, 51],
+    #     [46, 52],
+    #     [46, 52],
+    #     [46, 52],
+    #     [46, 52],
+    #     [47, 53],
+    #     [47, 53],
+    #     [47, 53],
+    #     [47, 53],
+    #     [47, 53],
+    #     [47, 53],
+    #     [47, 53],
+    #     [48, 54],
+    #     [48, 54],
+    #     [48, 54],
+    #     [48, 54],
+    #     [48, 54],
+    #     [48, 54],
+    #     [48, 54]])
+
 #20240426
-site_roi_x = np.array([
-       [1419, 1425],
-       [1429, 1435],
-       [1438, 1444],
-       [1446, 1452],
-       [1455, 1461],
-       [1464, 1470],
-       [1365, 1371],
-       [1375, 1381],
-       [1383, 1389],
-       [1392, 1398],
-       [1401, 1407],
-       [1410, 1416],
-       [1293, 1299],
-       [1302, 1308],
-       [1311, 1317],
-       [1320, 1326],
-       [1329, 1335],
-       [1338, 1344],
-       [1347, 1353],
-       [1356, 1362]])
-
-site_roi_y = np.array([
-       [34, 40],
-       [34, 40],
-       [34, 40],
-       [34, 40],
-       [34, 40],
-       [34, 40],
-       [35, 41],
-       [35, 41],
-       [35, 41],
-       [35, 41],
-       [35, 41],
-       [35, 41],
-       [36, 42],
-       [36, 42],
-       [36, 42],
-       [36, 42],
-       [36, 42],
-       [36, 42],
-       [36, 42],
-       [36, 42]])
-
-#20240422
 # site_roi_x = np.array([
-#        [1420, 1426],
+#        [1419, 1425],
 #        [1429, 1435],
 #        [1438, 1444],
-#        [1447, 1453],
-#        [1456, 1462],
-#        [1465, 1471],
-#        [1384, 1390],
-#        [1393, 1399],
-#        [1402, 1408],
-#        [1411, 1417],
-#        [1320, 1326],
-#        [1329, 1335],
-#        [1339, 1345],
-#        [1348, 1354],
-#        [1357, 1363],
+#        [1446, 1452],
+#        [1455, 1461],
+#        [1464, 1470],
 #        [1365, 1371],
-#        [1374, 1380],
+#        [1375, 1381],
+#        [1383, 1389],
+#        [1392, 1398],
+#        [1401, 1407],
+#        [1410, 1416],
 #        [1293, 1299],
 #        [1302, 1308],
-#        [1311, 1317]])
-
-# site_roi_y = np.array([
-#        [35, 41],
-#        [35, 41],
-#        [35, 41],
-#        [35, 41],
-#        [35, 41],
-#        [35, 41],
-#        [36, 42],
-#        [36, 42],
-#        [36, 42],
-#        [36, 42],
-#        [37, 43],
-#        [37, 43],
-#        [37, 43],
-#        [37, 43],
-#        [37, 43],
-#        [37, 43],
-#        [37, 43],
-#        [38, 44],
-#        [38, 44],
-#        [38, 44]])
-
-
-# 20240410
-# site_roi_x = np.array([
-#        [1432, 1438],
-#        [1396, 1402],
-#        [1413, 1419],
-#        [1377, 1383],
-#        [1360, 1366],
-#        [1323, 1329],
-#        [1341, 1347],
-#        [1305, 1311],
-#        [1269, 1275],
-#        [1287, 1293]])
-
-# site_roi_y = np.array([
-#        [59, 65],
-#        [60, 66],
-#        [60, 66],
-#        [61, 67],
-#        [62, 68],
-#        [63, 69],
-#        [63, 69],
-#        [64, 70],
-#        [65, 71],
-#        [65, 71]])
-
-# site_roi_x = np.array([
-#        [1434, 1440],
-#        [1416, 1422],
-#        [1398, 1404],
-#        [1362, 1368],
-#        [1380, 1386],
-#        [1344, 1350],
-#        [1308, 1314],
-#        [1325, 1331],
-#        [1289, 1295],
-#        [1271, 1277]])
-
-# site_roi_y = np.array([
-#        [59, 65],
-#        [60, 66],
-#        [61, 67],
-#        [62, 68],
-#        [62, 68],
-#        [63, 69],
-#        [64, 70],
-#        [64, 70],
-#        [65, 71],
-#        [66, 72]])
-# site_roi_x = np.array([
-#        [1389, 1395],
-#        [1372, 1378],
-#        [1336, 1342],
-#        [1353, 1359],
-#        [1317, 1323],
-#        [1391, 1397],
-#        [1373, 1379],
-#        [1337, 1343],
-#        [1355, 1361],
-#        [1319, 1325],
-#        [1392, 1398],
-#        [1374, 1380],
-#        [1338, 1344],
-#        [1356, 1362],
+#        [1311, 1317],
 #        [1320, 1326],
-#        [1393, 1399],
-#        [1375, 1381],
-#        [1339, 1345],
-#        [1357, 1363],
-#        [1321, 1327],
-#        [1394, 1400],
-#        [1358, 1364],
-#        [1376, 1382],
-#        [1340, 1346],
-#        [1322, 1328]])
-# site_roi_y = np.array([
-#        [1118, 1124],
-#        [1119, 1125],
-#        [1120, 1126],
-#        [1120, 1126],
-#        [1121, 1127],
-#        [1136, 1142],
-#        [1137, 1143],
-#        [1138, 1144],
-#        [1138, 1144],
-#        [1139, 1145],
-#        [1154, 1160],
-#        [1155, 1161],
-#        [1156, 1162],
-#        [1156, 1162],
-#        [1157, 1163],
-#        [1172, 1178],
-#        [1173, 1179],
-#        [1174, 1180],
-#        [1174, 1180],
-#        [1175, 1181],
-#        [1190, 1196],
-#        [1191, 1197],
-#        [1191, 1197],
-#        [1192, 1198],
-#        [1193, 1199]])
+#        [1329, 1335],
+#        [1338, 1344],
+#        [1347, 1353],
+#        [1356, 1362]])
 
-threshold = 1200#1650.74963255 #2.65731089e+03 * 0.9
+# site_roi_y = np.array([
+#        [34, 40],
+#        [34, 40],
+#        [34, 40],
+#        [34, 40],
+#        [34, 40],
+#        [34, 40],
+#        [35, 41],
+#        [35, 41],
+#        [35, 41],
+#        [35, 41],
+#        [35, 41],
+#        [35, 41],
+#        [36, 42],
+#        [36, 42],
+#        [36, 42],
+#        [36, 42],
+#        [36, 42],
+#        [36, 42],
+#        [36, 42],
+#        [36, 42]])
+    roi_x = [1173, 1523]
+
+    site_roi_x = np.array([
+        [1223, 1466]
+    ])
+
+    site_roi_y = np.array([
+        [30, 50]
+    ])
+
 # site_roi_y = site_roi_y - kinetix_roi_row[0] - 1
 site_roi_x = site_roi_x - roi_x[0]
 
@@ -378,11 +333,16 @@ else:
     roi_MOT_2 = sub_image2[:, roi_x[0]:roi_x[1]]
     roi_bkg_2 = sub_image2[:, roi_x_bkg[0]:roi_x_bkg[1]]
 
+    atom_number = 0 #roi_MOT_1.sum()-roi_bkg_1.sum()/roi_bkg_1.size * roi_MOT_1.size
+
 
     rect_sig_1 = []
     atom_exist_lst_1 = []
+    roi_number_lst_1 = []
     for i in np.arange(site_roi_x.shape[0]):
         site_roi_signal = roi_MOT_1[site_roi_y[i,0]:site_roi_y[i,1], site_roi_x[i,0]:site_roi_x[i,1]]
+        roi_number_lst_1.append(np.sum(site_roi_signal))
+        atom_number += site_roi_signal.sum()
         if site_roi_signal.sum() > threshold:
             rect_sig_1.append(patches.Rectangle((site_roi_x[i,0], site_roi_y[i,0]), site_roi_x[i,1]-site_roi_x[i,0], site_roi_y[i,1]-site_roi_y[i,0], linewidth=1, edgecolor='gold', facecolor='none'))
             atom_exist_lst_1.append(1)
@@ -393,8 +353,10 @@ else:
 
     rect_sig_2 = []
     atom_exist_lst_2 = []
+    roi_number_lst_2 = []
     for i in np.arange(site_roi_x.shape[0]):
         site_roi_signal = roi_MOT_2[site_roi_y[i,0]:site_roi_y[i,1], site_roi_x[i,0]:site_roi_x[i,1]]
+        roi_number_lst_2.append(np.sum(site_roi_signal))
         if site_roi_signal.sum() > threshold:
             rect_sig_2.append(patches.Rectangle((site_roi_x[i,0], site_roi_y[i,0]), site_roi_x[i,1]-site_roi_x[i,0], site_roi_y[i,1]-site_roi_y[i,0], linewidth=1, edgecolor='gold', facecolor='none'))
             atom_exist_lst_2.append(1)
@@ -417,7 +379,7 @@ else:
         ax.set_xlabel('x [px]')
         ax.set_ylabel('y [px]')
 
-    roi_image_scale = 180 #180 #100 #500 #1000 #180 #150 #2000 #4096 #150
+    roi_image_scale = 150 #180 #100 #500 #1000 #180 #150 #2000 #4096 #150
     roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
 
     ax_mot_roi_1.set_title('1st roi')
@@ -446,23 +408,37 @@ else:
     atom_exist_lst_2 = np.array(atom_exist_lst_2)
 
 
-    fault_rate = sum(np.bitwise_xor(atom_exist_lst_1,atom_exist_lst_2)) / np.sum(atom_exist_lst_1) #site_roi_x.shape[0]
+    # fault_rate = sum(np.bitwise_xor(atom_exist_lst_1,atom_exist_lst_2)) / np.sum(atom_exist_lst_1) #site_roi_x.shape[0]
+    survival_rate = sum(1 for x,y in zip(atom_exist_lst_1,atom_exist_lst_2) if x == 1 and y == 1) / np.sum(atom_exist_lst_1)
 
 
-
-    if run_number == 0:
-        with open(count_file_path, 'w') as f_object:
-            f_object.write(f'{fault_rate},{loop_var}\n')
-
-    else:
-        with open(count_file_path, 'a') as f_object:
-            f_object.write(f'{fault_rate},{loop_var}\n')
 
     # os.remove(h5_path)
 
+    roi_number_lst_file_path = folder_path+'\\roi_number_lst.npy' # '\\fault_rate_data.csv'
+
+    roi_number_lst = np.row_stack([np.array(roi_number_lst_1), np.array(roi_number_lst_2)])
+
+    roi_number_lst = roi_number_lst.reshape((roi_number_lst.shape[0], roi_number_lst.shape[1],1))
+
+    print(f"roi_number_lst shape = {roi_number_lst.shape}")
+
+    # create for temproray purpose
+    # survival_rate = atom_number
+
+    if run_number == 1:
+        with open(count_file_path, 'w') as f_object:
+            f_object.write(f'{survival_rate},{loop_var}\n')
+        np.save(roi_number_lst_file_path, roi_number_lst)
 
 
 
-
+    else:
+        with open(count_file_path, 'a') as f_object:
+            f_object.write(f'{survival_rate},{loop_var}\n')
+        roi_number_lst_old = np.load(roi_number_lst_file_path)
+        roi_number_lst_new = np.dstack((roi_number_lst_old, roi_number_lst))
+        print(f"roi_number_lst_new shape = {roi_number_lst_new.shape}")
+        np.save(roi_number_lst_file_path, roi_number_lst_new)
 
 

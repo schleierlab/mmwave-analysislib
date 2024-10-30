@@ -28,8 +28,10 @@ check_tweezer_position = False
 px = 1#5.5 # Pixels size
 mag = 1#0.4 # Magnefication
 counts_per_atom = 16.6 # Counts per atom 16.6 counts per atom per ms
-roi_x = [0, 2560] # Region of interest of X direction
-roi_y = [0, 2560] # Region of interest of Y direction
+roi_x = [0, 2560]
+roi_y = [0, 2560]
+# roi_x = [500, 1600] # Region of interest of X direction
+# roi_y = [1000, 1700] # Region of interest of Y direction
 
 
 #2024/04/16 (tweezers)
@@ -115,7 +117,7 @@ for ax in axs[1]:
     ax.set_xlabel('x [px]')
     ax.set_ylabel('y [px]')
 
-image_scale = 4096 # 12 bit depth
+image_scale = 500 #4096 # 12 bit depth
 raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 
 ax_mot_raw.set_title('Raw')
@@ -126,11 +128,12 @@ ax_bkg_raw.set_title('Raw, no MOT')
 pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
 fig.colorbar(pos, ax=ax_bkg_raw)
 
-if check_tweezer_position == True:
-    roi_image_scale = 4000 #100
-else:
-    roi_image_scale = 100
+# if check_tweezer_position == True:
+#     roi_image_scale = 4000 #100
+# else:
+#     roi_image_scale = 100
 
+roi_image_scale = 50 #100
 roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
 
 ax_mot_roi.set_title('MOT ROI')
@@ -162,7 +165,7 @@ with h5py.File(h5_path, mode='a') as f:
 
 
 folder_path = '\\'.join(h5_path.split('\\')[0:-1])
-count_file_path = folder_path+'\\tweezer_data.csv'
+count_file_path = folder_path+'\\data.csv'
 
 with open(count_file_path, 'a') as f_object:
     f_object.write(f'{atom_number}\n')

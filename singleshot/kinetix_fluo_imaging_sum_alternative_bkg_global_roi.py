@@ -34,8 +34,8 @@ counts_per_atom = 1 # Counts per atom 16.6 counts per atom per ms
 #roi_y = [800, 1500] #roi_y = [800, 1000] #[750, 1150] # Region of interest of Y direction, MOT beam imaging
 
 #for dipole trap (20240109):
-roi_x = [800,1750]#[750, 1200]#roi_x = [850, 1250] # Region of interest of X direction, Img beam imaging
-roi_y = [1150,1300]#[1500, 2000] #[750, 1150] # Region of interest of Y direction, Img beam imaging
+# roi_x = [800,1750]#[750, 1200]#roi_x = [850, 1250] # Region of interest of X direction, Img beam imaging
+# roi_y = [1150,1300]#[1500, 2000] #[750, 1150] # Region of interest of Y direction, Img beam imaging
 
 # #for tweezer:
 # roi_y = [1150, 1220]
@@ -46,8 +46,8 @@ roi_y = [1150,1300]#[1500, 2000] #[750, 1150] # Region of interest of Y directio
 # roi_x = [1250, 1450]
 
 # tweezer, 2D (20230124)
-roi_y = [1110, 1220]
-roi_x = [1250, 1450]
+# roi_y = [1110, 1220]
+# roi_x = [1250, 1450]
 
 # roi_y = [1150, 1350]
 # roi_x = [750, 2050]
@@ -55,11 +55,14 @@ roi_x = [1250, 1450]
 roi_y = [1070,1180]
 roi_x = [1200,1600]#[1200, 1450]
 
+# tweezer, 1D
+# roi_y = [1050,1150]
+# roi_x = [1300,1500]
+
 # roi_y = [0, 2400]
 # roi_x = [0, 2400]
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
-para_name = 'manta_exposure'
 
 
 
@@ -77,8 +80,7 @@ with h5py.File(h5_path, mode='r+') as f:
     info_dict = hz.getAttributeDict(f)
     # images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
     images = hz.datasetsToDictionary(f['kinetix_images'], recursive=True)
-    para = float(hz.attributesToDictionary(f).get('globals').get(para_name))
-    blue_on = float(hz.attributesToDictionary(f).get('globals').get('do_456nm_laser'))
+    # blue_on = float(hz.attributesToDictionary(f).get('globals').get('do_456nm_laser'))
     run_number = info_dict.get('run number')
     #print(f'run_number = {run_number} ')
 
@@ -159,10 +161,10 @@ else:
     roi_image_scale = 180 #180 #100 #500 #1000 #180 #150 #2000 #4096 #150
     roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
 
-    if blue_on == 1.0:
-        ax_mot_roi.set_title('MOT ROI, blue on')
-    else:
-        ax_mot_roi.set_title('MOT ROI')
+    # if blue_on == 1.0:
+    #     ax_mot_roi.set_title('MOT ROI, blue on')
+    # else:
+    #     ax_mot_roi.set_title('MOT ROI')
 
     pos = ax_mot_roi.imshow(
         roi_MOT,

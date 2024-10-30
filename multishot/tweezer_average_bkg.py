@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Feb  2 15:11:12 2023
-
-@author: sslab
+@author: Lin Xin
 """
 import sys
 root_path = r"X:\userlib\analysislib"
@@ -28,6 +26,7 @@ import os
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 import glob
+from pathlib import Path
 
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
@@ -76,8 +75,14 @@ while True:
 avg_shot_bkg, N = avg_all_shots(folder)
 
 
-folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
-avg_shot_bkg_file_path =  folder_path + "\\avg_shot_bkg.npy"
+folder = Path(folder)
+folder_path = folder.parent #'X:\\userlib\\analysislib\\scripts\\multishot\\'
+
+avg_shot_bkg_file_path =  Path(folder_path, 'avg_shot_bkg.npy') #folder_path + "\\avg_shot_bkg.npy"
+
+print(f'avg_shot_bkg_file_path={repr(avg_shot_bkg_file_path)}')
+
+
 
 np.save(avg_shot_bkg_file_path, avg_shot_bkg)
 

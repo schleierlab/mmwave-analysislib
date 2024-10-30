@@ -5,7 +5,9 @@ Created on Thu Feb  2 15:11:12 2023
 @author: sslab
 """
 import sys
-root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
+
+# root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
+root_path = r"X:\userlib\analysislib"
 
 if root_path not in sys.path:
     sys.path.append(root_path)
@@ -15,24 +17,31 @@ try:
 except:
     import lyse
 
+
 from analysis.data import h5lyze as hz
 # from analysis.data import autolyze as az
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
-import csv
+# import csv
 import scipy.optimize as opt
+from labscriptlib.shot_globals import shot_globals
 
 # Constants
-px = 5.5 # Pixels size
-mag = 0.4 # Magnefication
-counts_per_atom = 16.6 # Counts per atom 16.6 counts per atom per ms
-roi_x = [850, 1250] # Region of interest of X direction
-roi_y = [750, 1150] # Region of interest of Y direction
-roi_x_bkg = [1900, 2400] # Region of interest of X direction
-roi_y_bkg= [1900, 2400] # Region of interest of Y direction
-m = 2.20694650e-25 # kg mass of cesium
-kB = 1.3806503e-23 # J/K Boltzman constant
+px = 5.5  # Pixels size
+mag = 0.4  # Magnefication
+counts_per_atom = 16.6  # Counts per atom 16.6 counts per atom per ms
+# roi_x = [900, 1200]
+# roi_y = [900, 1200]
+roi_x = [800, 1100]
+roi_y = [900, 1200]
+
+# roi_x = [850, 1250] # Region of interest of X direction
+# roi_y = [750, 1150] # Region of interest of Y direction
+roi_x_bkg = [1900, 2400]  # Region of interest of X direction
+roi_y_bkg = [1900, 2400]  # Region of interest of Y direction
+m = 2.20694650e-25  # kg mass of cesium
+kB = 1.3806503e-23  # J/K Boltzman constant
 
 #2D Gaussian function with the capability to rotate the axes by angle theta. Returns 1D array,instead of 2D, using ravel, which is necessary for fitting.
 def twoD_Gaussian(xy, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
@@ -42,8 +51,32 @@ def twoD_Gaussian(xy, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
     a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
     b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
     c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
-    g = offset + amplitude*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo) + c*((y-yo)**2)))
+    g = offset + amplitude*np.exp(- (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo) + c*((y-yo)**2)))
     return g.ravel()
+
+
+def gauss2D(x, amplitude, mux, muy, sigmax, sigmay, rotation, offset):
+    """
+    2D Gaussian, see: https://en.wikipedia.org/wiki/Gaussian_function
+    Parameters:
+        amplitude
+        mux
+        muy
+        sigmax
+        sigmay
+        rotation
+        slopex
+        slopey
+        offset
+    """
+    assert len(x) == 2
+    X = x[0]
+    Y = x[1]
+    A = (np.cos(rotation)**2)/(2*sigmax**2) + (np.sin(rotation)**2)/(2*sigmay**2)
+    B = (np.sin(rotation*2))/(4*sigmay**2) - (np.sin(2*rotation))/(4*sigmax**2)
+    C = (np.sin(rotation)**2)/(2*sigmax**2) + (np.cos(rotation)**2)/(2*sigmay**2)
+    G = amplitude*np.exp(-(A * (X - mux) ** 2 + 2 * B * (X - mux) * (Y - muy) + C * (Y - muy) ** 2)) + offset  # + slopex * X + slopey * Y + offset
+    return G.ravel()  # np.ravel() Return a contiguous flattened array.
 
 
 # Is this script being run from within an interactive lyse session?
@@ -84,7 +117,7 @@ roi_MOT = sub_image[roi_y[0]:roi_y[1], roi_x[0]:roi_x[1]]
 roi_bkg = sub_image[roi_y_bkg[0]:roi_y_bkg[1], roi_x_bkg[0]:roi_x_bkg[1]]
 
 
-#Creating a grid for the Gaussian fit
+# Creating a grid for the Gaussian fit
 x_size = roi_x[1]-roi_x[0]
 y_size = roi_y[1]-roi_y[0]
 x = np.linspace(0, x_size-1, x_size)
@@ -93,16 +126,31 @@ x, y = np.meshgrid(x, y)
 
 ###### An initial guess (which the results seem to be roughly robust to) and fit
 #initial_guess = [ 3.48026329e+02,  2.31670864e+02,  1.92715502e+02,  5.56796476e+01,5.99932795e+01, -2.08146521e-01,  1.17119223e+01]
-initial_guess = [2666.35537127,  231.94367821,  186.53784832,   29.84723883,
-         37.6077219 ,   18.8263272 ,   15.97871513]
-popt, pcov = opt.curve_fit(twoD_Gaussian, (x, y), roi_MOT.ravel(), p0=initial_guess)
+# initial_guess = np.array([62.3451402 , 111.05955417, 213.15920305,  33.02471839,
+#         24.05161137,   5.43720939,  -0.25069135])
+
+# ind = np.unravel_index(np.argmax(roi_MOT, axis=None), roi_MOT.shape)
+# initial_guess = np.array([np.max(roi_MOT), *ind, x_size/2, y_size/2, 0, 0])
+initial_guess = np.array([np.max(roi_MOT), x_size/2, y_size/2, x_size/2, y_size/2, 0, 0])
+# np.array([ 5.50211592e+01,  1.11880793e+02,  1.68233167e+02,  2.70126498e+01,
+#         3.78308458e+01, -2.58729750e+00,  1.03113035e-01])
+# np.array([ 50.84076777, 261.28397715, 116.98008048,  38.41147601,
+#         27.28217021, -13.57208579,   1.6931073 ])
+
+# [2666.35537127,  231.94367821,  186.53784832,   29.84723883, 37.6077219 ,   18.8263272 ,   15.97871513]
+# popt, pcov = opt.curve_fit(twoD_Gaussian, (x, y), roi_MOT.ravel(), p0=initial_guess)
+popt, pcov = opt.curve_fit(gauss2D, (y, x), roi_MOT.ravel(), p0=initial_guess)
 # print(repr(popt))
-fit = twoD_Gaussian((x, y), *popt)
+#fit = twoD_Gaussian((x, y), *popt)
+fit = gauss2D((y, x), *popt)
 # Integrating the Gaussian fit based on the amplitude and standard deviations
-atom_number_gaussian = 2 * np.pi * popt[0] * popt[3] * popt[4] / counts_per_atom
-sigma = sorted([popt[3], popt[4]]) #gaussian waiast in pixel, [short axis, long axis]
+atom_number_gaussian = np.abs(2 * np.pi * popt[0] * popt[3] * popt[4] / counts_per_atom)
+sigma = np.sort(np.abs([popt[3], popt[4]]))  # gaussian waiast in pixel, [short axis, long axis]
 gaussian_waist = np.array(sigma)*px*1e-6/mag # convert from pixel to distance m
-tof = g['tof_imaging_delay']
+
+tof = g['bm_tof_imaging_delay']
+if g['do_dipole_trap_tof_check'] == True:
+    tof = g['img_tof_imaging_delay']
 print(gaussian_waist)
 temperature = m / kB * (gaussian_waist/tof)**2
 
@@ -133,7 +181,7 @@ for ax in axs[1]:
     ax.set_xlabel('x [um]')
     ax.set_ylabel('y [um]')
 
-image_scale = 1000
+image_scale = 30 #300
 # raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 

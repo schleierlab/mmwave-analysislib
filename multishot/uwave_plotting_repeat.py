@@ -41,54 +41,74 @@ folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 count_file_path = folder_path+'\\data.csv'
 
 
+try:
+    with h5py.File(h5_path, mode='r+') as f:
+        g = hz.attributesToDictionary(f['globals'])
+        for group in g:
+            for glob in g[group]:
+                if g[group][glob][0:2] == "np":
+                    loop_glob = glob
+                    # print(repr(glob))
+                    # print(g[group][glob][:])
+                    number_of_detunings = np.size(eval(g[group][glob][:]))
+                    print(f"group = {str(group)}, glob = {str(glob)}")
+                    unit = hz.attributesToDictionary(f['globals'][str(group)])['units'][str(glob)]
+                if glob == 'n_shot':
+                    number_of_detunings_bk = np.size(eval('np.'+g[group][glob][:]))
+                    unit_bk = 'shots'
 
-with h5py.File(h5_path, mode='r+') as f:
-    g = hz.attributesToDictionary(f['globals'])
-    for group in g:
-        for glob in g[group]:
-            if g[group][glob][0:2] == "np":
-                loop_glob = glob
-                # print(g[group][glob][:])
-                number_of_detunings = np.size(eval(g[group][glob][:]))
+    try:
+        print(f"number of detunings = {number_of_detunings}")
+    except:
+        number_of_detunings = number_of_detunings_bk
+        loop_glob = 'n_shot'
+        unit = unit_bk
+        print(f"number of detunings = {number_of_detunings}")
 
-counts = []
-var = []
-
-
-
-with open(count_file_path, newline='') as csvfile:
-    reader = csv.reader(csvfile, delimiter=',')
-    for row in csv.reader(csvfile , delimiter=','):
-        # print(row)
-        counts.append(list(map(float, row))[0])
-        var.append(list(map(float, row))[1])
-
-fig, ax = plt.subplots(constrained_layout=True)
-
-# number_of_detunings = 9
-collected_counts = [[] for i in range(number_of_detunings)]
-collected_vars = [[] for i in range(number_of_detunings)]
-i=0
-for c,v in zip(counts,var):
-    collected_counts[i%number_of_detunings].append(c)
-    collected_vars[i%number_of_detunings].append(v)
-    i+=1
-
-avg_counts = [np.mean(collected_counts[i]) for i in range(number_of_detunings)]
-avg_vars = [np.mean(collected_vars[i]) for i in range(number_of_detunings)]
-
-std_counts = [np.std(collected_counts[i]) for i in range(number_of_detunings)]
-
-print(avg_counts, avg_vars)
+    counts = []
+    var = []
 
 
 
-# ax.plot(avg_vars, avg_counts)
-ax.errorbar(avg_vars, avg_counts, yerr=std_counts, fmt='-o')
-# ax.set_xlabel('time (s)')
-ax.set_xlabel('detuning (MHz)')
-# ax.set_ylabel('Gaussian Peak (counts)')
-ax.set_ylabel('Fault rate')
+    with open(count_file_path, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=',')
+        for row in csv.reader(csvfile , delimiter=','):
+            # print(row)
+            counts.append(list(map(float, row))[0])
+            var.append(list(map(float, row))[1])
 
-ax.grid(color='0.7', which='major')
-ax.grid(color='0.9', which='minor')
+    fig, ax = plt.subplots(constrained_layout=True)
+
+    # number_of_detunings = 9
+    collected_counts = [[] for i in range(number_of_detunings)]
+    collected_vars = [[] for i in range(number_of_detunings)]
+    i=0
+    for c,v in zip(counts,var):
+        collected_counts[i%number_of_detunings].append(c)
+        collected_vars[i%number_of_detunings].append(v)
+        i+=1
+
+    avg_counts = [np.mean(collected_counts[i]) for i in range(number_of_detunings)]
+    avg_vars = [np.mean(collected_vars[i]) for i in range(number_of_detunings)]
+
+    std_counts = [np.std(collected_counts[i]) for i in range(number_of_detunings)]
+
+    # print(avg_counts, avg_vars)
+
+
+
+    # ax.plot(avg_vars, avg_counts)
+    ax.errorbar(avg_vars, avg_counts, yerr=std_counts, fmt='-o')
+    # ax.set_xlabel('time (s)')
+    ax.set_xlabel(f'{loop_glob} ({unit})')
+    # ax.set_ylabel('Gaussian Peak (counts)')
+    ax.set_ylabel('Survival rate')
+    # ax.set_ylabel('survival rate')
+
+    ax.grid(color='0.7', which='major')
+    ax.grid(color='0.9', which='minor')
+
+    ax.tick_params(axis='both', which='major', labelsize=20)
+    ax.tick_params(axis='both', which='minor', labelsize=10)
+except:
+    print("no data.csv found")

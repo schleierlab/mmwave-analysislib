@@ -29,6 +29,15 @@ mag = 0.4 # Magnefication
 counts_per_atom = 16.6 # Counts per atom 16.6 counts per atom per ms
 roi_x = [550, 1350]#roi_x = [850, 1250] # Region of interest of X direction
 roi_y = [650, 1450] #[750, 1150] # Region of interest of Y direction
+
+# smaller ROI, 20240605
+roi_x = [800,1100]
+roi_y = [900,1200]
+
+# roi_x = [900, 1200]
+# roi_y = [900, 1200]
+
+
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
 
@@ -101,7 +110,7 @@ for ax in axs[1]:
     ax.set_xlabel('x [um]')
     ax.set_ylabel('y [um]')
 
-image_scale = 300 #100 #200 #4096 #100
+image_scale = 300 #300 #100 #200 #4096 #100
 raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax= image_scale)
 
 ax_mot_raw.set_title('Raw')
@@ -115,7 +124,7 @@ fig.colorbar(pos, ax=ax_bkg_raw)
 ax_mot_roi.set_title('MOT ROI')
 pos = ax_mot_roi.imshow(
     roi_MOT,
-    extent=px*mag*np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]]),
+    extent=np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]]), #factor: px*mag
     **raw_img_color_kw,
 )
 fig.colorbar(pos, ax=ax_mot_roi)
@@ -125,7 +134,7 @@ pos = ax_bkg_roi.imshow(
     roi_bkg,
     vmin=-10,
     vmax=10,
-    extent=px*mag*np.array([roi_x_bkg[0], roi_x_bkg[1], roi_y_bkg[0], roi_y_bkg[1]]),
+    extent=np.array([roi_x_bkg[0], roi_x_bkg[1], roi_y_bkg[0], roi_y_bkg[1]]), #factor: px*mag
 )
 fig.colorbar(pos, ax=ax_bkg_roi)
 

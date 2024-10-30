@@ -31,6 +31,7 @@ import glob
 
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
+# from tweezer_imaging_fidelity_measurement_alternating_bkg import survival_rate
 
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
@@ -246,18 +247,19 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
 
     def threshold(c1, mu1, sigma1, c2, mu2, sigma2, cpa):
         #calcuate threshold based on the double gaussian fit.
-        x = np.linspace(-0.25*cpa,1.5*cpa,1000)
+        # x = np.linspace(-0.25*cpa,1.5*cpa,1000)
+        x = np.linspace(mu1,mu2,1000)
         f = double_gaussian_fit(x, c1, mu1, sigma1, 0, mu2, sigma2)
         g = double_gaussian_fit(x, 0, mu1, sigma1, c2, mu2, sigma2)
-        idx = np.argwhere(np.diff(np.sign(f-g))).flatten() # could have another point at negative value (or much larger than 1cpa?) so we need to exclude it
+        #idx = np.argwhere(np.diff(np.sign(f-g))).flatten() # could have another point at negative value (or much larger than 1cpa?) so we need to exclude it
+        idx = np.argmin(np.abs(f-g)).flatten() # could have another point at negative value (or much larger than 1cpa?) so we need to exclude it
         # if len(idx) > 1:
         #     x0 = abs(0.5*cpa-x[idx[0]])
         #     x1 = abs(0.5*cpa-x[idx[1]])
         return x[idx]
 
-
-    def prob_of_one_atom(c0,sigma0, c1, sigma1):
-        prob = c1*sigma1/(c0*sigma0+c1*sigma1)
+    def prob_of_one_atom(c0, sigma0, c1, sigma1):
+        prob = c1*sigma1 / (c0*sigma0 + c1*sigma1)
         return prob
 
     def image_fidelity(mu1, sigma1, mu2, sigma2, ff, th):
@@ -343,13 +345,13 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 2000
-    sigma1 = 0.1*cpa
-    sigma2 = 0.1*cpa
-    mu1 = 0
+    cpa = 2000 #np.max(first_shot_roi_number)/2 #2000
+    sigma1 = 0.1*cpa #0.1*cpa
+    sigma2 = 0.1*cpa #0.1*cpa
+    mu1 = 500
     mu2 = cpa
     c1 = max(y_hist)
-    c2 = c1+2000
+    c2 = c1 #+ cpa #2000
     param_optimised,param_covariance_matrix = optimize.curve_fit(double_gaussian_fit,x_hist,y_hist,p0=[c1, mu1, sigma1, c2, mu2, sigma2])
 
     (c0, mu0, s0, c1, mu1, s1) = param_optimised
@@ -357,8 +359,14 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
     s1 = abs(s1)
     cpa = mu1
     th = threshold(c0, mu0, s0, c1, mu1, s1, cpa)
+    th1 = th
     ff = prob_of_one_atom(c0,s0, c1, s1) #filling fraction
     f = image_fidelity(mu0, s0, mu1, s1, ff, th)
+
+    if print_value == True:
+        print('1st image Probability of one atom = ', ff)
+        print('1st image Imaging fidelity upper limit =', f)
+        print('1st image threshold = ', th)
 
     fig_2, axs_2 = plt.subplots(nrows=1, ncols=2, constrained_layout=True)
     (ax_first_image_2, ax_second_image_2) = axs_2
@@ -368,6 +376,7 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
         ax.set_ylabel('Probability')
 
     if plot_double_gaussian_fit == True:
+        print(' [c1, mu1, sigma1, c2, mu2, sigma2] =', param_optimised)
         x_hist_2=np.linspace(np.min(x_hist),np.max(x_hist),500)
         ax_first_image_2.plot(x_hist_2,double_gaussian_fit(x_hist_2,*param_optimised),'r.:',label='Double-Gaussian fit')
         ax_first_image_2.legend()
@@ -378,14 +387,12 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
 
         #setting the label,title and grid of the plot
         ax_first_image_2.grid("on")
-        ax_first_image_2.set_title(f"first shot")
-        print(' [c1, mu1, sigma1, c2, mu2, sigma2] =', param_optimised)
+        ax_first_image_2.set_title(f"first shot,p = {ff:.2f},\n th = {th[0]:.1f}, f = {f[0]:.4f}"
+        )
+
         #print('mu2/sigma2 =', param_optimised[4]/param_optimised[5])
 
-    if print_value == True:
-        print('1st image Probability of one atom = ', prob_of_one_atom(c0,s0, c1, s1))
-        print('1st image Imaging fidelity upper limit =', image_fidelity(mu0, s0, mu1, s1, ff, th))
-        print('1st image threshold = ', th)
+
 
 
     second_shot_roi_number = roi_number_lst[1,:]
@@ -440,50 +447,255 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
         ax_second_image_2.grid("on")
         print('[C, mu, sigma, CPA] =', param_optimised)
 
-    #double_gaussian_fit
-    cpa = 2000
-    sigma1 = 0.1*cpa
-    sigma2 = 0.1*cpa
-    mu1 = 0
-    mu2 = cpa
-    c1 = max(y_hist)
-    c2 = c1+2000
-    param_optimised,param_covariance_matrix = optimize.curve_fit(double_gaussian_fit,x_hist,y_hist,p0=[c1, mu1, sigma1, c2, mu2, sigma2])
+    # #double_gaussian_fit
+    # cpa = 2000 #np.max(second_shot_roi_number)/2 #1200 #2000
+    # sigma1 = 0.1*cpa #0.1*cpa
+    # sigma2 = 0.1*cpa #0.1*cpa
+    # mu1 = 500
+    # mu2 = cpa
+    # c1 = max(y_hist)
+    # c2 = c1 #+ cpa #2000
+    # param_optimised, param_covariance_matrix = optimize.curve_fit(double_gaussian_fit,x_hist,y_hist,p0=[c1, mu1, sigma1, c2, mu2, sigma2])
 
-    (c0, mu0, s0, c1, mu1, s1) = param_optimised
-    s0 = abs(s0)
-    s1 = abs(s1)
-    cpa = mu1
-    th = threshold(c0, mu0, s0, c1, mu1, s1, cpa)
-    ff = prob_of_one_atom(c0,s0, c1, s1) #filling fraction
-    f = image_fidelity(mu0, s0, mu1, s1, ff, th)
+    # (c0, mu0, s0, c1, mu1, s1) = param_optimised
+    # s0 = abs(s0)
+    # s1 = abs(s1)
+    # cpa = mu1
+    # th = threshold(c0, mu0, s0, c1, mu1, s1, cpa)
+    # ff = prob_of_one_atom(c0, s0, c1, s1) #filling fraction
+    # f = image_fidelity(mu0, s0, mu1, s1, ff, th)
 
-    if plot_double_gaussian_fit == True:
-        x_hist_2=np.linspace(np.min(x_hist),np.max(x_hist),500)
-        ax_second_image_2.plot(x_hist_2,double_gaussian_fit(x_hist_2,*param_optimised),'r.:',label='Double-Gaussian fit')
-        ax_second_image_2.legend()
+    # if print_value == True:
+    #     print('2nd image Probability of one atom = ', ff)
+    #     print('2nd image Imaging fidelity upper limit =', f)
+    #     print('2nd image threshold = ', th)
 
-        #Normalise the histogram values
-        weights = np.ones_like(x_data) / len(x_data)
-        ax_second_image_2.hist(x_data, weights=weights, bins = n_bin)
+    # if plot_double_gaussian_fit == True:
+    #     print(' [c1, mu1, sigma1, c2, mu2, sigma2] =', param_optimised)
+    #     x_hist_2=np.linspace(np.min(x_hist),np.max(x_hist),500)
+    #     ax_second_image_2.plot(x_hist_2,double_gaussian_fit(x_hist_2,*param_optimised),'r.:',label='Double-Gaussian fit')
+    #     ax_second_image_2.legend()
 
-        #setting the label,title and grid of the plot
-        ax_second_image_2.grid("on")
-        ax_second_image_2.set_title(f"second shot")
-        print(' [c1, mu1, sigma1, c2, mu2, sigma2] =', param_optimised)
-        #print('mu2/sigma2 =', param_optimised[4]/param_optimised[5])
+    #     #Normalise the histogram values
+    #     weights = np.ones_like(x_data) / len(x_data)
+    #     ax_second_image_2.hist(x_data, weights=weights, bins = n_bin)
 
-    if print_value == True:
-        print('2nd image Probability of one atom = ', prob_of_one_atom(c0,s0, c1, s1))
-        print('2nd image Imaging fidelity upper limit =', image_fidelity(mu0, s0, mu1, s1, ff, th))
-        print('2nd image threshold = ', th)
+    #     #setting the label,title and grid of the plot
+    #     ax_second_image_2.grid("on")
+    #     ax_second_image_2.set_title(f"second shot, p = {ff:.2f}, \n th = {th[0]:.1f}, f = {f[0]:.4f}")
+    #     #print('mu2/sigma2 =', param_optimised[4]/param_optimised[5])
 
-
-
-
+    return th1, cpa, ff, f
 
 
-    return th, cpa, ff, f
+# def survival_rate_each_roi(roi_number_lst, thold, site_roi_x, site_roi_y, n_shots, shots = 'defult',loop = True, plot = True, tw_dim = '1D'): #thold means threshold
+
+    # if shots == 'defult':
+    #     shots = n_shots
+
+    # if loop == True:
+    #     N = int(n_shots/2)
+    # else:
+    #     N = n_shots
+
+    # n = len(site_roi_x)-1
+    # surv_arr = np.zeros((n, shots))
+    # lost_arr = np.zeros((n, shots))
+    # appear_arr = np.zeros((n, shots))
+    # nothing_arr = np.zeros((n, shots))
+
+    # surv_rate_arr = np.zeros((n, shots))
+    # appear_rate_arr = np.zeros((n, shots))
+
+    # for cnt in (np.arange(shots)): # cnt is shot number
+    #     for i in np.arange(site_roi_x.shape[0])[1:]:
+    #         electron_counts1 = roi_number_lst[0, i, cnt]
+    #         electron_counts2 = roi_number_lst[1, i, cnt]
+    #         if electron_counts1> thold and electron_counts2> thold:
+    #             surv_arr[i-1,cnt] = 1
+    #         elif electron_counts1> thold and electron_counts2<= thold:
+    #             lost_arr[i-1,cnt] = 1
+    #         elif electron_counts1<= thold and electron_counts2> thold:
+    #             appear_arr[i-1,cnt] = 1
+    #         elif electron_counts1<= thold and electron_counts2<= thold:
+    #             nothing_arr[i-1,cnt] = 1
+
+    # tot_surv = np.sum(surv_arr, axis = 1)
+    # tot_lost = np.sum(lost_arr, axis = 1)
+    # surv_rate_arr = np.divide(tot_surv, tot_surv+tot_lost)
+
+    # tot_appear = np.sum(appear_arr, axis = 1)
+    # tot_nothing = np.sum(nothing_arr, axis = 1)
+    # appear_rate_arr = np.divide(tot_appear, tot_appear+tot_nothing)
+
+    # fault_rate_arr = appear_rate_arr + 1 - surv_rate_arr
+    # # total = tot_surv+tot_lost+tot_appear+tot_nothing
+    # # print('debug', total)
+    # print('average survival rate:',np.sum(surv_rate_arr)/len(surv_rate_arr))
+    # print('average new appear rate:',np.sum(appear_rate_arr)/len(appear_rate_arr))
+
+    # if plot == True:
+    #     if tw_dim == '2D':
+    #         fig, axs = plt.subplots(nrows=1, ncols=1)
+    #         fig.suptitle(f'survival rate, {n_shots} shots average')
+    #         site_roi_x = site_roi_x - roi_x[0]
+    #         n_site_roi_x = site_roi_x[1:]
+    #         n_site_roi_y = site_roi_y[1:]
+    #         x_arr = np.sum(n_site_roi_x, axis = 1)/2
+    #         y_arr = np.sum(n_site_roi_y, axis = 1)/2
+
+    #         sc = axs.scatter(x_arr,y_arr,c = surv_rate_arr ,s = 300)
+    #         axs.set_xlabel('x [px]')
+    #         axs.set_ylabel('y [px]')
+    #         cbar = fig.colorbar(sc)
+    #         plt.show()
+
+    #         fig, axs = plt.subplots(nrows=1, ncols=1)
+    #         fig.suptitle(f'appear rate, {n_shots} shots average')
+    #         sc = axs.scatter(x_arr,y_arr,c = appear_rate_arr ,s = 300)
+    #         axs.set_xlabel('x [px]')
+    #         axs.set_ylabel('y [px]')
+    #         cbar = fig.colorbar(sc)
+    #         plt.show()
+
+    #         fig, axs = plt.subplots(nrows=1, ncols=1)
+    #         fig.suptitle(f'fault rate, {n_shots} shots average')
+    #         sc = axs.scatter(x_arr,y_arr,c = fault_rate_arr ,s = 300)
+    #         axs.set_xlabel('x [px]')
+    #         axs.set_ylabel('y [px]')
+    #         cbar = fig.colorbar(sc)
+    #         plt.show()
+    #     elif tw_dim =='1D':
+    #         fig, axs = plt.subplots(nrows=1, ncols=1)
+    #         site_roi_x = site_roi_x - roi_x[0]
+    #         n_site_roi_x = site_roi_x[1:]
+    #         n_site_roi_y = site_roi_y[1:]
+    #         x_arr = np.sum(n_site_roi_x, axis = 1)/2
+    #         y_arr = np.sum(n_site_roi_y, axis = 1)/2
+
+    #         axs.plot(x_arr, surv_rate_arr,'o')
+    #         axs.grid()
+    #         axs.set_xlabel('x [px]')
+    #         axs.set_ylabel(f'survival rate, {n_shots} shots average')
+    #         axs.set_title(f'average survival rate: {np.mean(surv_rate_arr)}')
+    #         plt.show()
+
+    #         fig, axs = plt.subplots(nrows=1, ncols=1)
+    #         axs.plot(x_arr, appear_rate_arr,'o')
+    #         axs.grid()
+    #         axs.set_xlabel('x [px]')
+    #         axs.set_ylabel(f'appear rate, {n_shots} shots average')
+    #         axs.set_title(f'average appear rate: {np.mean(appear_rate_arr)}')
+    #         plt.show()
+
+    #         fig, axs = plt.subplots(nrows=1, ncols=1)
+    #         axs.plot(x_arr, fault_rate_arr,'o')
+    #         axs.grid()
+    #         axs.set_xlabel('x [px]')
+    #         axs.set_ylabel(f'fault rate, {n_shots} shots average')
+    #         axs.set_title(f'average fault rate: {np.mean(fault_rate_arr)}')
+    #         plt.show()
+    #     else:
+    #         print('You have not specified 1D or 2D')
+
+    # else:
+    #     sur_avg = np.mean(surv_rate_arr)
+    #     app_avg = np.mean(appear_rate_arr)
+    #     fault_avg = np.mean(fault_rate_arr)
+    #     return (sur_avg, app_avg, fault_avg)
+
+def survival_rate(roi_number_lst, th, site_roi_x, folder_path):
+    """
+    Calculates the survival rate, appear rate, lost rate, and fidelity for each ROI in a given region of interest (ROI).
+
+    Parameters:
+    - roi_number_lst (ndarray): A 3-dimensional array containing the number of atoms in each ROI for two shots.
+    - th (float): The threshold value for determining the presence of atoms in an ROI.
+    - site_roi_x (ndarray): A 2-dimensional array containing the x-coordinates of the ROIs.
+
+    Returns:
+    - None
+
+    This function calculates the survival rate, appear rate, lost rate, and fidelity for each ROI based on the number of atoms in each ROI for two shots. The survival rate is calculated as the ratio of survival points to the total number of atoms in the first shot. The appear rate is calculated as the ratio of appear points to the total number of atoms in the first shot without atoms. The lost rate is calculated as the ratio of lost points to the total number of atoms in the first shot. The fidelity is calculated as 1 minus the sum of the lost rate and appear rate. The results are plotted in a 2x2 subplot grid, with each subplot displaying the average survival rate, appear rate, lost rate, and fidelity for each ROI.
+
+    Note:
+    - The function assumes that the roi_number_lst array has a shape of (2, M, N), where M is the number of ROIs and N is the number of atoms in each ROI.
+    - The function assumes that the site_roi_x array has a shape of (M, 2), where M is the number of ROIs and the array contains the x-coordinates of the ROIs.
+    """
+    print(roi_number_lst.shape)
+    first_shot_atom_number = roi_number_lst[0,1:site_roi_x.shape[0]+1,:]
+    bkg_number_lst = roi_number_lst[0, 0, :]
+    second_shot_atom_number = roi_number_lst[1,1:site_roi_x.shape[0]+1,:]
+
+    survival_points = (first_shot_atom_number>th) & (second_shot_atom_number>th)
+    appear_points = (first_shot_atom_number<=th) & (second_shot_atom_number>th)
+    lost_points = (first_shot_atom_number>th) & (second_shot_atom_number<=th)
+    nothing_points = (first_shot_atom_number<=th) & (second_shot_atom_number<=th)
+
+    print(first_shot_atom_number.shape)
+    print(site_roi_x.shape[0])
+    first_shot_atom_sum_each_roi = np.array([np.sum(first_shot_atom_number[i,:]>th) for i in range(site_roi_x.shape[0])])
+    first_shot_no_atom_sum_each_roi = np.array([np.sum(first_shot_atom_number[i,:]<=th) for i in range(site_roi_x.shape[0])])
+
+    survival_sum_each_roi = np.array([np.sum(survival_points[i,:]) for i in range(site_roi_x.shape[0])])
+    appear_sum_each_roi = np.array([np.sum(appear_points[i,:]) for i in range(site_roi_x.shape[0])])
+    lost_sum_each_roi = np.array([np.sum(lost_points[i,:]) for i in range(site_roi_x.shape[0])])
+    nothing_sum_each_roi = np.array([np.sum(nothing_points[i,:]) for i in range(site_roi_x.shape[0])])
+
+    survival_rate_each_roi = survival_sum_each_roi/first_shot_atom_sum_each_roi
+    appear_rate_each_roi = appear_sum_each_roi/first_shot_no_atom_sum_each_roi
+    lost_rate_each_roi = lost_sum_each_roi/first_shot_atom_sum_each_roi
+    fidelity_each_roi = 1 - lost_rate_each_roi - appear_rate_each_roi
+    num_rep = bkg_number_lst.shape[0]
+    loading_rate_each_roi = first_shot_atom_sum_each_roi/(num_rep)
+
+
+
+
+    x_arr = (site_roi_x[:,0]+site_roi_x[:,1])/2
+
+    fig, axs = plt.subplots(nrows=3, ncols=2, constrained_layout=True)
+    fig.suptitle(f'n average = {num_rep}')
+    (ax1, ax2), (ax3, ax4), (ax5, ax6) = axs
+    ax1.plot(x_arr, survival_rate_each_roi,'o')
+    ax1.grid()
+    ax1.set_xlabel('x [px]')
+    ax1.set_ylabel(f'survival rate')
+    ax1.set_title(f'average survival rate: {np.mean(survival_rate_each_roi):.3f}')
+
+    ax2.plot(x_arr, appear_rate_each_roi,'o')
+    ax2.grid()
+    ax2.set_xlabel('x [px]')
+    ax2.set_ylabel(f'appear rate')
+    ax2.set_title(f'average appear rate: {np.mean(appear_rate_each_roi):.3f}')
+
+    ax3.plot(x_arr, lost_rate_each_roi,'o')
+    ax3.grid()
+    ax3.set_xlabel('x [px]')
+    ax3.set_ylabel(f'lost rate')
+    ax3.set_title(f'average lost rate: {np.mean(lost_rate_each_roi):.3f}')
+
+    ax4.plot(x_arr, fidelity_each_roi,'o')
+    ax4.grid()
+    ax4.set_xlabel('x [px]')
+    ax4.set_ylabel(f'fidelity')
+    ax4.set_title(f'average fidelity: {np.mean(fidelity_each_roi):.3f}')
+
+    ax5.plot(x_arr, loading_rate_each_roi,'o')
+    ax5.grid()
+    # ax4.set_xlabel('x [px]')
+    ax5.set_ylabel(f'loading rate')
+    ax5.set_title(f'average loading rate: {np.mean(loading_rate_each_roi):.3f}')
+
+
+
+    # axs.suptitle(f'average imaging fidelity: {1-np.mean(lost_rate_each_roi)-np.mean(appear_rate_each_roi)} ' )
+    plt.tight_layout()
+    plt.show()
+
+    fig.savefig(folder_path + '\plot_1d.png')
+
+    np.savetxt(folder_path + '\plot_1d_data.txt', np.c_[x_arr, survival_rate_each_roi, appear_rate_each_roi, lost_rate_each_roi, fidelity_each_roi, loading_rate_each_roi])
 
 while True:
     try:
@@ -498,28 +710,31 @@ while True:
 folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
 site_roi_x_file_path = folder_path + "\\site_roi_x.npy"
 site_roi_y_file_path =  folder_path + "\\site_roi_y.npy"
+roi_x_file_path = folder_path + "\\roi_x.npy"
 avg_shot_bkg_file_path =  folder_path + "\\avg_shot_bkg.npy"
+th_file_path = folder_path + "\\th.npy"
 avg_bkg_img = np.load(avg_shot_bkg_file_path)
 site_roi_x = np.load(site_roi_x_file_path)
 site_roi_y = np.load(site_roi_y_file_path)
+roi_x = np.load(roi_x_file_path)
 
 # print(f'min site_roi_x={np.min(site_roi_x, axis = 0)}, min site_roi_y={np.min(site_roi_y, axis = 0)}')
-site_roi_x = np.concatenate([[np.min(site_roi_x, axis = 0)], site_roi_x])
-site_roi_y = np.concatenate([[np.min(site_roi_y, axis = 0) + 10], site_roi_y])
+site_roi_x_new = np.concatenate([[np.min(site_roi_x, axis = 0)], site_roi_x])
+site_roi_y_new = np.concatenate([[np.min(site_roi_y, axis = 0) - 10], site_roi_y])
 
 print(f'site_roi_x={site_roi_x}, site_roi_y={site_roi_y}')
 
-(data, roi_number_lst, N) = avg_shots_multi_roi_avg_bkg_sub(folder, site_roi_y, site_roi_x, avg_bkg_img, loop=False)
-plot_shots_avg(data, site_roi_x, site_roi_y, N)
+(data, roi_number_lst, N) = avg_shots_multi_roi_avg_bkg_sub(folder, site_roi_y_new, site_roi_x_new, avg_bkg_img, loop=False)
+
+plot_shots_avg(data, site_roi_x_new, site_roi_y_new, N)
 
 # print(f'roi_number_lst shape = {roi_number_lst.shape}')
-th, cpa, ff, f = histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = True, plot_double_gaussian_fit = True, print_value=True)
+th, cpa, ff, f = histagram_fit_and_threshold(roi_number_lst, site_roi_x_new, plot_histagram = True, plot_double_gaussian_fit = True, print_value=True)
+np.save(th_file_path, th)
 
 folder_path = folder
-roi_number_lst_file_path = folder_path + "\\roi_number_lst.npy"
-th_file_path = folder_path + "\\th.npy"
-np.save(roi_number_lst_file_path, roi_number_lst)
-np.save(th_file_path, th)
+survival_rate(roi_number_lst, th, site_roi_x, folder_path = folder_path)
+# survival_rate_each_roi(roi_number_lst, th, site_roi_x, site_roi_y, N, shots = 'defult',loop = False, plot = True, tw_dim = '1D')
 
 
 root = Tk()

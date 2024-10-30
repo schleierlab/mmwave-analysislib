@@ -41,9 +41,39 @@ folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 count_file_path = folder_path+'\\data.csv'
 
 
+# with h5py.File(h5_path, mode='r+') as f:
+#     g = hz.attributesToDictionary(f['globals'])
+#     number_of_detunings = np.size(eval(g['Optical pumping, Microwaves']['uwave_detuning']))
+
+# with h5py.File(h5_path, mode='r+') as f:
+#     g = hz.attributesToDictionary(f['globals'])
+#     for group in g:
+#         for glob in g[group]:
+#             if glob == "mw_detuning":
+#                 number_of_detunings = np.size(eval(g[group][glob][:]))
+
 with h5py.File(h5_path, mode='r+') as f:
     g = hz.attributesToDictionary(f['globals'])
-    number_of_detunings = np.size(eval(g['Optical pumping, Microwaves']['uwave_detuning']))
+    for group in g:
+        for glob in g[group]:
+            if g[group][glob][0:2] == "np":
+                loop_glob = glob
+                # print(repr(glob))
+                # print(g[group][glob][:])
+                number_of_detunings = np.size(eval(g[group][glob][:]))
+                print(f"group = {str(group)}, glob = {str(glob)}")
+                unit = hz.attributesToDictionary(f['globals'][str(group)])['units'][str(glob)]
+            if glob == 'n_shot':
+                number_of_detunings_bk = np.size(eval('np.'+g[group][glob][:]))
+                unit_bk = 'shots'
+
+try:
+    print(f"number of detunings = {number_of_detunings}")
+except:
+    number_of_detunings = number_of_detunings_bk
+    loop_glob = 'n_shot'
+    unit = unit_bk
+    print(f"number of detunings = {number_of_detunings}")
 
 counts = []
 var = []
@@ -58,6 +88,7 @@ with open(count_file_path, newline='') as csvfile:
         var.append(list(map(float, row))[1])
 
 fig, ax = plt.subplots(constrained_layout=True)
+
 
 # number_of_detunings = 9
 collected_counts = [[] for i in range(number_of_detunings)]
@@ -79,8 +110,11 @@ print(avg_counts, avg_vars)
 
 # ax.plot(avg_vars, avg_counts)
 ax.errorbar(avg_vars, avg_counts, yerr=std_counts, fmt='-o')
-ax.set_xlabel('Detuning (MHz)')
+ax.set_xlabel(f'{loop_glob} ({unit})')
 ax.set_ylabel('Gaussian Peak (counts)')
 
 ax.grid(color='0.7', which='major')
 ax.grid(color='0.9', which='minor')
+
+ax.tick_params(axis='both', which='major', labelsize=20)
+ax.tick_params(axis='both', which='minor', labelsize=10)

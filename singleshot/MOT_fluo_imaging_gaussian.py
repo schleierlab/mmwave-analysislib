@@ -24,8 +24,10 @@ import csv
 import scipy.optimize as opt
 
 # Constants
-roi_x = [900, 1150]#roi_x = [850, 1250] # Region of interest of X direction
-roi_y = [950, 1200] #[750, 1150] # Region of interest of Y direction
+roi_x = [800,1100]
+roi_y = [900,1200]
+# roi_x = [900, 1150]#roi_x = [850, 1250] # Region of interest of X direction
+# roi_y = [950, 1200] #[750, 1150] # Region of interest of Y direction
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
 
@@ -142,7 +144,7 @@ roi_bkg = sub_image[roi_y_bkg[0]:roi_y_bkg[1], roi_x_bkg[0]:roi_x_bkg[1]]
 
 
 # popt, pcov = fit_gauss2D(roi_MOT)
-# print(repr(popt))
+# print('popt:', repr(popt))
 # #Integrating the Gaussian fit based on the amplitude and standard deviations
 # gaussian_peak = popt[0]
 
@@ -151,8 +153,10 @@ L = roi_MOT.shape[0]
 x_l = np.arange(L)
 y_l = np.arange(L)
 x, y = np.meshgrid(x_l, y_l)
-popt = [ 4.79446739e+03,  9.43391749e+01,  1.24435700e+02,  3.23410378e+01,
-       2.75529939e+01, -1.06328357e+01, -3.52044817e+00] # go to (Bx, By, Bz) = (0, 0, 0)mG before imaging
+# popt = [ 4.79446739e+03,  9.43391749e+01,  1.24435700e+02,  3.23410378e+01,
+#        2.75529939e+01, -1.06328357e+01, -3.52044817e+00] # go to (Bx, By, Bz) = (0, 0, 0)mG before imaging
+popt = [ 1.40431314e+03,  1.48576514e+02,  1.77962282e+02,  2.86959259e+01,
+        2.56814916e+01, -1.77008675e-01,  6.50570846e+00]
 popt_1, pcov = opt.curve_fit(lambda xy, A, offset: gauss2D(xy, A, popt[1], popt[2],  popt[3],  popt[4], popt[5],  offset), (y, x), roi_MOT.ravel(), p0=(roi_MOT.max() ,0))
 gaussian_peak = popt_1[0]
 print(gaussian_peak)
