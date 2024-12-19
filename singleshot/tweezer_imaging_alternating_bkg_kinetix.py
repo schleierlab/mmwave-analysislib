@@ -88,6 +88,92 @@ def load_roi_data():
     
     return site_roi_x, site_roi_y, roi_x
 
+def analyze_site_signals(tweezer_roi, site_roi_x, site_roi_y):
+    """Analyze signals at each tweezer site."""
+    rect_sig = []
+    atom_exist_lst = []
+    roi_number_lst = []
+    
+    for i in np.arange(site_roi_x.shape[0]):
+        y_start, y_end = site_roi_y[i,0], site_roi_y[i,1]
+        x_start, x_end = site_roi_x[i,0], site_roi_x[i,1]
+        
+        site_roi_signal = tweezer_roi[y_start:y_end, x_start:x_end]
+        signal_sum = np.sum(site_roi_signal)
+        roi_number_lst.append(signal_sum)
+        
+        if signal_sum > THRESHOLD:
+            rect = patches.Rectangle(
+                (x_start, y_start), 
+                x_end - x_start, 
+                y_end - y_start, 
+                linewidth=1,
+                edgecolor='gold',
+                facecolor='none',
+                alpha=0.5,
+                fill=False)
+            rect_sig.append(rect)
+            atom_exist_lst.append(1)
+        else:
+            atom_exist_lst.append(0)
+            
+    return rect_sig, atom_exist_lst, roi_number_lst
+
+def plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2, 
+                rect, rect_sig_1, rect_sig_2):
+    """Plot the analysis results."""
+    # Create figure with larger size
+    fig, axs = plt.subplots(nrows=4, ncols=1, figsize=(10, 20), constrained_layout=True)
+    ax_tweezer_1, ax_tweezer_2, ax_bkg_1, ax_bkg_2 = axs
+
+    # Set larger font sizes
+    plt.rcParams.update({'font.size': 14})
+    fig.suptitle('Tweezer Array Imaging Analysis', fontsize=16)
+
+    for ax in axs:
+        ax.set_xlabel('x [px]', fontsize=14)
+        ax.set_ylabel('y [px]', fontsize=14)
+        ax.tick_params(axis='both', which='major', labelsize=12)
+
+    roi_image_scale = 150
+    roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
+
+    # Plot first tweezer ROI
+    ax_tweezer_1.set_title('1st Tweezer ROI', fontsize=14, pad=10)
+    pos = ax_tweezer_1.imshow(tweezer_roi_1, **roi_img_color_kw)
+    if SHOW_SITE_ROI:
+        pc = PatchCollection(rect, match_original=True, alpha=0.3)
+        ax_tweezer_1.add_collection(pc)
+        if rect_sig_1:
+            pc_sig = PatchCollection(rect_sig_1, match_original=True)
+            ax_tweezer_1.add_collection(pc_sig)
+    cbar = fig.colorbar(pos, ax=ax_tweezer_1)
+    cbar.ax.tick_params(labelsize=12)
+
+    # Plot second tweezer ROI
+    ax_tweezer_2.set_title('2nd Tweezer ROI', fontsize=14, pad=10)
+    pos = ax_tweezer_2.imshow(tweezer_roi_2, **roi_img_color_kw)
+    if SHOW_SITE_ROI:
+        pc = PatchCollection(rect, match_original=True, alpha=0.3)
+        ax_tweezer_2.add_collection(pc)
+        if rect_sig_2:
+            pc_sig = PatchCollection(rect_sig_2, match_original=True)
+            ax_tweezer_2.add_collection(pc_sig)
+    cbar = fig.colorbar(pos, ax=ax_tweezer_2)
+    cbar.ax.tick_params(labelsize=12)
+
+    # Plot first background ROI
+    ax_bkg_1.set_title('1st Background ROI', fontsize=14, pad=10)
+    pos = ax_bkg_1.imshow(bkg_roi_1, **roi_img_color_kw)
+    cbar = fig.colorbar(pos, ax=ax_bkg_1)
+    cbar.ax.tick_params(labelsize=12)
+
+    # Plot second background ROI
+    ax_bkg_2.set_title('2nd Background ROI', fontsize=14, pad=10)
+    pos = ax_bkg_2.imshow(bkg_roi_2, **roi_img_color_kw)
+    cbar = fig.colorbar(pos, ax=ax_bkg_2)
+    cbar.ax.tick_params(labelsize=12)
+
 def process_images(first_image, second_image, first_image_bkg, second_image_bkg, roi_x):
     """Process image pairs with background subtraction."""
     try:
@@ -105,73 +191,6 @@ def process_images(first_image, second_image, first_image_bkg, second_image_bkg,
     bkg_roi_2 = sub_image2[:, ROI_CONFIG['background_x'][0]:ROI_CONFIG['background_x'][1]]
 
     return tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2
-
-def analyze_site_signals(tweezer_roi, site_roi_x, site_roi_y):
-    """Analyze signals at each tweezer site."""
-    rect_sig = []
-    atom_exist_lst = []
-    roi_number_lst = []
-    
-    for i in np.arange(site_roi_x.shape[0]):
-        y_start, y_end = site_roi_y[i,0], site_roi_y[i,1]
-        x_start, x_end = site_roi_x[i,0], site_roi_x[i,1]
-        
-        site_roi_signal = tweezer_roi[y_start:y_end, x_start:x_end]
-        signal_sum = np.sum(site_roi_signal)
-        roi_number_lst.append(signal_sum)
-        
-        if signal_sum > THRESHOLD:
-            rect_sig.append(patches.Rectangle(
-                (x_start, y_start), 
-                x_end - x_start, 
-                y_end - y_start, 
-                linewidth=1, edgecolor='gold', facecolor='none'))
-            atom_exist_lst.append(1)
-        else:
-            atom_exist_lst.append(0)
-            
-    return rect_sig, atom_exist_lst, roi_number_lst
-
-def plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2, 
-                rect, rect_sig_1, rect_sig_2):
-    """Plot the analysis results."""
-    fig, axs = plt.subplots(nrows=2, ncols=2, constrained_layout=True)
-    (ax_tweezer_1, ax_bkg_1), (ax_tweezer_2, ax_bkg_2) = axs
-
-    fig.suptitle('Tweezer Array Imaging Analysis')
-
-    for ax in axs.flat:
-        ax.set_xlabel('x [px]')
-        ax.set_ylabel('y [px]')
-
-    roi_image_scale = 150
-    roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
-
-    # Plot first image pair
-    ax_tweezer_1.set_title('1st tweezer ROI')
-    pos = ax_tweezer_1.imshow(tweezer_roi_1, **roi_img_color_kw)
-    if SHOW_SITE_ROI:
-        ax_tweezer_1.add_collection(PatchCollection(rect, match_original=True))
-        if rect_sig_1:
-            ax_tweezer_1.add_collection(PatchCollection(rect_sig_1, match_original=True))
-    fig.colorbar(pos, ax=ax_tweezer_1)
-
-    ax_bkg_1.set_title('1st background ROI')
-    pos = ax_bkg_1.imshow(bkg_roi_1, **roi_img_color_kw)
-    fig.colorbar(pos, ax=ax_bkg_1)
-
-    # Plot second image pair
-    ax_tweezer_2.set_title('2nd tweezer ROI')
-    pos = ax_tweezer_2.imshow(tweezer_roi_2, **roi_img_color_kw)
-    if SHOW_SITE_ROI:
-        ax_tweezer_2.add_collection(PatchCollection(rect, match_original=True))
-        if rect_sig_2:
-            ax_tweezer_2.add_collection(PatchCollection(rect_sig_2, match_original=True))
-    fig.colorbar(pos, ax=ax_tweezer_2)
-
-    ax_bkg_2.set_title('2nd background ROI')
-    pos = ax_bkg_2.imshow(bkg_roi_2, **roi_img_color_kw)
-    fig.colorbar(pos, ax=ax_bkg_2)
 
 def main():
     # Is this script being run from within an interactive lyse session?
@@ -195,7 +214,11 @@ def main():
             (x_start, y_start),
             x_end - x_start,
             y_end - y_start,
-            linewidth=1, edgecolor='r', facecolor='none'))
+            linewidth=1,
+            edgecolor='r',
+            facecolor='none',
+            alpha=0.3,
+            fill=False))
 
     image_types = list(images.keys())
     pixels = images[image_types[0]].shape[0]
