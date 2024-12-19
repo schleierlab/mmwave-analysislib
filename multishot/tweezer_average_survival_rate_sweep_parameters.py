@@ -3,6 +3,7 @@
 @author: Lin Xin
 """
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -12,25 +13,24 @@ if root_path not in sys.path:
 try:
     lyse
 except:
-    import lyse
+    pass
 
 
-from analysis.data import h5lyze as hz
+import glob
+import os
+from tkinter import Tk
+from tkinter.filedialog import askdirectory
+
+import easygui
+import h5py
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+
 # from analysis.image.process import extractROIDataSingleSequence, getParamArray
 # from analysis.data import autolyze as az
 import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import csv
-import os
-import matplotlib.patches as patches
+from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
-import glob
-import easygui
-
-
-from tkinter import Tk
-from tkinter.filedialog import askdirectory
 
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
@@ -174,7 +174,6 @@ def avg_shots_multi_roi_avg_bkg_sub(folder, site_roi_y, site_roi_x, avg_bkg_img,
 
 def auto_roi_detection(data, neighborhood_size, threshold):
     #choose even number to make the roi centered
-    import scipy.ndimage.filters as filters
     import scipy.ndimage as ndimage
     data_max = ndimage.maximum_filter(data, neighborhood_size)
     maxima = (data == data_max)
@@ -300,8 +299,8 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
             ax.set_ylabel('frequency')
 
         (ax_first_image, ax_second_image) = axs
-        ax_first_image.hist(all_roi_number_lst-bkg_mean, bins = 250, label = f'all sites')
-        ax_first_image.hist(bkg_number_lst-bkg_mean, bins = 10, label = f'0th site, bkg')
+        ax_first_image.hist(all_roi_number_lst-bkg_mean, bins = 250, label = 'all sites')
+        ax_first_image.hist(bkg_number_lst-bkg_mean, bins = 10, label = '0th site, bkg')
         ax_first_image.legend()
         ax_first_image.set_title('first shot')
         #plt.xlim([-5000,10000])
@@ -341,7 +340,7 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
         plt.xlabel("Atoms")
         plt.ylabel("Probability")
         plt.grid("on")
-        plt.title(f"atom roi")
+        plt.title("atom roi")
         plt.show()
         print('[C, mu, sigma, CPA] =', param_optimised)
 
@@ -349,10 +348,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
     cpa = 1500 #np.max(first_shot_roi_number)/2#2000
     sigma1 = 0.1*cpa
     sigma2 = 0.1*cpa
-    mu1 = 200
+    mu1 = 500
     mu2 = cpa
     c1 = max(y_hist)
-    c2 = c1+2000
+    c2 = c1+1000
     param_optimised,param_covariance_matrix = optimize.curve_fit(double_gaussian_fit,x_hist,y_hist,p0=[c1, mu1, sigma1, c2, mu2, sigma2])
 
     (c0, mu0, s0, c1, mu1, s1) = param_optimised
@@ -408,8 +407,8 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
     all_roi_number_lst = second_shot_roi_number[1:site_roi_x.shape[0],:].flatten()
 
     if plot_histagram == True:
-        ax_second_image.hist(all_roi_number_lst-bkg_mean, bins = 250, label = f'all sites')
-        ax_second_image.hist(bkg_number_lst-bkg_mean, bins = 10, label = f'0th site, bkg')
+        ax_second_image.hist(all_roi_number_lst-bkg_mean, bins = 250, label = 'all sites')
+        ax_second_image.hist(bkg_number_lst-bkg_mean, bins = 10, label = '0th site, bkg')
         ax_second_image.legend()
         ax_second_image.set_title('2nd shot')
 
@@ -452,10 +451,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
     cpa = 1500 #np.max(first_shot_roi_number)/2
     sigma1 = 0.1*cpa
     sigma2 = 0.1*cpa
-    mu1 = 200
+    mu1 = 500
     mu2 = cpa
     c1 = max(y_hist)
-    c2 = c1+2000
+    c2 = c1+cpa
     param_optimised,param_covariance_matrix = optimize.curve_fit(double_gaussian_fit,x_hist,y_hist,p0=[c1, mu1, sigma1, c2, mu2, sigma2])
 
     (c0, mu0, s0, c1, mu1, s1) = param_optimised
@@ -526,25 +525,25 @@ def survival_rate(roi_number_lst, th, site_roi_x):
     ax1.plot(x_arr, survival_rate_each_roi,'o')
     ax1.grid()
     ax1.set_xlabel('x [px]')
-    ax1.set_ylabel(f'survival rate')
+    ax1.set_ylabel('survival rate')
     ax1.set_title(f'average survival rate: {np.mean(survival_rate_each_roi)}')
 
     ax2.plot(x_arr, appear_rate_each_roi,'o')
     ax2.grid()
     ax2.set_xlabel('x [px]')
-    ax2.set_ylabel(f'appear rate')
+    ax2.set_ylabel('appear rate')
     ax2.set_title(f'average appear rate: {np.mean(appear_rate_each_roi)}')
 
     ax3.plot(x_arr, lost_rate_each_roi,'o')
     ax3.grid()
     ax3.set_xlabel('x [px]')
-    ax3.set_ylabel(f'lost rate')
+    ax3.set_ylabel('lost rate')
     ax3.set_title(f'average lost rate: {np.mean(lost_rate_each_roi)}')
 
     ax4.plot(x_arr, fidelity_each_roi,'o')
     ax4.grid()
     ax4.set_xlabel('x [px]')
-    ax4.set_ylabel(f'fidelity')
+    ax4.set_ylabel('fidelity')
     ax4.set_title(f'average fidelity: {np.mean(fidelity_each_roi)}')
 
 
@@ -650,37 +649,37 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para, folder_path, d
     ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o')
     ax1.grid()
     # ax1.set_xlabel('x [px]')
-    ax1.set_ylabel(f'survival rate')
+    ax1.set_ylabel('survival rate')
     ax1.set_title(f'average survival rate: {np.mean(survival_rate_each_para):.3f}')
 
     ax2.errorbar(para, appear_rate_each_para, yerr = appear_rate_std_each_para, marker='o')
     ax2.grid()
     # ax2.set_xlabel('x [px]')
-    ax2.set_ylabel(f'appear rate')
+    ax2.set_ylabel('appear rate')
     ax2.set_title(f'average appear rate: {np.mean(appear_rate_each_para):.3f}')
 
     ax3.errorbar(para, lost_rate_each_para, yerr = lost_rate_std_each_para, marker='o')
     ax3.grid()
     # ax3.set_xlabel('x [px]')
-    ax3.set_ylabel(f'lost rate')
+    ax3.set_ylabel('lost rate')
     ax3.set_title(f'average lost rate: {np.mean(lost_rate_each_para):.3f}')
 
     ax4.errorbar(para, fidelity_each_para, yerr= fidelity_std_each_para, marker='o')
     ax4.grid()
     # ax4.set_xlabel('x [px]')
-    ax4.set_ylabel(f'fidelity')
+    ax4.set_ylabel('fidelity')
     ax4.set_title(f'average fidelity: {np.mean(fidelity_each_para):.3f}')
 
     ax5.errorbar(para, loading_rate_each_para, yerr= loading_rate_std_each_para, marker='o')
     ax5.grid()
     # ax4.set_xlabel('x [px]')
-    ax5.set_ylabel(f'loading rate')
+    ax5.set_ylabel('loading rate')
     ax5.set_title(f'average loading rate: {np.mean(loading_rate_each_para):.3f}')
 
     ax6.errorbar(para, first_shot_count_sum_each_para, yerr = first_shot_count_std_each_para, marker='o')
     ax6.grid()
     # ax4.set_xlabel('x [px]')
-    ax6.set_ylabel(f'count sum')
+    ax6.set_ylabel('count sum')
     ax6.set_title(f'average count sum: {np.mean(first_shot_count_sum_each_para):.3f}')
 
 
@@ -784,14 +783,14 @@ def avg_survival_rate_sweep_indvidual_sites(roi_number_lst, th, site_roi_x, para
     c = ax1.pcolor(X, Y, survival_rate_each_para)
     # ax1.grid()
     # ax1.set_xlabel('x [px]')
-    ax1.set_ylabel(f'sites')
+    ax1.set_ylabel('sites')
     ax1.set_title(f'average survival rate: {np.mean(survival_rate_each_para):.3f}')
     fig2.colorbar(c, ax = ax1)
 
     c = ax2.pcolor(X, Y, appear_rate_each_para)
     # ax2.grid()
     # ax2.set_xlabel('x [px]')
-    ax2.set_ylabel(f'sites')
+    ax2.set_ylabel('sites')
     ax2.set_title(f'average appear rate: {np.mean(appear_rate_each_para):.3f}')
     fig2.colorbar(c, ax = ax2)
 
@@ -799,28 +798,28 @@ def avg_survival_rate_sweep_indvidual_sites(roi_number_lst, th, site_roi_x, para
     c = ax3.pcolor(X, Y, lost_rate_each_para)
     # ax3.grid()
     # ax3.set_xlabel('x [px]')
-    ax3.set_ylabel(f'sites')
+    ax3.set_ylabel('sites')
     ax3.set_title(f'average lost rate: {np.mean(lost_rate_each_para):.3f}')
     fig2.colorbar(c, ax = ax3)
 
     c = ax4.pcolor(X, Y, fidelity_each_para)
     # ax4.grid()
     # ax4.set_xlabel('x [px]')
-    ax4.set_ylabel(f'sites')
+    ax4.set_ylabel('sites')
     ax4.set_title(f'average fidelity: {np.mean(fidelity_each_para):.3f}')
     fig2.colorbar(c, ax = ax4)
 
     c = ax5.pcolor(X, Y, loading_rate_each_para)
     # ax4.grid()
     # ax4.set_xlabel('x [px]')
-    ax5.set_ylabel(f'sites')
+    ax5.set_ylabel('sites')
     ax5.set_title(f'average loading rate: {np.mean(loading_rate_each_para):.3f}')
     fig2.colorbar(c, ax = ax5)
 
     for i in np.arange(5):#tweezer_num):
         ax6.plot(para,survival_rate_each_para[i,:], label = f"site{i}")
         # ax6.errorbar(para,survival_rate_each_para[i,:], yerr = survival_rate_std_each_para[i,:], label = f"site{i}")
-    ax6.set_ylabel(f'survival rate')
+    ax6.set_ylabel('survival rate')
     # ax6.legend()
 
     fig2.savefig(folder_path + '\plot_2d.png')

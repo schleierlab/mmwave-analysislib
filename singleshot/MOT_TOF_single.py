@@ -131,7 +131,7 @@ x, y = np.meshgrid(x, y)
 
 # ind = np.unravel_index(np.argmax(roi_MOT, axis=None), roi_MOT.shape)
 # initial_guess = np.array([np.max(roi_MOT), *ind, x_size/2, y_size/2, 0, 0])
-initial_guess = np.array([np.max(roi_MOT), x_size/2, y_size/2, x_size/2, y_size/2, 0, 0])
+initial_guess = np.array([np.max(roi_MOT), x_size/2, y_size/2, x_size/2, y_size/2, 0, np.min(roi_MOT)])#0])
 # np.array([ 5.50211592e+01,  1.11880793e+02,  1.68233167e+02,  2.70126498e+01,
 #         3.78308458e+01, -2.58729750e+00,  1.03113035e-01])
 # np.array([ 50.84076777, 261.28397715, 116.98008048,  38.41147601,

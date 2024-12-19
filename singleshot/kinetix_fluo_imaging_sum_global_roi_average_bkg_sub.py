@@ -29,7 +29,7 @@ import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 from pathlib import Path
 
-show_site_roi = True #False
+show_site_roi = False
 load_roi = True
 load_threshold = True
 
@@ -159,7 +159,9 @@ with h5py.File(h5_path, mode='r+') as f:
     try:
         kinetix_roi_row= np.array(hz.attributesToDictionary(f).get('globals').get('kinetix_roi_row'))
     except:
-        kinetix_roi_row = np.array([1045,110])
+        kinetix_roi_row = np.array([1000,110])
+
+    print(kinetix_roi_row)
     run_number = info_dict.get('run number')
     target_array = list(eval(f['/globals/Tweezers'].attrs['TW_target_array']))
     #print(f'run_number = {run_number} ')

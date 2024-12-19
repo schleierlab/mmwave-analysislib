@@ -110,7 +110,7 @@ for ax in axs[1]:
     ax.set_xlabel('x [um]')
     ax.set_ylabel('y [um]')
 
-image_scale = 300 #300 #100 #200 #4096 #100
+image_scale = 100 #300 #100 #200 #4096 #100
 raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax= image_scale)
 
 ax_mot_raw.set_title('Raw')

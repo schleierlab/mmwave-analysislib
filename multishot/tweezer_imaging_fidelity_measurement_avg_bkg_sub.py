@@ -28,6 +28,7 @@ import os
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 import glob
+from pathlib import Path
 
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
@@ -447,8 +448,8 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
         ax_second_image_2.grid("on")
         print('[C, mu, sigma, CPA] =', param_optimised)
 
-    # #double_gaussian_fit
-    # cpa = 2000 #np.max(second_shot_roi_number)/2 #1200 #2000
+    # # #double_gaussian_fit
+    # cpa = 1000 #np.max(second_shot_roi_number)/2 #1200 #2000
     # sigma1 = 0.1*cpa #0.1*cpa
     # sigma2 = 0.1*cpa #0.1*cpa
     # mu1 = 500
@@ -711,7 +712,7 @@ folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
 site_roi_x_file_path = folder_path + "\\site_roi_x.npy"
 site_roi_y_file_path =  folder_path + "\\site_roi_y.npy"
 roi_x_file_path = folder_path + "\\roi_x.npy"
-avg_shot_bkg_file_path =  folder_path + "\\avg_shot_bkg.npy"
+avg_shot_bkg_file_path =  Path(Path(folder).parent, 'avg_shot_bkg.npy') #folder_path + "\\avg_shot_bkg.npy"
 th_file_path = folder_path + "\\th.npy"
 avg_bkg_img = np.load(avg_shot_bkg_file_path)
 site_roi_x = np.load(site_roi_x_file_path)

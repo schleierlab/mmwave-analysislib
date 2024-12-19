@@ -116,5 +116,5 @@ ax.set_ylabel('Gaussian Peak (counts)')
 ax.grid(color='0.7', which='major')
 ax.grid(color='0.9', which='minor')
 
-ax.tick_params(axis='both', which='major', labelsize=20)
+ax.tick_params(axis='both', which='major', labelsize=10)
 ax.tick_params(axis='both', which='minor', labelsize=10)

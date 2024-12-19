@@ -28,9 +28,9 @@ import os
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 
-show_site_roi = True #False
+show_site_roi = False
 load_roi = True
-threshold = 664.41858082 #402.6 #1296.38231822 #800 #1200 #1650.74963255 #2.65731089e+03 * 0.9
+threshold = 1185.5 #402.6 #1296.38231822 #800 #1200 #1650.74963255 #2.65731089e+03 * 0.9
 
 # Constants
 px = 1 #6.5 # Pixels size
