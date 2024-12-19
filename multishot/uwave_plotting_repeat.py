@@ -39,6 +39,7 @@ h5_path = df.filepath.iloc[-1]
 # print( lyse.data().filepath.iloc[-1])
 folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 count_file_path = folder_path+'\\data.csv'
+print(count_file_path, h5_path)
 
 
 try:
