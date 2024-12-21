@@ -416,7 +416,7 @@ else:
     # os.remove(h5_path)
 
     roi_number_lst_file_path = folder_path+'\\roi_number_lst.npy' # '\\fault_rate_data.csv'
-
+    print(roi_number_lst_file_path)
     roi_number_lst = np.row_stack([np.array(roi_number_lst_1), np.array(roi_number_lst_2)])
 
     roi_number_lst = roi_number_lst.reshape((roi_number_lst.shape[0], roi_number_lst.shape[1],1))
