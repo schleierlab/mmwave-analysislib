@@ -5,8 +5,8 @@ Created on Tue Feb 21 15:48:37 2023
 @author: sslab
 """
 import csv
-
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -19,11 +19,12 @@ try:
 except:
     import lyse
 
-from analysis.data import h5lyze as hz
-# from analysis.data import autolyze as az
-import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+
+# from analysis.data import autolyze as az
+import numpy as np
+from analysis.data import h5lyze as hz
 
 if lyse.spinning_top:
     # If so, use the filepath of the current h5_path
@@ -90,3 +91,7 @@ ax.set_ylabel('Gaussian Peak (counts)')
 
 ax.grid(color='0.7', which='major')
 ax.grid(color='0.9', which='minor')
+
+fig.savefig(folder_path + '\data_avg.png')
+
+np.savetxt(folder_path + '\data_avg.txt', np.c_[avg_vars, avg_counts, std_counts])

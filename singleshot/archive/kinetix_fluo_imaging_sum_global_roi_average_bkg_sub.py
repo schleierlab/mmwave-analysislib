@@ -5,6 +5,7 @@ Created on Thu Feb  2 15:11:12 2023
 @author: sslab
 """
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -17,19 +18,19 @@ except:
     import lyse
 
 
-from analysis.data import h5lyze as hz
+from pathlib import Path
+
+import h5py
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+
 # from analysis.image.process import extractROIDataSingleSequence, getParamArray
 # from analysis.data import autolyze as az
 import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import csv
-import os
-import matplotlib.patches as patches
+from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
-from pathlib import Path
 
-show_site_roi = False
+show_site_roi = True #False
 load_roi = True
 load_threshold = True
 
@@ -150,7 +151,7 @@ with h5py.File(h5_path, mode='r+') as f:
     except:
         info_dict = hz.getAttributeDict(f)
         loop_var = info_dict.get('run number')
-        print(f'Nothing is under loop')
+        print('Nothing is under loop')
 
     info_dict = hz.getAttributeDict(f)
     # images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
@@ -224,11 +225,11 @@ if run_number % 1 == 0: # all run number case
 
     if run_number == 0:
         with open(count_file_path, 'w') as f_object:
-            f_object.write(f'')
+            f_object.write('')
 
     else:
         with open(count_file_path, 'a') as f_object:
-            f_object.write(f'')
+            f_object.write('')
 
     try:
         sub_image1 = first_image - first_image_bkg # subtraction of the background
