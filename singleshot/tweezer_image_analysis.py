@@ -25,7 +25,7 @@ class TweezerImageAnalyzer:
     def __init__(self, roi_config, roi_paths, show_site_roi=True, load_roi=True):
         """
         Initialize the TweezerImageAnalyzer with configuration parameters.
-
+        
         Args:
             roi_config (dict): Configuration for ROI coordinates
             roi_paths (dict): Paths to ROI data files
@@ -36,6 +36,7 @@ class TweezerImageAnalyzer:
         self.roi_paths = roi_paths
         self.show_site_roi = show_site_roi
         self.load_roi = load_roi
+        self.multishot_path = str(Path(self.roi_paths['site_roi_x']).parent)
 
         # Initialize data attributes
         self.site_roi_x = None
@@ -52,7 +53,7 @@ class TweezerImageAnalyzer:
         self.site_roi_x = np.load(self.roi_paths['site_roi_x'])
         self.site_roi_y = np.load(self.roi_paths['site_roi_y'])
         self.roi_x = np.load(self.roi_paths['roi_x'])
-        self.roi_config["x"][:]= self.roi_x
+        self.roi_config["x"][:] = self.roi_x
 
         # Add minimum value as first entry and adjust y-offset
         self.site_roi_x = np.concatenate([[np.min(self.site_roi_x, axis=0)], self.site_roi_x])
@@ -250,18 +251,23 @@ class TweezerImageAnalyzer:
             with open(count_file_path, 'a') as f_object:
                 f_object.write('')
 
+
 class AverageBackgroundAnalyzer(TweezerImageAnalyzer):
     """Analyzer for average background subtraction method."""
 
     def __init__(self, roi_config, roi_paths, show_site_roi=True, load_roi=True):
         super().__init__(roi_config, roi_paths, show_site_roi, load_roi)
 
-    @staticmethod
-    def load_threshold(folder_path, load_threshold=True, default_threshold=746.8):
+    def load_threshold(self, load_threshold=True, default_threshold=746.8):
         """Load threshold value from file or use default."""
         if load_threshold:
-            threshold = np.load(os.path.join(folder_path, "th.npy"))[0]
-            print(f'threshold = {threshold} count')
+            threshold_path = os.path.join(self.multishot_path, "th.npy")
+            try:
+                threshold = np.load(threshold_path)[0]
+                print(f'threshold = {threshold} count')
+            except FileNotFoundError:
+                print(f'Warning: Threshold file not found at {threshold_path}, using default value')
+                threshold = default_threshold
         else:
             threshold = default_threshold
         return threshold
@@ -276,6 +282,41 @@ class AverageBackgroundAnalyzer(TweezerImageAnalyzer):
         except FileNotFoundError:
             raise FileNotFoundError('Make sure you already have the averaged background!')
 
+    def process_run(self, h5_path, load_threshold=True):
+        """Process a single run with average background method."""
+        folder_path = str(Path(h5_path).parent)
+
+        # Load data and configuration
+        images, _, loop_var, info_dict = self.load_h5_data(h5_path)
+        threshold = self.load_threshold(load_threshold)
+        first_image_bkg, second_image_bkg = self.load_average_background(h5_path)
+
+        # Process images
+        image_types = list(images.keys())
+        first_image = images[image_types[0]]
+        second_image = images[image_types[1]]
+
+        # Process images using loaded ROI values
+        tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2 = self.process_images(
+            first_image, second_image, first_image_bkg, second_image_bkg)
+
+        # Analyze signals at each site
+        rect_sig_1, atom_exist_lst_1, roi_number_lst_1 = self.analyze_site_signals(
+            tweezer_roi_1, threshold)
+        rect_sig_2, atom_exist_lst_2, roi_number_lst_2 = self.analyze_site_signals(
+            tweezer_roi_2, threshold)
+
+        # Plot results
+        self.plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2,
+                         rect_sig_1, rect_sig_2)
+
+        # Calculate and save results
+        survival_rate = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
+        roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
+        self.save_data(folder_path, survival_rate, loop_var, roi_number_lst,
+                      info_dict.get('run number'))
+
+
 class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
     """Analyzer for alternating background subtraction method."""
 
@@ -284,7 +325,43 @@ class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
         self.threshold = threshold
 
     def process_run(self, h5_path, images):
-        """Process a single run with alternating background method."""
+        """
+        Process a single run using the alternating background subtraction method.
+        
+        This method implements a two-shot background subtraction where:
+        - Even-numbered runs: Save images to be used as background
+        - Odd-numbered runs: Use saved images as background and perform analysis
+        
+        Processing Steps:
+        1. Initial Setup:
+           - Determines run number and processing mode (save or analyze)
+           - For even runs, saves images and exits
+           - For odd runs, continues with analysis
+        
+        2. Background Processing (odd runs only):
+           - Uses current images as background
+           - Loads previous (even) run images as signal images
+           - Performs background subtraction
+        
+        3. ROI Analysis (odd runs only):
+           - Extracts tweezer and background ROIs
+           - Analyzes each site using fixed threshold
+           - Creates visualization rectangles for detected atoms
+        
+        4. Results Processing (odd runs only):
+           - Plots processed ROIs with detection overlays
+           - Calculates survival rate
+           - Saves analysis results to files
+        
+        Args:
+            h5_path (str): Path to the H5 file containing the run data
+            images (dict): Dictionary containing the image data from H5 file
+        
+        Note:
+            This method requires pairs of runs to work properly:
+            - Even run N: Saves images for background
+            - Odd run N+1: Uses run N images as background
+        """
         folder_path = str(Path(h5_path).parent)
         image_types = list(images.keys())
         first_image = images[image_types[0]]
