@@ -240,6 +240,7 @@ if run_number % 1 == 0: # all run number case
 
     # We subtract the background from the MOT only in the ROI
     roi_MOT_1 = sub_image1[:, roi_x[0]:roi_x[1]]
+    print("old code", [roi_x[0],roi_x[1]])
     roi_bkg_1 = sub_image1[:, roi_x_bkg[0]:roi_x_bkg[1]]
 
     roi_MOT_2 = sub_image2[:, roi_x[0]:roi_x[1]]
@@ -262,7 +263,7 @@ if run_number % 1 == 0: # all run number case
         else:
             atom_exist_lst_1.append(0)
 
-    #print(atom_exist_lst_1)
+
 
     rect_sig_2 = []
     atom_exist_lst_2 = []
@@ -302,6 +303,9 @@ if run_number % 1 == 0: # all run number case
         ax_mot_roi_1.add_collection(PatchCollection(rect_sig_1, match_original=True))
     fig.colorbar(pos, ax=ax_mot_roi_1)
 
+    print("old code", rect[0])
+    print(site_roi_x[0,0:2])
+
     ax_bkg_roi_1.set_title('1st bkg roi')
     pos = ax_bkg_roi_1.imshow(roi_bkg_1, **roi_img_color_kw)
     fig.colorbar(pos, ax=ax_bkg_roi_1)
@@ -334,7 +338,6 @@ if run_number % 1 == 0: # all run number case
     # create for temproray purpose
     # survival_rate = atom_number
 
-    print("From original code", site_roi_x, site_roi_y)
 
     if run_number == 0:
         with open(count_file_path, 'w') as f_object:
