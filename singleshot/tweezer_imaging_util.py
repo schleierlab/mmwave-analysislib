@@ -14,6 +14,22 @@ from matplotlib.collections import PatchCollection
 from pathlib import Path
 from analysis.data import h5lyze as hz
 
+def get_h5_path(lyse):
+    """
+    Get the H5 file path based on lyse session.
+    
+    Args:
+        lyse: lyse module instance
+        
+    Returns:
+        str: Path to the H5 file
+    """
+    if lyse.spinning_top:
+        return lyse.path
+    else:
+        df = lyse.data()
+        return df.filepath.iloc[-1]
+
 def load_h5_data(h5_path):
     """
     Load data from H5 file.
@@ -273,6 +289,34 @@ def create_site_rectangles(site_roi_x, site_roi_y):
             fill=False))
     return rect
 
+def calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2):
+    """
+    Calculate survival rate from atom existence lists.
+    
+    Args:
+        atom_exist_lst_1 (ndarray): Array indicating atom presence in first image
+        atom_exist_lst_2 (ndarray): Array indicating atom presence in second image
+        
+    Returns:
+        float: Survival rate
+    """
+    return sum(1 for x,y in zip(atom_exist_lst_1, atom_exist_lst_2) 
+              if x == 1 and y == 1) / np.sum(atom_exist_lst_1)
+
+def prepare_roi_data(roi_number_lst_1, roi_number_lst_2):
+    """
+    Prepare ROI data for saving.
+    
+    Args:
+        roi_number_lst_1 (list): List of ROI numbers from first image
+        roi_number_lst_2 (list): List of ROI numbers from second image
+        
+    Returns:
+        ndarray: Prepared ROI data array
+    """
+    roi_number_lst = np.row_stack([np.array(roi_number_lst_1), np.array(roi_number_lst_2)])
+    return roi_number_lst.reshape((roi_number_lst.shape[0], roi_number_lst.shape[1], 1))
+
 def save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number):
     """
     Save analysis results to files.
@@ -287,15 +331,35 @@ def save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number):
     count_file_path = os.path.join(folder_path, 'data.csv')
     roi_number_lst_file_path = os.path.join(folder_path, 'roi_number_lst.npy')
     
-    if run_number == 0:
-        # Initialize files for first run
+    if run_number == 0 or run_number == 1:  # Initialize files for first run
         with open(count_file_path, 'w') as f_object:
             f_object.write(f'{survival_rate},{loop_var}\n')
         np.save(roi_number_lst_file_path, roi_number_lst)
-    else:
-        # Append to existing files
+    else:  # Append to existing files
         with open(count_file_path, 'a') as f_object:
             f_object.write(f'{survival_rate},{loop_var}\n')
         roi_number_lst_old = np.load(roi_number_lst_file_path)
         roi_number_lst_new = np.dstack((roi_number_lst_old, roi_number_lst))
         np.save(roi_number_lst_file_path, roi_number_lst_new)
+
+def save_images(folder_path, first_image, second_image, run_number):
+    """
+    Save image data to files.
+    
+    Args:
+        folder_path (str): Path to save the image files
+        first_image (ndarray): First image data
+        second_image (ndarray): Second image data
+        run_number (int): Current run number
+    """
+    np.save(os.path.join(folder_path, 'first'), first_image)
+    np.save(os.path.join(folder_path, 'seconds'), second_image)
+    
+    # Initialize or append to data file
+    count_file_path = os.path.join(folder_path, 'data.csv')
+    if run_number == 0:
+        with open(count_file_path, 'w') as f_object:
+            f_object.write('')
+    else:
+        with open(count_file_path, 'a') as f_object:
+            f_object.write('')

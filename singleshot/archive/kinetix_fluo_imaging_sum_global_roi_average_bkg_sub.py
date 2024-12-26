@@ -248,6 +248,7 @@ if run_number % 1 == 0: # all run number case
 
     atom_number = 0 #roi_MOT_1.sum()-roi_bkg_1.sum()/roi_bkg_1.size * roi_MOT_1.size
 
+
     rect_sig_1 = []
     atom_exist_lst_1 = []
     roi_number_lst_1 = []
@@ -332,6 +333,8 @@ if run_number % 1 == 0: # all run number case
     # print(f"roi_number_lst shape = {roi_number_lst.shape}")
     # create for temproray purpose
     # survival_rate = atom_number
+
+    print("From original code", site_roi_x, site_roi_y)
 
     if run_number == 0:
         with open(count_file_path, 'w') as f_object:
