@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 import h5py
+import lyse
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,7 +26,7 @@ class TweezerImageAnalyzer:
     def __init__(self, roi_config, roi_paths, show_site_roi=True, load_roi=True):
         """
         Initialize the TweezerImageAnalyzer with configuration parameters.
-        
+
         Args:
             roi_config (dict): Configuration for ROI coordinates
             roi_paths (dict): Paths to ROI data files
@@ -121,7 +122,6 @@ class TweezerImageAnalyzer:
 
         # Extract regions of interest for signal and background
         tweezer_roi_1 = sub_image1[:, self.roi_config['x'][0]:self.roi_config['x'][1]]
-        print("new code", [self.roi_config['x'][0],self.roi_config['x'][1]])
         bkg_roi_1 = sub_image1[:, self.roi_config['background_x'][0]:self.roi_config['background_x'][1]]
 
         tweezer_roi_2 = sub_image2[:, self.roi_config['x'][0]:self.roi_config['x'][1]]
@@ -209,10 +209,39 @@ class TweezerImageAnalyzer:
         fig.colorbar(pos, ax=ax_bkg_2).ax.tick_params(labelsize=12)
 
     @staticmethod
-    def calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2):
-        """Calculate survival rate from atom existence lists."""
-        return sum(1 for x,y in zip(atom_exist_lst_1, atom_exist_lst_2)
-                  if x == 1 and y == 1) / np.sum(atom_exist_lst_1)
+    def calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2, method='default') -> tuple[float, float]:
+        """Calculate survival rate (and uncertainty thereof) from atom existence lists.
+        
+        Parameters
+        ----------
+        atom_exist_lst_1, atom_exist_lst_2 : array_like, shape (n_sites,)
+            Lists of atom existence values for the two tweezer images.
+        method : {'default', 'laplace'}, optional
+            Method for calculating the survival rate and uncertainty.
+            Defaults to 'default' (which does the usual thing)
+
+            'laplace': estimate the survival rate (and associated uncertainty)
+            using Laplace's rule of succession (https://en.wikipedia.org/wiki/Rule_of_succession),
+            whereby we inflate the number of atoms by 2 and the number of survivors by 1.
+            Seems to be a better metric for closed-loop optimization by M-LOOP.
+        """
+        n_initial_atoms = np.sum(atom_exist_lst_1)
+        survivors = sum(1 for x,y in zip(atom_exist_lst_1, atom_exist_lst_2)
+                  if x == 1 and y == 1)
+
+        if method == 'default':
+            survival_rate = survivors / n_initial_atoms
+            uncertainty = np.sqrt(survival_rate * (1 - survival_rate) / n_initial_atoms)
+        elif method == 'laplace':
+            # expectation value of posterior beta distribution
+            survival_rate = (survivors + 1) / (n_initial_atoms + 2)
+            
+            # calculate based on binomial distribution
+            # uncertainty = np.sqrt(survival_rate * (1 - survival_rate) / (n_initial_atoms + 2))
+
+            # sqrt of variance of the posterior beta distribution
+            uncertainty = np.sqrt((survivors + 1) * (n_initial_atoms - survivors + 1) / ((n_initial_atoms + 3) * (n_initial_atoms + 2) ** 2))
+        return survival_rate, uncertainty
 
     @staticmethod
     def prepare_roi_data(roi_number_lst_1, roi_number_lst_2):
@@ -226,7 +255,7 @@ class TweezerImageAnalyzer:
         count_file_path = os.path.join(folder_path, 'data.csv')
         roi_number_lst_file_path = os.path.join(folder_path, 'roi_number_lst.npy')
 
-        if run_number == 0 or run_number == 1:  # Initialize files for first run
+        if run_number == 1:  # Initialize files for first run
             with open(count_file_path, 'w') as f_object:
                 f_object.write(f'{survival_rate},{loop_var}\n')
             np.save(roi_number_lst_file_path, roi_number_lst)
@@ -264,13 +293,30 @@ class AverageBackgroundAnalyzer(TweezerImageAnalyzer):
             threshold_path = os.path.join(self.multishot_path, "th.npy")
             try:
                 threshold = np.load(threshold_path)[0]
-                print(f'threshold = {threshold} count')
+                # print(f'threshold = {threshold} count')
             except FileNotFoundError:
                 print(f'Warning: Threshold file not found at {threshold_path}, using default value')
                 threshold = default_threshold
         else:
             threshold = default_threshold
         return threshold
+
+    @staticmethod
+    def save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number):
+        """Save analysis results to files."""
+        count_file_path = os.path.join(folder_path, 'data.csv')
+        roi_number_lst_file_path = os.path.join(folder_path, 'roi_number_lst.npy')
+
+        if run_number == 0:  # Initialize files for first run
+            with open(count_file_path, 'w') as f_object:
+                f_object.write(f'{survival_rate},{loop_var}\n')
+            np.save(roi_number_lst_file_path, roi_number_lst)
+        else:  # Append to existing files
+            with open(count_file_path, 'a') as f_object:
+                f_object.write(f'{survival_rate},{loop_var}\n')
+            roi_number_lst_old = np.load(roi_number_lst_file_path)
+            roi_number_lst_new = np.dstack((roi_number_lst_old, roi_number_lst))
+            np.save(roi_number_lst_file_path, roi_number_lst_new)
 
     @staticmethod
     def load_average_background(h5_path):
@@ -311,10 +357,25 @@ class AverageBackgroundAnalyzer(TweezerImageAnalyzer):
                          rect_sig_1, rect_sig_2)
 
         # Calculate and save results
-        survival_rate = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
+        survival_rate, survival_rate_uncert = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
         roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
         self.save_data(folder_path, survival_rate, loop_var, roi_number_lst,
                       info_dict.get('run number'))
+
+        # Save values for MLOOP
+        # Save sequence analysis result in latest run
+        run = lyse.Run(h5_path=h5_path)
+        my_condition = True
+        # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
+
+        run.save_results_dict(
+            {
+                'survival_rate': self.calculate_survival_rate(
+                    atom_exist_lst_1, atom_exist_lst_2, method='laplace',
+                ) if my_condition else (np.nan, np.nan),
+            },
+            uncertainties=True,
+        )
 
 
 class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
@@ -327,36 +388,36 @@ class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
     def process_run(self, h5_path, images):
         """
         Process a single run using the alternating background subtraction method.
-        
+
         This method implements a two-shot background subtraction where:
         - Even-numbered runs: Save images to be used as background
         - Odd-numbered runs: Use saved images as background and perform analysis
-        
+
         Processing Steps:
         1. Initial Setup:
            - Determines run number and processing mode (save or analyze)
            - For even runs, saves images and exits
            - For odd runs, continues with analysis
-        
+
         2. Background Processing (odd runs only):
            - Uses current images as background
            - Loads previous (even) run images as signal images
            - Performs background subtraction
-        
+
         3. ROI Analysis (odd runs only):
            - Extracts tweezer and background ROIs
            - Analyzes each site using fixed threshold
            - Creates visualization rectangles for detected atoms
-        
+
         4. Results Processing (odd runs only):
            - Plots processed ROIs with detection overlays
            - Calculates survival rate
            - Saves analysis results to files
-        
+
         Args:
             h5_path (str): Path to the H5 file containing the run data
             images (dict): Dictionary containing the image data from H5 file
-        
+
         Note:
             This method requires pairs of runs to work properly:
             - Even run N: Saves images for background
@@ -396,6 +457,98 @@ class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
                          rect_sig_1, rect_sig_2)
 
         # Calculate and save results
-        survival_rate = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
+        survival_rate, _ = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
         roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
         self.save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number)
+
+class AverageBackground2DScanAnalyzer(AverageBackgroundAnalyzer):
+    """Extended analyzer for 2D parameter scans."""
+
+    @staticmethod
+
+    def load_h5_data(h5_path):
+        """Load data from H5 file."""
+        with h5py.File(h5_path, mode='r+') as f:
+            globals_dict = hz.attributesToDictionary(f['globals'])
+            images = hz.datasetsToDictionary(f['kinetix_images'], recursive=True)
+
+            # Extract looping globals
+            loop_globals = []
+            for group in globals_dict:
+                for glob in globals_dict[group]:
+                    if globals_dict[group][glob][0:2] == "np":
+                        loop_globals.append(float(hz.attributesToDictionary(f).get('globals').get(glob)))
+
+            if len(loop_globals) != 2:
+                raise ValueError("Expected exactly 2 looping globals")
+
+            loop_var_1 = float(loop_globals[0])
+            loop_var_2 = float(loop_globals[1])
+            info_dict = hz.getAttributeDict(f)
+            kinetix_roi_row= np.array(f['globals'].attrs.get('kinetix_roi_row'))
+
+            return images, kinetix_roi_row, loop_var_1, loop_var_2, info_dict
+
+    def process_run(self, h5_path, load_threshold=True):
+        """Process a single run with average background method."""
+        folder_path = str(Path(h5_path).parent)
+
+        # Load data and configuration
+        images, _, loop_var_1, loop_var_2, info_dict = self.load_h5_data(h5_path)
+        threshold = self.load_threshold(load_threshold)
+        first_image_bkg, second_image_bkg = self.load_average_background(h5_path)
+
+        # Process images
+        image_types = list(images.keys())
+        first_image = images[image_types[0]]
+        second_image = images[image_types[1]]
+
+        # Process images using loaded ROI values
+        tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2 = self.process_images(
+            first_image, second_image, first_image_bkg, second_image_bkg)
+
+        # Analyze signals at each site
+        rect_sig_1, atom_exist_lst_1, roi_number_lst_1 = self.analyze_site_signals(
+            tweezer_roi_1, threshold)
+        rect_sig_2, atom_exist_lst_2, roi_number_lst_2 = self.analyze_site_signals(
+            tweezer_roi_2, threshold)
+
+        # Plot results
+        self.plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2,
+                         rect_sig_1, rect_sig_2)
+
+        # Calculate and save results
+        survival_rate, survival_rate_uncert = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
+        roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
+        self.save_data(folder_path, survival_rate, roi_number_lst,
+                      info_dict.get('run number'),  loop_var_1, loop_var_2)
+
+        # Save values for MLOOP
+        # Save sequence analysis result in latest run
+        run = lyse.Run(h5_path=h5_path)
+        my_condition = True
+        # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
+        # run.save_result(name='u_survival_rate', value=survival_rate_uncert if my_condition else np.nan)
+        run.save_results_dict(
+            {
+                'survival_rate': self.calculate_survival_rate(
+                    atom_exist_lst_1, atom_exist_lst_2, method='laplace',
+                ) if my_condition else (np.nan, np.nan),
+            },
+            uncertainties=True,
+        )
+
+    def save_data(self, folder_path,survival_rate, roi_number_lst, run_number, param1, param2):
+        """Save analysis results to files."""
+        count_file_path = os.path.join(folder_path, 'data.csv')
+        roi_number_lst_file_path = os.path.join(folder_path, 'roi_number_lst.npy')
+        if run_number == 0 or run_number == 1:  # Initialize files for first run
+            with open(count_file_path, 'w') as f_object:
+                f_object.write(f'{survival_rate},{param1},{param2}\n')
+            np.save(roi_number_lst_file_path, roi_number_lst)
+        else:  # Append to existing files
+            with open(count_file_path, 'a') as f_object:
+                f_object.write(f'{survival_rate},{param1},{param2}\n')
+            roi_number_lst_old = np.load(roi_number_lst_file_path)
+            roi_number_lst_new = np.dstack((roi_number_lst_old, roi_number_lst))
+            np.save(roi_number_lst_file_path, roi_number_lst_new)
