@@ -132,15 +132,19 @@ rep = h5_path[-5:-3]
 #     run_number = info_dict.get('run number')
 
 with h5py.File(h5_path, mode='r+') as f:
-    g = hz.attributesToDictionary(f['globals'])
-    for group in g:
-        for glob in g[group]:
-            if g[group][glob][0:2] == "np":
-                loop_glob = glob
+    globals_dict = hz.attributesToDictionary(f['globals'])
     info_dict = hz.getAttributeDict(f)
     images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
-    uwave_time= float(hz.attributesToDictionary(f).get('globals').get(loop_glob))
-    run_number = info_dict.get('run number')
+
+    # Find looping global variable
+    loop_glob = next((glob for group in globals_dict
+                    for glob in globals_dict[group]
+                    if globals_dict[group][glob][0:2] == "np"), None)
+
+    try:
+        loop_var = float(f['globals'].attrs.get(loop_glob))
+    except:
+        loop_var = info_dict.get('run number')
 
 image_types = list(images.keys())
 
@@ -229,10 +233,10 @@ count_file_path = folder_path+'\\data.csv'
 
 if  rep == '_0':
     with open(count_file_path, 'w') as f_object:
-        f_object.write(f'{atom_number},{uwave_time}\n')
+        f_object.write(f'{atom_number},{loop_var}\n')
 
 else:
     with open(count_file_path, 'a') as f_object:
-        f_object.write(f'{atom_number},{uwave_time}\n')
+        f_object.write(f'{atom_number},{loop_var}\n')
 
 

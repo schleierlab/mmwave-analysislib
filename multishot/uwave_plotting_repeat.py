@@ -105,6 +105,7 @@ try:
     ax.set_xlabel(f'{loop_glob} ({unit})')
     # ax.set_ylabel('Gaussian Peak (counts)')
     ax.set_ylabel('Survival rate')
+    # ax.set_ylabel('Counts')
     # ax.set_ylabel('survival rate')
 
     ax.grid(color='0.7', which='major')
@@ -113,7 +114,7 @@ try:
     ax.tick_params(axis='both', which='major', labelsize=20)
     ax.tick_params(axis='both', which='minor', labelsize=10)
 
-    #fig.savefig(folder_path + '\data.png')
+    fig.savefig(folder_path + '\data.png')
 
 except:
     print("no data.csv found")

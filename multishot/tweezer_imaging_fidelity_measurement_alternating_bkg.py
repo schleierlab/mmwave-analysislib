@@ -332,10 +332,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 2000 #np.max(first_shot_roi_number)/2 #2000
+    cpa = 1000 #np.max(first_shot_roi_number)/2 #2000
     sigma1 = 0.1*cpa #0.1*cpa
     sigma2 = 0.1*cpa #0.1*cpa
-    mu1 = 500
+    mu1 = 200
     mu2 = cpa
     c1 = max(y_hist)
     c2 = c1 #+ cpa #2000

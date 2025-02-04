@@ -5,9 +5,8 @@ Created on Tue Feb 21 15:48:37 2023
 @author: sslab
 """
 import csv
-
 import sys
-import os
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -20,10 +19,7 @@ try:
 except:
     import lyse
 
-from analysis.data import h5lyze as hz
 # from analysis.data import autolyze as az
-import numpy as np
-import h5py
 import matplotlib.pyplot as plt
 
 if lyse.spinning_top:
@@ -50,9 +46,19 @@ with open(count_file_path, newline='') as csvfile:
         # para.append(list(map(float, row))[1])
         sample.append(i)
 
+#need [True, False]
+ratio = []
+ratio_samples = []
+for i in range(len(counts)):
+    if i % 2 == 1:
+        print(f'{counts[i]=}, {counts[i-1]=}')
+        ratio.append(counts[i] / counts[i-1])
+        ratio_samples.append(i)
+
+
 fig, ax = plt.subplots(constrained_layout=True)
 
-# ax.plot(para, counts)
+# ax.plot(ratio_samples, ratio)
 ax.plot(sample, counts)
 # ax.set_xlabel('Exposure (s)')
 # ax.set_xlabel('456 detuning(MHz)')

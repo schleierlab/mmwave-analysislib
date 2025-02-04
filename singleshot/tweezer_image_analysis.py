@@ -211,7 +211,7 @@ class TweezerImageAnalyzer:
     @staticmethod
     def calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2, method='default') -> tuple[float, float]:
         """Calculate survival rate (and uncertainty thereof) from atom existence lists.
-        
+
         Parameters
         ----------
         atom_exist_lst_1, atom_exist_lst_2 : array_like, shape (n_sites,)
@@ -235,7 +235,7 @@ class TweezerImageAnalyzer:
         elif method == 'laplace':
             # expectation value of posterior beta distribution
             survival_rate = (survivors + 1) / (n_initial_atoms + 2)
-            
+
             # calculate based on binomial distribution
             # uncertainty = np.sqrt(survival_rate * (1 - survival_rate) / (n_initial_atoms + 2))
 
@@ -542,7 +542,7 @@ class AverageBackground2DScanAnalyzer(AverageBackgroundAnalyzer):
         """Save analysis results to files."""
         count_file_path = os.path.join(folder_path, 'data.csv')
         roi_number_lst_file_path = os.path.join(folder_path, 'roi_number_lst.npy')
-        if run_number == 0 or run_number == 1:  # Initialize files for first run
+        if run_number == 0: # or run_number == 1:  # Initialize files for first run
             with open(count_file_path, 'w') as f_object:
                 f_object.write(f'{survival_rate},{param1},{param2}\n')
             np.save(roi_number_lst_file_path, roi_number_lst)
@@ -551,4 +551,5 @@ class AverageBackground2DScanAnalyzer(AverageBackgroundAnalyzer):
                 f_object.write(f'{survival_rate},{param1},{param2}\n')
             roi_number_lst_old = np.load(roi_number_lst_file_path)
             roi_number_lst_new = np.dstack((roi_number_lst_old, roi_number_lst))
+            print(roi_number_lst_new.shape)
             np.save(roi_number_lst_file_path, roi_number_lst_new)

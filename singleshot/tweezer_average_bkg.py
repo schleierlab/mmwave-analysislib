@@ -7,7 +7,6 @@ Created on: 2024-12-26
 
 import os
 import sys
-from pathlib import Path
 
 # Add analysis lib to path
 ROOT_PATH = r"X:\userlib\analysislib"
@@ -29,7 +28,7 @@ LOAD_THRESHOLD = True
 # ROI Configuration
 ROI_CONFIG = {
     'x': [1173, 1523],  # Region of interest for tweezer array
-    'y': [960, 1070],   # Vertical region of interest
+    'y': [960, 960+110],   # Vertical region of interest
     'background_x': [1900, 2400],
     'background_y': [1900, 2400]
 }
@@ -45,9 +44,10 @@ ROI_PATHS = {
 def main():
     # Initialize analyzer
     analyzer = AverageBackgroundAnalyzer(ROI_CONFIG, ROI_PATHS, SHOW_SITE_ROI, LOAD_ROI)
-    
+
     # Get H5 file path and process the run
     h5_path = analyzer.get_h5_path(lyse)
+    print(h5_path)
     analyzer.process_run(h5_path, LOAD_THRESHOLD)
 
 if __name__ == "__main__":

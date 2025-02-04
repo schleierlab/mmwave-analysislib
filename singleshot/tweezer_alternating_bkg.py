@@ -22,7 +22,7 @@ except NameError:
 from scripts.singleshot.tweezer_image_analysis import AlternatingBackgroundAnalyzer
 
 # Configuration Constants
-SHOW_SITE_ROI = True
+SHOW_SITE_ROI = True #False
 LOAD_ROI = True
 THRESHOLD = 1185.5  # Fixed threshold for alternating background method
 
@@ -46,7 +46,7 @@ def main():
     # Initialize analyzer
     analyzer = AlternatingBackgroundAnalyzer(
         ROI_CONFIG, ROI_PATHS, THRESHOLD, SHOW_SITE_ROI, LOAD_ROI)
-    
+
     # Get H5 file path and process the run
     h5_path = analyzer.get_h5_path(lyse)
     images, _, _, _ = analyzer.load_h5_data(h5_path)

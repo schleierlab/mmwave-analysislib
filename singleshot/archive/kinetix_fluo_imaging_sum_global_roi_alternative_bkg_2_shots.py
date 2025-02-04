@@ -5,6 +5,7 @@ Created on Thu Feb  2 15:11:12 2023
 @author: sslab
 """
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -17,15 +18,14 @@ except:
     import lyse
 
 
-from analysis.data import h5lyze as hz
+import h5py
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+
 # from analysis.image.process import extractROIDataSingleSequence, getParamArray
 # from analysis.data import autolyze as az
 import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import csv
-import os
-import matplotlib.patches as patches
+from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
 
 show_site_roi = False
@@ -123,7 +123,7 @@ with h5py.File(h5_path, mode='r+') as f:
     except:
         info_dict = hz.getAttributeDict(f)
         loop_var = info_dict.get('run number')
-        print(f'Nothing is under loop')
+        print('Nothing is under loop')
 
 
 
@@ -151,95 +151,6 @@ if load_roi == True:
 
     print(site_roi_x)
 else:
-    #20240508
-    # site_roi_x = np.array([
-    #     [1461, 1467],
-    #     [1470, 1476],
-    #     [1425, 1431],
-    #     [1434, 1440],
-    #     [1443, 1449],
-    #     [1452, 1458],
-    #     [1353, 1359],
-    #     [1371, 1377],
-    #     [1379, 1385],
-    #     [1389, 1395],
-    #     [1398, 1404],
-    #     [1407, 1413],
-    #     [1416, 1422],
-    #     [1298, 1304],
-    #     [1308, 1314],
-    #     [1316, 1322],
-    #     [1326, 1332],
-    #     [1334, 1340],
-    #     [1344, 1350],
-    #     [1362, 1368]])
-
-    # site_roi_y = np.array([
-    #     [45, 51],
-    #     [45, 51],
-    #     [46, 52],
-    #     [46, 52],
-    #     [46, 52],
-    #     [46, 52],
-    #     [47, 53],
-    #     [47, 53],
-    #     [47, 53],
-    #     [47, 53],
-    #     [47, 53],
-    #     [47, 53],
-    #     [47, 53],
-    #     [48, 54],
-    #     [48, 54],
-    #     [48, 54],
-    #     [48, 54],
-    #     [48, 54],
-    #     [48, 54],
-    #     [48, 54]])
-
-#20240426
-# site_roi_x = np.array([
-#        [1419, 1425],
-#        [1429, 1435],
-#        [1438, 1444],
-#        [1446, 1452],
-#        [1455, 1461],
-#        [1464, 1470],
-#        [1365, 1371],
-#        [1375, 1381],
-#        [1383, 1389],
-#        [1392, 1398],
-#        [1401, 1407],
-#        [1410, 1416],
-#        [1293, 1299],
-#        [1302, 1308],
-#        [1311, 1317],
-#        [1320, 1326],
-#        [1329, 1335],
-#        [1338, 1344],
-#        [1347, 1353],
-#        [1356, 1362]])
-
-# site_roi_y = np.array([
-#        [34, 40],
-#        [34, 40],
-#        [34, 40],
-#        [34, 40],
-#        [34, 40],
-#        [34, 40],
-#        [35, 41],
-#        [35, 41],
-#        [35, 41],
-#        [35, 41],
-#        [35, 41],
-#        [35, 41],
-#        [36, 42],
-#        [36, 42],
-#        [36, 42],
-#        [36, 42],
-#        [36, 42],
-#        [36, 42],
-#        [36, 42],
-#        [36, 42]])
     roi_x = [1173, 1523]
 
     site_roi_x = np.array([
@@ -302,14 +213,11 @@ if run_number % 2 == 0: # even run number case
 
     if run_number == 0:
         with open(count_file_path, 'w') as f_object:
-            f_object.write(f'')
+            f_object.write('')
 
     else:
         with open(count_file_path, 'a') as f_object:
-            f_object.write(f'')
-
-
-
+            f_object.write('')
 else:
     first_image_bkg = images[image_types[0]]
     second_image_bkg = images[image_types[1]]
@@ -423,7 +331,7 @@ else:
 
     print(f"roi_number_lst shape = {roi_number_lst.shape}")
 
-    # create for temproray purpose
+    # created for temproray purpose
     # survival_rate = atom_number
 
     if run_number == 1:

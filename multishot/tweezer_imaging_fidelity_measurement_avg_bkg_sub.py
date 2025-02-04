@@ -5,6 +5,7 @@ Created on Thu Feb  2 15:11:12 2023
 @author: sslab
 """
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -14,26 +15,27 @@ if root_path not in sys.path:
 try:
     lyse
 except:
-    import lyse
+    pass
 
 
-from analysis.data import h5lyze as hz
+import glob
+import os
+from pathlib import Path
+from tkinter import Tk
+from tkinter.filedialog import askdirectory
+
+import h5py
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+
 # from analysis.image.process import extractROIDataSingleSequence, getParamArray
 # from analysis.data import autolyze as az
 import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import csv
-import os
-import matplotlib.patches as patches
+from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
-import glob
-from pathlib import Path
 
-from tkinter import Tk
-from tkinter.filedialog import askdirectory
 # from tweezer_imaging_fidelity_measurement_alternating_bkg import survival_rate
-
+PLOT_AVG_IMAGE = True
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
     n_shots = np.size([i for i in os.listdir(folder) if i.endswith('.h5')])
@@ -176,7 +178,6 @@ def avg_shots_multi_roi_avg_bkg_sub(folder, site_roi_y, site_roi_x, avg_bkg_img,
 
 def auto_roi_detection(data, neighborhood_size, threshold):
     #choose even number to make the roi centered
-    import scipy.ndimage.filters as filters
     import scipy.ndimage as ndimage
     data_max = ndimage.maximum_filter(data, neighborhood_size)
     maxima = (data == data_max)
@@ -300,8 +301,8 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
             ax.set_ylabel('frequency')
 
         (ax_first_image, ax_second_image) = axs
-        ax_first_image.hist(all_roi_number_lst-bkg_mean, bins = 250, label = f'all sites')
-        ax_first_image.hist(bkg_number_lst-bkg_mean, bins = 10, label = f'0th site, bkg')
+        ax_first_image.hist(all_roi_number_lst-bkg_mean, bins = 250, label = 'all sites')
+        ax_first_image.hist(bkg_number_lst-bkg_mean, bins = 10, label = '0th site, bkg')
         ax_first_image.legend()
         ax_first_image.set_title('first shot')
         #plt.xlim([-5000,10000])
@@ -341,12 +342,12 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
         plt.xlabel("Atoms")
         plt.ylabel("Probability")
         plt.grid("on")
-        plt.title(f"atom roi")
+        plt.title("atom roi")
         plt.show()
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 2000 #np.max(first_shot_roi_number)/2 #2000
+    cpa = 1500 #np.max(first_shot_roi_number)/2 #2000
     sigma1 = 0.1*cpa #0.1*cpa
     sigma2 = 0.1*cpa #0.1*cpa
     mu1 = 500
@@ -408,8 +409,8 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
     all_roi_number_lst = second_shot_roi_number[1:site_roi_x.shape[0],:].flatten()
 
     if plot_histagram == True:
-        ax_second_image.hist(all_roi_number_lst-bkg_mean, bins = 250, label = f'all sites')
-        ax_second_image.hist(bkg_number_lst-bkg_mean, bins = 10, label = f'0th site, bkg')
+        ax_second_image.hist(all_roi_number_lst-bkg_mean, bins = 250, label = 'all sites')
+        ax_second_image.hist(bkg_number_lst-bkg_mean, bins = 10, label = '0th site, bkg')
         ax_second_image.legend()
         ax_second_image.set_title('2nd shot')
 
@@ -661,31 +662,31 @@ def survival_rate(roi_number_lst, th, site_roi_x, folder_path):
     ax1.plot(x_arr, survival_rate_each_roi,'o')
     ax1.grid()
     ax1.set_xlabel('x [px]')
-    ax1.set_ylabel(f'survival rate')
+    ax1.set_ylabel('survival rate')
     ax1.set_title(f'average survival rate: {np.mean(survival_rate_each_roi):.3f}')
 
     ax2.plot(x_arr, appear_rate_each_roi,'o')
     ax2.grid()
     ax2.set_xlabel('x [px]')
-    ax2.set_ylabel(f'appear rate')
+    ax2.set_ylabel('appear rate')
     ax2.set_title(f'average appear rate: {np.mean(appear_rate_each_roi):.3f}')
 
     ax3.plot(x_arr, lost_rate_each_roi,'o')
     ax3.grid()
     ax3.set_xlabel('x [px]')
-    ax3.set_ylabel(f'lost rate')
+    ax3.set_ylabel('lost rate')
     ax3.set_title(f'average lost rate: {np.mean(lost_rate_each_roi):.3f}')
 
     ax4.plot(x_arr, fidelity_each_roi,'o')
     ax4.grid()
     ax4.set_xlabel('x [px]')
-    ax4.set_ylabel(f'fidelity')
+    ax4.set_ylabel('fidelity')
     ax4.set_title(f'average fidelity: {np.mean(fidelity_each_roi):.3f}')
 
     ax5.plot(x_arr, loading_rate_each_roi,'o')
     ax5.grid()
     # ax4.set_xlabel('x [px]')
-    ax5.set_ylabel(f'loading rate')
+    ax5.set_ylabel('loading rate')
     ax5.set_title(f'average loading rate: {np.mean(loading_rate_each_roi):.3f}')
 
 
@@ -725,9 +726,14 @@ site_roi_y_new = np.concatenate([[np.min(site_roi_y, axis = 0) - 10], site_roi_y
 
 print(f'site_roi_x={site_roi_x}, site_roi_y={site_roi_y}')
 
-(data, roi_number_lst, N) = avg_shots_multi_roi_avg_bkg_sub(folder, site_roi_y_new, site_roi_x_new, avg_bkg_img, loop=False)
-
-plot_shots_avg(data, site_roi_x_new, site_roi_y_new, N)
+if PLOT_AVG_IMAGE is True:
+    (data, roi_number_lst, N) = avg_shots_multi_roi_avg_bkg_sub(folder, site_roi_y_new, site_roi_x_new, avg_bkg_img, loop=False)
+    plot_shots_avg(data, site_roi_x_new, site_roi_y_new, N)
+else:
+    folder_path = folder
+    roi_number_lst_file_path = folder_path + "\\roi_number_lst.npy"
+    th_file_path = folder_path + "\\th.npy"
+    roi_number_lst = np.load(roi_number_lst_file_path)
 
 # print(f'roi_number_lst shape = {roi_number_lst.shape}')
 th, cpa, ff, f = histagram_fit_and_threshold(roi_number_lst, site_roi_x_new, plot_histagram = True, plot_double_gaussian_fit = True, print_value=True)
