@@ -31,6 +31,8 @@ import numpy as np
 from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
 
+ROI_DETECTION = False
+ROI_X = np.array([600,1100]) # This is used only when ROI_DETECTION = False. Otherwise, roi_x is auto calculated
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
     n_shots = np.size([i for i in os.listdir(folder) if i.endswith('.h5')])
@@ -125,17 +127,21 @@ def auto_roi_detection(data, neighborhood_size, threshold):
     return site_roi_x, site_roi_y, roi_x
 
 def plot_shots_avg(data, site_roi_x,site_roi_y, n_shots =2, show_roi = True):
-    # roi_x = np.array([np.min(site_roi_x)-10, np.max(site_roi_x)+10])
-    roi_x = np.array([np.min(site_roi_x)-50, np.max(site_roi_x)+50])
+    if ROI_DETECTION:
+        roi_x = np.array([np.min(site_roi_x)-50, np.max(site_roi_x)+50])
+    else:
+        roi_x = ROI_X
 
     print(f'roi_x = {repr(roi_x)}')
-    # roi_x = [1275,1475] #[1250, 1450]
-    site_roi_x = site_roi_x - roi_x[0]
+    if show_roi:
+        # roi_x = [1275,1475] #[1250, 1450]
+        site_roi_x = site_roi_x - roi_x[0]
 
     fig, axs = plt.subplots(nrows=1, ncols=2, constrained_layout=True)
     rect = []
-    for i in np.arange(site_roi_x.shape[0]):
-        rect.append(patches.Rectangle((site_roi_x[i,0], site_roi_y[i,0]), site_roi_x[i,1]-site_roi_x[i,0], site_roi_y[i,1]-site_roi_y[i,0], linewidth=1, edgecolor='r', facecolor='none'))
+    if show_roi:
+        for i in np.arange(site_roi_x.shape[0]):
+            rect.append(patches.Rectangle((site_roi_x[i,0], site_roi_y[i,0]), site_roi_x[i,1]-site_roi_x[i,0], site_roi_y[i,1]-site_roi_y[i,0], linewidth=1, edgecolor='r', facecolor='none'))
     fig.suptitle(f'{n_shots} shots average, Mag = 7.424, Pixel = 0.87 um')
     for ax in axs:
         ax.set_xlabel('x [px]')
@@ -171,16 +177,19 @@ while True:
     break
 
 
-
 avg_shot_bkg_sub, avg_shot_bkg, N = avg_all_shots(folder)
 neighborhood_size = 6
 threshold = 30 #np.max(avg_shot_bkg_sub[0])/2 #40 #48 #83 #60
-site_roi_x, site_roi_y, roi_x = auto_roi_detection(avg_shot_bkg_sub[0], neighborhood_size, threshold)
 
-print(f'site_roi_x={repr(site_roi_x)}, site_roi_y={repr(site_roi_y)}')
-
-print(f'size of site roi = {site_roi_x.shape[0]} ')
-plot_shots_avg(avg_shot_bkg_sub, site_roi_x,site_roi_y, N, show_roi=True)
+if ROI_DETECTION:
+    site_roi_x, site_roi_y, roi_x = auto_roi_detection(avg_shot_bkg_sub[0], neighborhood_size, threshold)
+    print(f'site_roi_x={repr(site_roi_x)}, site_roi_y={repr(site_roi_y)}')
+    print(f'size of site roi = {site_roi_x.shape[0]} ')
+else:
+    site_roi_x = None
+    site_roi_y = None
+    roi_x = ROI_X
+plot_shots_avg(avg_shot_bkg_sub, site_roi_x,site_roi_y, N, show_roi=False)
 
 folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
 site_roi_x_file_path = folder_path + "\\site_roi_x.npy"
