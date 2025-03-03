@@ -20,5 +20,6 @@ bulk_gas_analysis_obj.get_images_roi(roi)
 bulk_gas_analysis_obj.get_atom_number()
 bulk_gas_analysis_obj.plot_images()
 bulk_gas_analysis_obj.save_atom_number()
+bulk_gas_analysis_obj.plot_atom_number()
 
 

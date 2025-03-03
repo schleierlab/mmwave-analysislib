@@ -20,6 +20,7 @@ from analysis.data import h5lyze as hz
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+import csv
 
 
 class bulk_gas_analysis():
@@ -59,7 +60,7 @@ class bulk_gas_analysis():
             info_dict = hz.getAttributeDict(f)
             images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
             self.images = images
-
+            self.run_number = f.attrs['run number']
 
         return images
 
@@ -149,8 +150,34 @@ class bulk_gas_analysis():
     def save_atom_number(self, debug = False):
         h5_path = self.h5_path
         atom_number = self.atom_number
+        run_number = self.run_number
 
         folder_path = '\\'.join(h5_path.split('\\')[0:-1])
         count_file_path = folder_path+'\\data.csv'
-        with open(count_file_path, 'a') as f_object:
-            f_object.write(f'{atom_number}\n')
+        if run_number == 0:
+            with open(count_file_path, 'w') as f_object:
+                f_object.write(f'{atom_number}\n')
+        else:
+            with open(count_file_path, 'a') as f_object:
+                f_object.write(f'{atom_number}\n')
+
+    def load_atom_number(self, debug = False):
+        h5_path = self.h5_path
+        folder_path = '\\'.join(h5_path.split('\\')[0:-1])
+        count_file_path = folder_path+'\\data.csv'
+        with open(count_file_path, newline='') as csvfile:
+            counts = [list(map(float, row))[0] for row in csv.reader(csvfile)]
+
+        return counts
+
+
+    def plot_atom_number(self, debug = False):
+        counts = self.load_atom_number()
+        fig, ax = plt.subplots(constrained_layout=True)
+
+        ax.plot(counts)
+        ax.set_xlabel('Shot number')
+        ax.set_ylabel('MOT atom count')
+
+        ax.grid(color='0.7', which='major')
+        ax.grid(color='0.9', which='minor')
