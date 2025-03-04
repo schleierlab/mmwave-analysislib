@@ -13,10 +13,7 @@ bulk_gas_analysis_obj = BulkGasAnalysis(
     atoms_roi=[roi_x, roi_y],
     bkg_roi=[roi_x_bkg, roi_y_bkg],
 )
-bulk_gas_analysis_obj.load_image_in_lyse()
-bulk_gas_analysis_obj.get_image_bkg_sub()
-bulk_gas_analysis_obj.get_images_roi()
+
 bulk_gas_analysis_obj.get_atom_number()
 bulk_gas_analysis_obj.plot_images()
-bulk_gas_analysis_obj.save_atom_number()
 bulk_gas_analysis_obj.plot_atom_number()

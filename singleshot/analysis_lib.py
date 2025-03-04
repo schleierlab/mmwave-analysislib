@@ -143,6 +143,10 @@ class BulkGasAnalysis:
             exposure_time,
         )
 
+        self.images, self.run_number = self.load_image_in_lyse()
+        self.mot_image, self.background_image, self.sub_image = self.get_image_bkg_sub()
+        self.roi_atoms, self.roi_bkg = self.get_images_roi()
+
     def load_image_in_lyse(self):
         """
         load image using the h5 file path that is active in lyse
@@ -167,10 +171,13 @@ class BulkGasAnalysis:
             globals = hz.attributesToDictionary(f['globals'])
             info_dict = hz.getAttributeDict(f)
             images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
-            self.images = images
-            self.run_number = f.attrs['run number']
+            run_number = f.attrs['run number']
+            # self.images = images
+            # self.run_number = f.attrs['run number']
 
-        return images
+        return images, run_number
+
+
 
     def get_image_bkg_sub(self, debug = False):
         """
@@ -189,11 +196,11 @@ class BulkGasAnalysis:
         background_image = images[image_types[1]] # 2nd shot is background
         sub_image = mot_image - background_image # subtraction of the background
 
-        self.mot_image = mot_image
-        self.background_image = background_image
-        self.sub_image = sub_image
+        # self.mot_image = mot_image
+        # self.background_image = background_image
+        # self.sub_image = sub_image
 
-        return sub_image
+        return mot_image, background_image, sub_image
 
     def get_images_roi(self,):
         """
@@ -208,8 +215,8 @@ class BulkGasAnalysis:
         roi_atoms = sub_image[roi_y[0]:roi_y[1], roi_x[0]:roi_x[1]]
         roi_bkg = sub_image[roi_y_bkg[0]:roi_y_bkg[1], roi_x_bkg[0]:roi_x_bkg[1]]
 
-        self.roi_atoms = roi_atoms
-        self.roi_bkg = roi_bkg
+        # self.roi_atoms = roi_atoms
+        # self.roi_bkg = roi_bkg
 
         return roi_atoms, roi_bkg
 
@@ -220,6 +227,7 @@ class BulkGasAnalysis:
         int
         atom number = sum of atom number in roi - average background atom* roi size
         """
+
         roi_atoms = self.roi_atoms
         roi_bkg = self.roi_bkg
         electron_counts_mot = roi_atoms.sum()
@@ -227,7 +235,9 @@ class BulkGasAnalysis:
         atom_number_withbkg = electron_counts_mot / self.counts_per_atom
         bkg_number = electron_counts_bkg / self.counts_per_atom / roi_bkg.size * roi_atoms.size # average bkg floor in the size of roi_atoms
         atom_number = int(atom_number_withbkg) - int(bkg_number)
-        self.atom_number = atom_number
+        # self.atom_number = atom_number
+
+        self.save_atom_number(atom_number)
 
         return atom_number
 
@@ -267,10 +277,11 @@ class BulkGasAnalysis:
         pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
         fig.colorbar(pos, ax=ax_bkg_raw)
 
+        pixel_size_after_maginification = self.imaging_setup.camera.pixel_size*self.imaging_setup.magnification
         ax_mot_roi.set_title('mot ROI')
         pos = ax_mot_roi.imshow(
             roi_atoms,
-            extent=np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]])*self.px*self.magnification,
+            extent=np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]])*pixel_size_after_maginification,
             **raw_img_color_kw,
         )
         fig.colorbar(pos, ax=ax_mot_roi)
@@ -280,20 +291,19 @@ class BulkGasAnalysis:
             roi_bkg,
             vmin=-10,
             vmax=10,
-            extent=np.array([roi_x_bkg[0], roi_x_bkg[1], roi_y_bkg[0], roi_y_bkg[1]])*self.px*self.magnification, #factor: px*mag
+            extent=np.array([roi_x_bkg[0], roi_x_bkg[1], roi_y_bkg[0], roi_y_bkg[1]])*pixel_size_after_maginification, #factor: px*mag
         )
         fig.colorbar(pos, ax=ax_bkg_roi)
 
         return
 
-    def save_atom_number(self,):
+    def save_atom_number(self, atom_number):
         """
         save atom number to data.csv
         if run number is 0, it will create a new file
         otherwise it will append
         """
         h5_path = self.h5_path
-        atom_number = self.atom_number
         run_number = self.run_number
 
         folder_path = '\\'.join(h5_path.split('\\')[0:-1])
@@ -340,5 +350,3 @@ class BulkGasAnalysis:
         ax.grid(color='0.9', which='minor')
 
 
-    def process_run(self,):
-        self.image = self.get_images_roi()
