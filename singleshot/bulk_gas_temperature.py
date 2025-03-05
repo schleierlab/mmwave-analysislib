@@ -1,7 +1,7 @@
 from analysis_lib import BulkGasAnalysis, manta_path
 
-roi_x = [550, 1350]#roi_x = [850, 1250] # Region of interest of X direction
-roi_y = [650, 1450] #[750, 1150] # Region of interest of Y direction
+roi_x = [800, 1100]#roi_x = [850, 1250] # Region of interest of X direction
+roi_y = [900, 1200] #[750, 1150] # Region of interest of Y direction
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
 
@@ -14,6 +14,7 @@ bulk_gas_analysis_obj = BulkGasAnalysis(
     bkg_roi=[roi_x_bkg, roi_y_bkg],
 )
 
-bulk_gas_analysis_obj.get_atom_number()
+bulk_gas_analysis_obj.get_atom_gaussian_fit()
 bulk_gas_analysis_obj.plot_images()
 bulk_gas_analysis_obj.plot_atom_number()
+bulk_gas_analysis_obj.plot_atom_temperature()

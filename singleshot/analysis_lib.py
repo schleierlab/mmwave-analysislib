@@ -280,7 +280,7 @@ class BulkGasAnalysis:
         G = amplitude*np.exp(-(A * (X - mux) ** 2 + 2 * B * (X - mux) * (Y - muy) + C * (Y - muy) ** 2)) + offset  # + slopex * X + slopey * Y + offset
         return G.ravel()  # np.ravel() Return a contiguous flattened array.
 
-    def get_atom_temperature(self,):
+    def get_atom_gaussian_fit(self,):
         """
         measure the temperature of atom through time of flight
         the waist of the cloud is determined through 2D gaussian fitting
@@ -450,6 +450,8 @@ class BulkGasAnalysis:
         ax.grid(color='0.9', which='minor')
         fig.savefig(self.folder_path+'\\atom_number.png')
 
+        return
+
     def load_atom_temperature(self,):
         """
         load the atom number that is already saved in data.csv
@@ -509,4 +511,14 @@ class BulkGasAnalysis:
         ax2.grid(color='0.7', which='major')
         ax2.grid(color='0.9', which='minor')
         fig2.savefig(self.folder_path+'\\temperature_fit.png')
+        return
 
+    def plot_amplitude_vs_parameter(self,):
+        """
+        plot atom temperature from data.csv vs the shot number
+
+        """
+        amplitude = self.load_atom_number()
+        fig, ax = plt.subplots(constrained_layout=True)
+
+        ax.plot(np.array(temperature_x)*1e6, label='X temperature')
