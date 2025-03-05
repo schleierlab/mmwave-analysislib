@@ -125,7 +125,7 @@ class BulkGasAnalysis:
     kB = 1.3806503e-23
     """J/K Boltzman constant"""
 
-    def __init__(self, imaging_setup: ImagingSetup, exposure_time, atoms_roi, bkg_roi):
+    def __init__(self, imaging_setup: ImagingSetup, exposure_time, atoms_roi, bkg_roi, load_type='lyse', h5_path=None):
         """
         Parameters
         ----------
@@ -153,11 +153,12 @@ class BulkGasAnalysis:
             exposure_time,
         )
 
-        self.images, self.run_number, self.globals = self.load_image_in_lyse()
+        self.images, self.run_number, self.globals = self.load_image_in_h5(load_type=load_type, h5_path=h5_path)
         self.mot_image, self.background_image, self.sub_image = self.get_image_bkg_sub()
         self.roi_atoms, self.roi_bkg = self.get_images_roi()
 
-    def load_image_in_lyse(self):
+
+    def load_image(self, load_type, h5_path):
         """
         load image using the h5 file path that is active in lyse
 
@@ -166,14 +167,17 @@ class BulkGasAnalysis:
         images: list with keys as manta0, manta1 as the 1st image and second image
         can be called by images[image_types[0,1]] as the signal and background
         """
-        # Is this script being run from within an interactive lyse session?
-        if lyse.spinning_top:
-            # If so, use the filepath of the current h5_path
-            h5_path = lyse.path
-        else:
-            # If not, get the filepath of the last h5_path of the lyse DataFrame
-            df = lyse.data()
-            h5_path = df.filepath.iloc[-1]
+        if load_type == 'lyse':
+            # Is this script being run from within an interactive lyse session?
+            if lyse.spinning_top:
+                # If so, use the filepath of the current h5_path
+                h5_path = lyse.path
+            else:
+                # If not, get the filepath of the last h5_path of the lyse DataFrame
+                df = lyse.data()
+                h5_path = df.filepath.iloc[-1]
+        elif load_type == 'h5':
+            h5_path = h5_path
 
         self.h5_path = h5_path
         self.folder_path = '\\'.join(h5_path.split('\\')[0:-1])
@@ -183,10 +187,43 @@ class BulkGasAnalysis:
             info_dict = hz.getAttributeDict(f)
             images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
             run_number = f.attrs['run number']
-            # self.images = images
-            # self.run_number = f.attrs['run number']
+            if run_number == 0:
+                params, n_rep = self.get_scanning_params(f)
+
+            self.params = params
+            self.n_rep = n_rep
 
         return images, run_number, globals
+
+    def get_scanning_params(self, f):
+        """
+        get scanning parameters from globals
+
+        Returns
+        -------
+        params: list
+        """
+        globals = f['globals']
+        params = {}
+        for group in globals.keys():
+            expansion = hz.getAttributeDict(globals[group]['expansion'])
+            for key, value in expansion.items():
+                if value == 'outer' or value == 'inner':
+                    global_var = hz.getAttributeDict(globals[group])[key]
+                    global_unit = hz.getAttributeDict(globals[group]['units'])[key]
+                    params[key] = [global_var, global_unit]
+
+        rep_str =params['n_shots'][0]
+        if rep_str[0:2] != 'np':
+            rep_str = 'np.' + rep_str
+        rep = eval(rep_str)
+        n_rep = rep.shape[0]
+        del params['n_shots']
+        if len(params) == 0:
+            params['n_shots'] = [rep_str,'Shots']
+            n_rep = 1
+
+        return params, n_rep
 
 
 
@@ -521,4 +558,5 @@ class BulkGasAnalysis:
         amplitude = self.load_atom_number()
         fig, ax = plt.subplots(constrained_layout=True)
 
-        ax.plot(np.array(temperature_x)*1e6, label='X temperature')
+        para =
+        ax.plot(, label='X temperature')

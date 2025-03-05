@@ -15,5 +15,5 @@ bulk_gas_analysis_obj = BulkGasAnalysis(
 )
 
 bulk_gas_analysis_obj.get_atom_gaussian_fit()
-bulk_gas_analysis_obj.plot_images()
-bulk_gas_analysis_obj.plot_amplitude_vs_parameter()
+# bulk_gas_analysis_obj.plot_images()
+# bulk_gas_analysis_obj.plot_amplitude_vs_parameter()
