@@ -153,7 +153,7 @@ class BulkGasAnalysis:
             exposure_time,
         )
 
-        self.images, self.run_number, self.globals = self.load_image_in_h5(load_type=load_type, h5_path=h5_path)
+        self.images, self.run_number, self.globals = self.load_image(load_type=load_type, h5_path=h5_path)
         self.mot_image, self.background_image, self.sub_image = self.get_image_bkg_sub()
         self.roi_atoms, self.roi_bkg = self.get_images_roi()
 
@@ -187,8 +187,7 @@ class BulkGasAnalysis:
             info_dict = hz.getAttributeDict(f)
             images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
             run_number = f.attrs['run number']
-            if run_number == 0:
-                params, n_rep = self.get_scanning_params(f)
+            params, n_rep = self.get_scanning_params(f)
 
             self.params = params
             self.n_rep = n_rep
@@ -317,7 +316,7 @@ class BulkGasAnalysis:
         G = amplitude*np.exp(-(A * (X - mux) ** 2 + 2 * B * (X - mux) * (Y - muy) + C * (Y - muy) ** 2)) + offset  # + slopex * X + slopey * Y + offset
         return G.ravel()  # np.ravel() Return a contiguous flattened array.
 
-    def get_atom_gaussian_fit(self,):
+    def get_atom_gaussian_fit(self, option = "all parameters"):
         """
         measure the temperature of atom through time of flight
         the waist of the cloud is determined through 2D gaussian fitting
@@ -348,9 +347,32 @@ class BulkGasAnalysis:
             0,
             np.min(self.roi_atoms)])
 
-        popt, pcov = opt.curve_fit(self.gauss2D, (y, x), self.roi_atoms.ravel(), p0=initial_guess)
-        atom_number_gaussian = np.abs(2 * np.pi * popt[0] * popt[3] * popt[4] / self.counts_per_atom)
-        sigma = np.sort(np.abs([popt[3], popt[4]]))  # gaussian waiast in pixel, [short axis, long axis]
+        if option == "all parameters":
+            popt, pcov = opt.curve_fit(self.gauss2D, (y, x), self.roi_atoms.ravel(), p0=initial_guess)
+            atom_number_gaussian = np.abs(2 * np.pi * popt[0] * popt[3] * popt[4] / self.counts_per_atom)
+            sigma = np.sort(np.abs([popt[3], popt[4]]))  # gaussian waiast in pixel, [short axis, long axis]
+        elif option == "amplitude only":
+            guess = [
+                25.65785665,
+                167.40629676,
+                78.80645476,
+                39.60946011,
+                32.51922039,
+                -0.51510428,
+                1.7804111,
+            ]
+            popt, pcov = opt.curve_fit(
+            lambda xy, A, offset: self.gauss2D(
+                xy, A, *guess[1:6], offset
+            ),
+            (y, x),
+            self.roi_atoms.ravel(),
+            p0=(self.roi_atoms.max(), 0),
+            )
+            atom_number_gaussian = np.abs(2 * np.pi * (popt[0]-popt[1]) * guess[3] * guess[4] / self.counts_per_atom)
+            sigma = np.sort(np.abs([guess[3], guess[4]]))  # gaussian waiast in pixel, [short axis, long axis]
+
+
         gaussian_waist = np.array(sigma)*self.imaging_setup.pixel_size_before_maginification# convert from pixel to distance m
 
         time_of_flight = self.globals['bm_tof_imaging_delay']
@@ -552,11 +574,22 @@ class BulkGasAnalysis:
 
     def plot_amplitude_vs_parameter(self,):
         """
-        plot atom temperature from data.csv vs the shot number
+        plot amplitude vs parameter
 
         """
         amplitude = self.load_atom_number()
         fig, ax = plt.subplots(constrained_layout=True)
 
-        para =
-        ax.plot(, label='X temperature')
+        for key, value in self.params.items():
+            para = eval(value[0])
+            unit = value[1]
+            label_string = f'{key} ({unit})'
+
+            amplitude_resize = np.resize(amplitude, para.shape[0])
+            amplitude_resize[len(amplitude):] = np.nan
+
+        ax.plot(para, amplitude_resize, '-o')
+        ax.set_xlabel(label_string)
+        ax.set_ylabel('amplitude')
+        ax.grid(color='0.7', which='major')
+        ax.grid(color='0.9', which='minor')
