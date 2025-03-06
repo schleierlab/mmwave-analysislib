@@ -37,6 +37,11 @@ class ImagingCamera:
     (for cameras like EMCCDs).
     """
 
+    image_name: str
+    """
+    Name of the image file to load.
+    """
+
 
 @dataclass
 class ImagingSetup:
@@ -103,6 +108,7 @@ manta = ImagingCamera(
     image_size=2048,
     quantum_efficiency=0.4,
     gain=1,
+    image_name='manta419b_mot_images'
 )
 
 
@@ -185,7 +191,7 @@ class BulkGasAnalysis:
         with h5py.File(h5_path, mode='r+') as f:
             globals = hz.getGlobalsFromFile(h5_path)
             info_dict = hz.getAttributeDict(f)
-            images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
+            images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_name], recursive=True)
             run_number = f.attrs['run number']
             params, n_rep = self.get_scanning_params(f)
 
