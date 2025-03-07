@@ -148,7 +148,15 @@ class BulkGasAnalysis:
     kB = 1.3806503e-23
     """J/K Boltzman constant"""
 
-    def __init__(self, imaging_setup: ImagingSetup, exposure_time, atoms_roi, bkg_roi, load_type='lyse', h5_path=None):
+    def __init__(
+            self,
+            imaging_setup: ImagingSetup,
+            exposure_time,
+            atoms_roi,
+            bkg_roi,
+            load_type='lyse',
+            h5_path=None
+            ):
         """
         Parameters
         ----------
@@ -638,7 +646,10 @@ class TweezerAnalysis(BulkGasAnalysis):
             load_type='lyse',
             h5_path=None,
             load_tweezer_roi=True,
-            tweezer_roi = None):
+            tweezer_roi = None,
+            load_threshold = True,
+            threshold = None,
+            method = 'average'):
         """
         Parameters
         ----------
@@ -657,37 +668,116 @@ class TweezerAnalysis(BulkGasAnalysis):
             ],
             where all numbers are given in pixels.
         """
-        self.atoms_roi = atoms_roi
-        self.tweezer_roi = tweezer_roi
-        self.background_roi = bkg_roi
 
+        self.background_roi = bkg_roi
         self.imaging_setup = imaging_setup
         self.counts_per_atom = self.imaging_setup.counts_per_atom(
             self.scattering_rate,
             exposure_time,
         )
 
-        if load_tweezer_roi:
-            self.load_tweezer_roi()
-        else:
+        roi_x, roi_y, tweezer_roi_x, tweezer_roi_y = self.load_tweezer_roi(
+            load_tweezer_roi,
+            atoms_roi,
+            tweezer_roi)
+        self.atom_roi = [roi_x, roi_y]
+        self.tweezer_roi = [tweezer_roi_x, tweezer_roi_y]
+        self.threshold = self.load_threshold(load_threshold, threshold)
 
-
-
-        self.images, self.run_number, self.globals = self.load_images(load_type=load_type, h5_path=h5_path)
-        self.atom_image, self.background_image, self.sub_image = self.get_image_bkg_sub()
+        self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
+        self.params, self.n_rep = self.get_scanning_params()
+        self.images, self.run_number, self.globals = self.load_images()
+        self.atom_images, self.background_images, self.sub_images = self.get_image_bkg_sub(method = method)
         self.roi_atoms, self.roi_bkg = self.get_images_roi()
 
-    def load_tweezer_roi(self,):
+    def load_tweezer_roi(self, load_tweezer_roi, atoms_roi, tweezer_roi):
         # File paths
-        multi_shot_folder = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
-        roi_paths = {
-            'tweezer_roi_x': os.path.join(multi_shot_folder, "tweezer_roi_x.npy"),
-            'tweezer_roi_y': os.path.join(multi_shot_folder, "tweezer_roi_y.npy"),
-            'roi_x': os.path.join(multi_shot_folder, "roi_x.npy")
+        if load_tweezer_roi:
+            multi_shot_folder = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
+            roi_paths = {
+                'tweezer_roi_x': os.path.join(multi_shot_folder, "tweezer_roi_x.npy"),
+                'tweezer_roi_y': os.path.join(multi_shot_folder, "tweezer_roi_y.npy"),
+                'roi_x': os.path.join(multi_shot_folder, "roi_x.npy")}
 
-        tweezer_roi_x = np.load(roi_paths['tweezer_roi_x'])
-        tweezer_roi_y = np.load(roi_paths['tweezer_roi_y'])
-        roi_x = np.load(roi_paths['roi_x'])
-        roi_y = self.globals
+            tweezer_roi_x = np.load(roi_paths['tweezer_roi_x'])
+            tweezer_roi_y = np.load(roi_paths['tweezer_roi_y'])
+            roi_x = np.load(roi_paths['roi_x'])
+            roi_y = self.globals("tw_kinetix_roi_row")
+        else:
+            if tweezer_roi is None:
+                raise ValueError ("When choose load_tweezer_roi is False, please provide tweezer_roi")
+            self.tweezer_roi_x = tweezer_roi["tweezer_roi_x"]
+            self.tweezer_roi_y = tweezer_roi["tweezer_roi_x"]
+            [roi_x, _] = atoms_roi
+            roi_y = self.globals("tw_kinetix_roi_row")
+        return roi_x, roi_y, tweezer_roi_x, tweezer_roi_y
 
-}
+    def load_threshold(self, load_threshold, default_threshold):
+        """Load threshold value from file or use default."""
+        if load_threshold:
+            threshold_path = os.path.join(self.multishot_path, "th.npy")
+            try:
+                threshold = np.load(threshold_path)[0]
+            except FileNotFoundError:
+                print(f'Warning: Threshold file not found at {threshold_path}, using default value')
+                threshold = default_threshold
+        else:
+            if default_threshold is None:
+                raise ValueError ("When choose load_threshold is False, please provide threshold")
+            threshold = default_threshold
+        return threshold
+
+    def get_image_bkg_sub(self, method = 'average'):
+        images = self.convert_dict_to_array(self.images)
+        folder_path = self.folder_path
+        alternative_bkg_path = os.path.join(folder_path, 'alternative_bkg')
+        average_bkg_path = os.path.join(folder_path, 'average_bkg')
+        last_bkg_sub_path = os.path.join(folder_path, 'last_bkg_sub')
+
+        if method == 'alternative':
+            if self.globals['mot_do_coil']:
+                atom_images = images
+                background_images = np.load(alternative_bkg_path)
+                sub_images = atom_images - background_images
+                np.save(last_bkg_sub_path, sub_images)
+            else:
+                background_images = images
+                np.save(alternative_bkg_path, images)
+                sub_images = np.load(last_bkg_sub_path)
+                # load last background subtracted images
+                # during background taking shot to make
+                # sure there is something to plot
+        elif method == 'average':
+            atom_images = images
+            background_images = np.load(average_bkg_path)
+            sub_images = atom_images - background_images
+            np.save(last_bkg_sub_path, sub_images)
+        else:
+            raise NotImplementedError
+            #TODO implement the method here
+
+        return atom_images, background_images, sub_images
+
+    def convert_dict_to_array(self, dict):
+        """"
+        convert the images from dictionary to np.array
+        with shape(# shots in a single sequence, size of images)
+        """
+        dict_types= list(dict.keys())
+        array = []
+        for item in dict_types:
+            array.append(dict(item))
+        return np.array(array)
+
+    def get_images_roi(self,):
+        [roi_x, roi_y] = self.atoms_roi
+        [roi_x_bkg, roi_y_bkg] = self.background_roi
+        sub_images = self.sub_images
+        roi_atoms = sub_images[roi_y[0]:roi_y[1], roi_x[0]:roi_x[1]]
+        roi_bkg = sub_images[roi_y_bkg[0]:roi_y_bkg[1], roi_x_bkg[0]:roi_x_bkg[1]]
+
+
+
+
+
+

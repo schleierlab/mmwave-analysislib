@@ -8,13 +8,14 @@ roi_y_bkg= [1900, 2400] # Region of interest of Y direction
 
 t_expo = 80e-3 #s, exposre time
 
-bulk_gas_analysis_obj = TweezerAnalysis(
+tweezer_analysis_obj = TweezerAnalysis(
     imaging_setup=kinetix_path,
     exposure_time=t_expo,
     atoms_roi=[roi_x, roi_y],
     bkg_roi=[roi_x_bkg, roi_y_bkg],
+    method = 'alternative'
 )
 
-bulk_gas_analysis_obj.get_atom_number()
-bulk_gas_analysis_obj.plot_images()
-bulk_gas_analysis_obj.plot_atom_number()
+tweezer_analysis_obj.get_atom_number()
+tweezer_analysis_obj.plot_images()
+tweezer_analysis_obj.plot_atom_number()
