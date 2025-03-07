@@ -1,4 +1,4 @@
-from analysis_lib import BulkGasAnalysis, kinetix_path
+from analysis_lib import TweezerAnalysis, kinetix_path
 import matplotlib.pyplot as plt
 
 roi_x = [1200, 1450]#roi_x = [850, 1250] # Region of interest of X direction
@@ -8,7 +8,7 @@ roi_y_bkg= [1900, 2400] # Region of interest of Y direction
 
 t_expo = 80e-3 #s, exposre time
 
-bulk_gas_analysis_obj = BulkGasAnalysis(
+bulk_gas_analysis_obj = TweezerAnalysis(
     imaging_setup=kinetix_path,
     exposure_time=t_expo,
     atoms_roi=[roi_x, roi_y],

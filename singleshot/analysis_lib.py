@@ -20,6 +20,7 @@ import h5py
 import matplotlib.pyplot as plt
 import csv
 import scipy.optimize as opt
+import os as os
 
 @dataclass
 class ImagingCamera:
@@ -120,6 +121,22 @@ manta_path = ImagingSetup(
     camera=manta,
 )
 
+kinetix = ImagingCamera(
+    pixel_size=6.5e-6,
+    image_size=2400,
+    quantum_efficiency=0.58,
+    gain=1,
+    image_name='kinetix_images'
+)
+
+kinetix_path = ImagingSetup(
+    imaging_f=40.4e-3,
+    objective_f=300e-3,
+    lens_diameter=50.8e-3,
+    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
+    camera=kinetix,
+)
+
 
 class BulkGasAnalysis:
     scattering_rate = 2 * np.pi * 5.2227e+6 # rad/s
@@ -159,12 +176,15 @@ class BulkGasAnalysis:
             exposure_time,
         )
 
-        self.images, self.run_number, self.globals = self.load_image(load_type=load_type, h5_path=h5_path)
-        self.mot_image, self.background_image, self.sub_image = self.get_image_bkg_sub()
+        self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
+        self.params, self.n_rep = self.get_scanning_params()
+        self.images, self.run_number, self.globals = self.load_images()
+        self.atom_image, self.background_image, self.sub_image = self.get_image_bkg_sub()
         self.roi_atoms, self.roi_bkg = self.get_images_roi()
 
 
-    def load_image(self, load_type, h5_path):
+
+    def load_images(self,):
         """
         load image using the h5 file path that is active in lyse
 
@@ -173,6 +193,15 @@ class BulkGasAnalysis:
         images: list with keys as manta0, manta1 as the 1st image and second image
         can be called by images[image_types[0,1]] as the signal and background
         """
+        h5_path = self.h5_path
+        with h5py.File(h5_path, mode='r+') as f:
+            globals = hz.getGlobalsFromFile(h5_path)
+            images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_name], recursive=True)
+            run_number = f.attrs['run number']
+        return images, run_number, globals
+
+
+    def get_h5_path(self, load_type, h5_path):
         if load_type == 'lyse':
             # Is this script being run from within an interactive lyse session?
             if lyse.spinning_top:
@@ -183,24 +212,18 @@ class BulkGasAnalysis:
                 df = lyse.data()
                 h5_path = df.filepath.iloc[-1]
         elif load_type == 'h5':
+            if h5_path is None:
+                raise ValueError("When load_type is h5, please provide exact h5 path")
             h5_path = h5_path
+        else:
+            raise ValueError("No such load_tye, to be implemented")
 
-        self.h5_path = h5_path
-        self.folder_path = '\\'.join(h5_path.split('\\')[0:-1])
+        folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 
-        with h5py.File(h5_path, mode='r+') as f:
-            globals = hz.getGlobalsFromFile(h5_path)
-            info_dict = hz.getAttributeDict(f)
-            images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_name], recursive=True)
-            run_number = f.attrs['run number']
-            params, n_rep = self.get_scanning_params(f)
+        return h5_path, folder_path
 
-            self.params = params
-            self.n_rep = n_rep
 
-        return images, run_number, globals
-
-    def get_scanning_params(self, f):
+    def get_scanning_params(self,):
         """
         get scanning parameters from globals
 
@@ -208,25 +231,27 @@ class BulkGasAnalysis:
         -------
         params: list
         """
-        globals = f['globals']
-        params = {}
-        for group in globals.keys():
-            expansion = hz.getAttributeDict(globals[group]['expansion'])
-            for key, value in expansion.items():
-                if value == 'outer' or value == 'inner':
-                    global_var = hz.getAttributeDict(globals[group])[key]
-                    global_unit = hz.getAttributeDict(globals[group]['units'])[key]
-                    params[key] = [global_var, global_unit]
+        h5_path = self.h5_path
+        with h5py.File(h5_path, mode='r+') as f:
+            globals = f['globals']
+            params = {}
+            for group in globals.keys():
+                expansion = hz.getAttributeDict(globals[group]['expansion'])
+                for key, value in expansion.items():
+                    if value == 'outer' or value == 'inner':
+                        global_var = hz.getAttributeDict(globals[group])[key]
+                        global_unit = hz.getAttributeDict(globals[group]['units'])[key]
+                        params[key] = [global_var, global_unit]
 
-        rep_str =params['n_shots'][0]
-        if rep_str[0:2] != 'np':
-            rep_str = 'np.' + rep_str
-        rep = eval(rep_str)
-        n_rep = rep.shape[0]
-        del params['n_shots']
-        if len(params) == 0:
-            params['n_shots'] = [rep_str,'Shots']
-            n_rep = 1
+            rep_str =params['n_shots'][0]
+            if rep_str[0:2] != 'np':
+                rep_str = 'np.' + rep_str
+            rep = eval(rep_str)
+            n_rep = rep.shape[0]
+            del params['n_shots']
+            if len(params) == 0:
+                params['n_shots'] = [rep_str,'Shots']
+                n_rep = 1
 
         return params, n_rep
 
@@ -238,22 +263,22 @@ class BulkGasAnalysis:
 
         Returns
         -------
-        sub_image = mot_image - background_image
+        sub_image = atom_image - background_image
         array like, shape [n_px, n_px]
         """
         images = self.images
         image_types = list(images.keys())
         if debug:
             print("image type is", images[image_types[0]])
-        mot_image = images[image_types[0]] # 1st shot is signal
+        atom_image = images[image_types[0]] # 1st shot is signal
         background_image = images[image_types[1]] # 2nd shot is background
-        sub_image = mot_image - background_image # subtraction of the background
+        sub_image = atom_image - background_image # subtraction of the background
 
-        # self.mot_image = mot_image
+        # self.atom_image = atom_image
         # self.background_image = background_image
         # self.sub_image = sub_image
 
-        return mot_image, background_image, sub_image
+        return atom_image, background_image, sub_image
 
     def get_images_roi(self,):
         """
@@ -283,9 +308,9 @@ class BulkGasAnalysis:
 
         roi_atoms = self.roi_atoms
         roi_bkg = self.roi_bkg
-        electron_counts_mot = roi_atoms.sum()
+        electron_counts_atom = roi_atoms.sum()
         electron_counts_bkg = roi_bkg.sum()
-        atom_number_withbkg = electron_counts_mot / self.counts_per_atom
+        atom_number_withbkg = electron_counts_atom / self.counts_per_atom
         bkg_number = electron_counts_bkg / self.counts_per_atom / roi_bkg.size * roi_atoms.size # average bkg floor in the size of roi_atoms
         atom_number = int(atom_number_withbkg) - int(bkg_number)
         # self.atom_number = atom_number
@@ -399,7 +424,7 @@ class BulkGasAnalysis:
 
         plot images of raw image/background image full frame and background subtracted image in rois
         """
-        mot_image = self.mot_image
+        atom_image = self.atom_image
         background_image = self.background_image
         roi_atoms = self.roi_atoms
         roi_bkg = self.roi_bkg
@@ -407,7 +432,7 @@ class BulkGasAnalysis:
         [roi_x_bkg, roi_y_bkg] = self.background_roi
 
         fig, axs = plt.subplots(nrows=2, ncols=2, constrained_layout=True)
-        (ax_mot_raw, ax_bkg_raw), (ax_bkg_roi, ax_mot_roi) = axs
+        (ax_atom_raw, ax_bkg_raw), (ax_bkg_roi, ax_atom_roi) = axs
         for ax in axs[0]:
             ax.set_xlabel('x [px]')
             ax.set_ylabel('y [px]')
@@ -418,22 +443,22 @@ class BulkGasAnalysis:
 
 
         raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax= image_scale)
-        ax_mot_raw.set_title('Raw')
-        pos = ax_mot_raw.imshow(mot_image, **raw_img_color_kw)
-        fig.colorbar(pos, ax=ax_mot_raw)
+        ax_atom_raw.set_title('Raw, with atom')
+        pos = ax_atom_raw.imshow(atom_image, **raw_img_color_kw)
+        fig.colorbar(pos, ax=ax_atom_raw)
 
-        ax_bkg_raw.set_title('Raw, no mot')
+        ax_bkg_raw.set_title('Raw, no atom')
         pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
         fig.colorbar(pos, ax=ax_bkg_raw)
 
         pixel_size_before_maginification = self.imaging_setup.pixel_size_before_maginification
-        ax_mot_roi.set_title('mot ROI')
-        pos = ax_mot_roi.imshow(
+        ax_atom_roi.set_title('Atom ROI')
+        pos = ax_atom_roi.imshow(
             roi_atoms,
             extent=np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]])*pixel_size_before_maginification,
             **raw_img_color_kw,
         )
-        fig.colorbar(pos, ax=ax_mot_roi)
+        fig.colorbar(pos, ax=ax_atom_roi)
 
         ax_bkg_roi.set_title('Background ROI')
         pos = ax_bkg_roi.imshow(
@@ -509,7 +534,7 @@ class BulkGasAnalysis:
 
         ax.plot(counts)
         ax.set_xlabel('Shot number')
-        ax.set_ylabel('mot atom count')
+        ax.set_ylabel('atom count')
 
         ax.grid(color='0.7', which='major')
         ax.grid(color='0.9', which='minor')
@@ -599,3 +624,70 @@ class BulkGasAnalysis:
         ax.set_ylabel('amplitude')
         ax.grid(color='0.7', which='major')
         ax.grid(color='0.9', which='minor')
+
+
+class TweezerAnalysis(BulkGasAnalysis):
+
+    def __init__(
+            self,
+            imaging_setup:
+            ImagingSetup,
+            exposure_time,
+            atoms_roi,
+            bkg_roi,
+            load_type='lyse',
+            h5_path=None,
+            load_tweezer_roi=True,
+            tweezer_roi = None):
+        """
+        Parameters
+        ----------
+        imaging_f, objective_f: float
+            focal lengths of the imaging and objective lenses, in m
+        lens_diameter: float
+            imaging lens diameter in m
+        exposure_time: float
+            imaging exposure time in s
+        atoms_roi, bkg_roi: array_like, shape (2, 2)
+            Specification of the regions of interest for the atoms and for the background image.
+            The specification should take the form
+            [
+                [x_min, x_max],
+                [y_min, y_max],
+            ],
+            where all numbers are given in pixels.
+        """
+        self.atoms_roi = atoms_roi
+        self.tweezer_roi = tweezer_roi
+        self.background_roi = bkg_roi
+
+        self.imaging_setup = imaging_setup
+        self.counts_per_atom = self.imaging_setup.counts_per_atom(
+            self.scattering_rate,
+            exposure_time,
+        )
+
+        if load_tweezer_roi:
+            self.load_tweezer_roi()
+        else:
+
+
+
+        self.images, self.run_number, self.globals = self.load_images(load_type=load_type, h5_path=h5_path)
+        self.atom_image, self.background_image, self.sub_image = self.get_image_bkg_sub()
+        self.roi_atoms, self.roi_bkg = self.get_images_roi()
+
+    def load_tweezer_roi(self,):
+        # File paths
+        multi_shot_folder = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
+        roi_paths = {
+            'tweezer_roi_x': os.path.join(multi_shot_folder, "tweezer_roi_x.npy"),
+            'tweezer_roi_y': os.path.join(multi_shot_folder, "tweezer_roi_y.npy"),
+            'roi_x': os.path.join(multi_shot_folder, "roi_x.npy")
+
+        tweezer_roi_x = np.load(roi_paths['tweezer_roi_x'])
+        tweezer_roi_y = np.load(roi_paths['tweezer_roi_y'])
+        roi_x = np.load(roi_paths['roi_x'])
+        roi_y = self.globals
+
+}
