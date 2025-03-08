@@ -355,7 +355,7 @@ class BulkGasAnalysis:
         G = amplitude*np.exp(-(A * (X - mux) ** 2 + 2 * B * (X - mux) * (Y - muy) + C * (Y - muy) ** 2)) + offset  # + slopex * X + slopey * Y + offset
         return G.ravel()  # np.ravel() Return a contiguous flattened array.
 
-    def get_atom_gaussian_fit(self, option = "all parameters"):
+    def get_atom_gaussian_fit(self, option = "all parameters", gaussian_fit_params = None):
         """
         measure the temperature of atom through time of flight
         the waist of the cloud is determined through 2D gaussian fitting
@@ -391,25 +391,19 @@ class BulkGasAnalysis:
             atom_number_gaussian = np.abs(2 * np.pi * popt[0] * popt[3] * popt[4] / self.counts_per_atom)
             sigma = np.sort(np.abs([popt[3], popt[4]]))  # gaussian waiast in pixel, [short axis, long axis]
         elif option == "amplitude only":
-            guess = [
-                25.65785665,
-                167.40629676,
-                78.80645476,
-                39.60946011,
-                32.51922039,
-                -0.51510428,
-                1.7804111,
-            ]
+            if gaussian_fit_params is None:
+                raise ValueError('when choose amplitude only option, '
+                'you need to put in the gaussain_fit_params')
             popt, pcov = opt.curve_fit(
             lambda xy, A, offset: self.gauss2D(
-                xy, A, *guess[1:6], offset
+                xy, A, *gaussian_fit_params[1:6], offset
             ),
             (y, x),
             self.roi_atoms.ravel(),
             p0=(self.roi_atoms.max(), 0),
             )
-            atom_number_gaussian = np.abs(2 * np.pi * (popt[0]-popt[1]) * guess[3] * guess[4] / self.counts_per_atom)
-            sigma = np.sort(np.abs([guess[3], guess[4]]))  # gaussian waiast in pixel, [short axis, long axis]
+            atom_number_gaussian = np.abs(2 * np.pi * (popt[0]-popt[1]) * gaussian_fit_params[3] * gaussian_fit_params[4] / self.counts_per_atom)
+            sigma = np.sort(np.abs([gaussian_fit_params[3], gaussian_fit_params[4]]))  # gaussian waiast in pixel, [short axis, long axis]
 
 
         gaussian_waist = np.array(sigma)*self.imaging_setup.pixel_size_before_maginification# convert from pixel to distance m
