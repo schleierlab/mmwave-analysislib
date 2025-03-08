@@ -1,9 +1,9 @@
 from analysis_lib import BulkGasAnalysis, manta_path
 
-roi_x = [900, 1150] #roi_x = [850, 1250] # Region of interest of X direction
-roi_y = [900, 1150] #[750, 1150] # Region of interest of Y direction
-roi_x_bkg = [1900, 2400] # Region of interest of X direction
-roi_y_bkg= [1900, 2400] # Region of interest of Y direction
+roi_x = [900, 1150] # Region of interest of X direction
+roi_y = [900, 1150] # Region of interest of Y direction
+roi_x_bkg = [1900, 2400] # Region of background of X direction
+roi_y_bkg= [1900, 2400] # Region of background of Y direction
 
 t_expo = 1e-3 #s, exposre time
 

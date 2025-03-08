@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import csv
 import scipy.optimize as opt
 import os as os
+from uncertainties import ufloat
 
 @dataclass
 class ImagingCamera:
@@ -81,6 +82,7 @@ class ImagingSetup:
         """
         For an image of atoms with given scattering rate taken with a given exposure time,
         find the camera counts per atom we expect with this imaging setup.
+        Note that the scattering rate is for resonance light not for the detuned light.
 
         Parameters
         ----------
@@ -160,10 +162,8 @@ class BulkGasAnalysis:
         """
         Parameters
         ----------
-        imaging_f, objective_f: float
-            focal lengths of the imaging and objective lenses, in m
-        lens_diameter: float
-            imaging lens diameter in m
+        imaging_setup: ImagingSetup class
+         chose manta_path or kinetix_path for the current imaging setup
         exposure_time: float
             imaging exposure time in s
         atoms_roi, bkg_roi: array_like, shape (2, 2)
@@ -174,10 +174,13 @@ class BulkGasAnalysis:
                 [y_min, y_max],
             ],
             where all numbers are given in pixels.
+        load_type: str
+            'lyse' for h5 file active in lyse, 'h5' for h5 file with input h5_path
+        h5_path: str
+            path to h5 file, only used if load_type='h5'
         """
         self.atoms_roi = atoms_roi
         self.background_roi = bkg_roi
-
         self.imaging_setup = imaging_setup
         self.counts_per_atom = self.imaging_setup.counts_per_atom(
             self.scattering_rate,
@@ -194,12 +197,17 @@ class BulkGasAnalysis:
 
     def load_images(self,):
         """
-        load image using the h5 file path that is active in lyse
+        load image inside the h5 file, return current run number and globals
 
         Returns
         -------
-        images: list with keys as manta0, manta1 as the 1st image and second image
-        can be called by images[image_types[0,1]] as the signal and background
+        images: dictionary with keys based on different imaging cameras used
+            images.keys(): list of all keys of images, which is based on different imaging cameras
+            images.values(): list of all values of images, array like, shape [n_px, n_px]
+        run_number: int
+            current run number
+        globals: dictionary with keys based on different global variables used
+
         """
         h5_path = self.h5_path
         with h5py.File(h5_path, mode='r+') as f:
@@ -210,6 +218,20 @@ class BulkGasAnalysis:
 
 
     def get_h5_path(self, load_type, h5_path):
+        """
+        get h5_path based on load_type
+        Parameters
+        ----------
+        load_type: str
+            'lyse' for h5 file active in lyse, 'h5' for h5 file with input h5_path
+        h5_path: str
+            path to h5 file, only used if load_type='h5'
+
+        Returns
+        -------
+        h5_path: str
+        The actual h5 file path used based on the selected load_type
+        """
         if load_type == 'lyse':
             # Is this script being run from within an interactive lyse session?
             if lyse.spinning_top:
@@ -233,13 +255,52 @@ class BulkGasAnalysis:
 
     def get_scanning_params(self,):
         """
+        get scanning parameters and number of repetitions based
+        on the expansion of each globals, if the expansion is 'inner' or 'outer'
+        then it is a scanning parameter, number of repetitions is determined by n_shots
+        in globals. If only n_shots is present, then n_rep = 1 and scanning params = n_shots
+
+        Returns
+        -------
+        params: list
+            list of scanning parameters
+            list.key = parameter name, list.value = [parameter value, unit]
+        n_rep: int
+            number of repetitions
+        """
+        h5_path = self.h5_path
+        with h5py.File(h5_path, mode='r+') as f:
+            globals = f['globals']
+            params = {}
+            for group in globals.keys():
+                expansion = hz.getAttributeDict(globals[group]['expansion'])
+                for key, value in expansion.items():
+                    if value == 'outer' or value == 'inner':
+                        global_var = hz.getAttributeDict(globals[group])[key]
+                        global_unit = hz.getAttributeDict(globals[group]['units'])[key]
+                        params[key] = [global_var, global_unit]
+
+            rep_str =params['n_shots'][0]
+            if rep_str[0:2] != 'np':
+                rep_str = 'np.' + rep_str
+            rep = eval(rep_str)
+            n_rep = rep.shape[0]
+            del params['n_shots']
+            if len(params) == 0:
+                params['n_shots'] = [rep_str,'Shots']
+                n_rep = 1
+
+        return params, n_rep
+
+    @staticmethod
+    def get_scanning_params_static(h5_path):
+        """
         get scanning parameters from globals
 
         Returns
         -------
         params: list
         """
-        h5_path = self.h5_path
         with h5py.File(h5_path, mode='r+') as f:
             globals = f['globals']
             params = {}
@@ -268,6 +329,7 @@ class BulkGasAnalysis:
     def get_image_bkg_sub(self, debug = False):
         """
         get background subtracted image: signal - background
+        atom_image = 1st key of images, background_image = 2nd key of images
 
         Returns
         -------
@@ -290,6 +352,10 @@ class BulkGasAnalysis:
 
     def get_images_roi(self,):
         """
+        get the images and background in the roi defined by atoms_roi and background_roi
+        note that the y direction is the row direction of image matrix and
+        x direction is the col direction
+
         Returns
         -------
         roi_atoms, roi_bkg as the images and background in the roi
@@ -308,10 +374,11 @@ class BulkGasAnalysis:
 
     def get_atom_number(self,):
         """
+        sum of counts in roi/counts_per_atom - average background atom per px* roi size
+
         Returns
         -------
-        int
-        atom number = sum of atom number in roi - average background atom* roi size
+        atom_number: int
         """
 
         roi_atoms = self.roi_atoms
@@ -357,16 +424,28 @@ class BulkGasAnalysis:
 
     def get_atom_gaussian_fit(self, option = "all parameters", gaussian_fit_params = None):
         """
-        measure the temperature of atom through time of flight
+        measure the atom number, temperature of atom through time of flight
         the waist of the cloud is determined through 2D gaussian fitting
-        T = m*(w/t)^2 / k_B
+        all fitting parameters are saved in "data.csv"
+
+        Parameters
+        ----------
+        option: str, "all parameters" or "amplitude only"
+        "all parameters" will use fitting with all free parameters
+        "amplitude only" will use fitting with only free amplitude, the center, waist, rotation and offset is fixed
+        gaussian_fit_params: array_like, shape [7]
+        only used when option is "amplitude only", the center, waist, rotation and offset is fixed using the values in gaussian_fit_params
 
         Returns
         -------
         time_of_flight: float
-        atom_number_gaussian: float atom number through gaussian fitting
+            extracted from global variable "bm_tof_imaging_delay"
+        atom_number_gaussian: float
+            atom number through gaussian fitting
         guassian_waist: array_like, shape [2]
         temperature: array_like, shape [2]
+            instant temperature assuming initial cloud size is 0
+            T = m / k_B * (waist/time_of_flight)^2
         """
         # Creating a grid for the Gaussian fit
         [roi_x, roi_y] = self.atoms_roi
@@ -404,27 +483,29 @@ class BulkGasAnalysis:
             )
             atom_number_gaussian = np.abs(2 * np.pi * (popt[0]-popt[1]) * gaussian_fit_params[3] * gaussian_fit_params[4] / self.counts_per_atom)
             sigma = np.sort(np.abs([gaussian_fit_params[3], gaussian_fit_params[4]]))  # gaussian waiast in pixel, [short axis, long axis]
-
+        else:
+            raise NotImplementedError('option should be "all parameters" or "amplitude only"')
 
         gaussian_waist = np.array(sigma)*self.imaging_setup.pixel_size_before_maginification# convert from pixel to distance m
-
         time_of_flight = self.globals['bm_tof_imaging_delay']
-        if self.globals['do_dipole_trap_tof_check'] == True:
-            time_of_flight = self.globals['img_tof_imaging_delay']
         temperature = self.m / self.kB * (gaussian_waist/time_of_flight)**2
 
         self.save_atom_temperature(atom_number_gaussian, time_of_flight, gaussian_waist, temperature)
 
         return time_of_flight, atom_number_gaussian, gaussian_waist, temperature
 
-    def plot_images(self, image_scale = 100):
+    def plot_images(self, raw_image_scale = 100, roi_image_scale = 100):
         """
+        plot the images of raw image/background image full frame and background subtracted images in rois
+        and also save the images in the folder path
+
         Parameters
         ----------
-        image_scale: float
-            scale of the image, max value of the colorbar
+        raw_image_scale: float
+            scale of raw image in the plot
+        roi_image_scale: float
+            scale of roi image in the plot
 
-        plot images of raw image/background image full frame and background subtracted image in rois
         """
         atom_image = self.atom_image
         background_image = self.background_image
@@ -444,7 +525,7 @@ class BulkGasAnalysis:
 
 
 
-        raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax= image_scale)
+        raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax= raw_image_scale)
         ax_atom_raw.set_title('Raw, with atom')
         pos = ax_atom_raw.imshow(atom_image, **raw_img_color_kw)
         fig.colorbar(pos, ax=ax_atom_raw)
@@ -455,10 +536,11 @@ class BulkGasAnalysis:
 
         pixel_size_before_maginification = self.imaging_setup.pixel_size_before_maginification
         ax_atom_roi.set_title('Atom ROI')
+        roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax= roi_image_scale)
         pos = ax_atom_roi.imshow(
             roi_atoms,
             extent=np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]])*pixel_size_before_maginification,
-            **raw_img_color_kw,
+            **roi_img_color_kw,
         )
         fig.colorbar(pos, ax=ax_atom_roi)
 
@@ -520,21 +602,27 @@ class BulkGasAnalysis:
         h5_path = self.h5_path
         folder_path = '\\'.join(h5_path.split('\\')[0:-1])
         count_file_path = folder_path+'\\data.csv'
-        with open(count_file_path, newline='') as csvfile:
-            counts = [list(map(float, row))[0] for row in csv.reader(csvfile)]
+        try:
+            with open(count_file_path, newline='') as csvfile:
+                counts = [list(map(float, row))[0] for row in csv.reader(csvfile)]
+        except:
+            raise FileExistsError('Please run get_atom_number first')
 
         return counts
 
 
     def plot_atom_number(self,):
         """
-        plot atom number from data.csv vs the shot number
+        To run this function, we need to run get_atom_number first and have data.csv in the same folder
+        plot atom number from data.csv vs the shot number and also save the image in the folder path
+        this plot all the shots in the same queue start with run number = 0
+        so that we can see the trend
 
         """
         counts = self.load_atom_number()
         fig, ax = plt.subplots(constrained_layout=True)
 
-        ax.plot(counts)
+        ax.plot(counts,'o-')
         ax.set_xlabel('Shot number')
         ax.set_ylabel('atom count')
 
@@ -565,7 +653,10 @@ class BulkGasAnalysis:
     def plot_atom_temperature(self,):
         """
         plot atom temperature from data.csv vs the shot number
-
+        fitting more accurate temperature with different time of flight through linear fit
+        since the size of the cloud is not zero at the begining of time of flight
+        plot the fitting result
+        save all the plots in the folder path
         """
         time_of_flight, waist_x, waist_y, temperature_x, temperature_y = self.load_atom_temperature()
         fig, ax = plt.subplots(constrained_layout=True)
@@ -580,34 +671,55 @@ class BulkGasAnalysis:
         ax.grid(color='0.9', which='minor')
         fig.savefig(self.folder_path+'\\temperature_single_shot.png')
 
-        # linear fit to extrac the velocity of the atoms through sphereical expansion
-        slope_x, intercept_x = np.polyfit(time_of_flight**2, np.array(waist_x)**2, 1)
-        slope_y, intercept_y = np.polyfit(time_of_flight**2, np.array(waist_y)**2, 1)
-        slope = np.array([slope_x, slope_y])
-        T = slope*self.m/self.kB*1e6
+        if self.run_number >= 2:
+            # linear fit to extrac the velocity of the atoms through sphereical expansion
+            slope_lst = []
+            intercept_lst = []
+            slope_uncertainty_lst = []
+            for waist in [waist_x, waist_y]:
+                coefficient, covariance = np.polyfit(time_of_flight**2, np.array(waist)**2, 1, cov = True)
+                slope_lst.append(coefficient[0])
+                intercept_lst.append(coefficient[1])
+                error = np.sqrt(np.diag(covariance))
+                slope_error = error[0]
+                slope_uncertainty_lst.append(ufloat(coefficient[0],slope_error))
 
-        t_plot = np.arange(0,max(time_of_flight)+1e-3,1e-3)
-        fig2, ax2 = plt.subplots(constrained_layout=True)
-        ax2.plot(t_plot**2*1e6 , (slope_x*t_plot**2 + intercept_x)*1e12, label=rf'major axis fit, $T = {T[0]:.3f}$ $\mu$K')
-        ax2.plot(t_plot**2*1e6 , (slope_y*t_plot**2 + intercept_y)*1e12, label=rf'minor axis fit, $T = {T[1]:.3f}$ $\mu$K')
-        ax2.plot(time_of_flight**2*1e6, np.array(waist_x)**2*1e12, 'oC0', label ='data x')
-        ax2.plot(time_of_flight**2*1e6, np.array(waist_y)**2*1e12, 'oC1', label ='data y')
-        ax2.set_xlabel('Shot number')
-        ax2.set_xlabel(r'Time$^2$ (ms$^2$)')
-        ax2.set_ylabel(r'$\sigma^2$ ($\mu$m$^2$)')
-        ax2.legend()
-        ax2.set_ylim(ymin=0)
-        ax2.tick_params(axis = 'x')
-        ax2.tick_params(axis = 'y')
+            slope_lst = np.array(slope_lst)
+            intercept_lst = np.array(intercept_lst)
+            slope_uncertainty_lst = np.array(slope_uncertainty_lst)
+            T_lst = slope_uncertainty_lst*self.m/self.kB*1e6
 
-        ax2.grid(color='0.7', which='major')
-        ax2.grid(color='0.9', which='minor')
-        fig2.savefig(self.folder_path+'\\temperature_fit.png')
+            t_plot = np.arange(0,max(time_of_flight)+1e-3,1e-3)
+            fig2, ax2 = plt.subplots(constrained_layout=True)
+            for slope,intercept,T in zip(slope_lst,intercept_lst,T_lst):
+                ax2.plot(t_plot**2*1e6 , (slope*t_plot**2 + intercept)*1e12, label=rf'$T = {T:LS}$ $\mu$K')
+
+            i=0
+            for waist in [waist_x, waist_y]:
+                ax2.plot(time_of_flight**2*1e6, np.array(waist)**2*1e12, 'oC'+str(i), label = 'data')
+                i+=1
+
+            ax2.set_xlabel('Shot number')
+            ax2.set_xlabel(r'Time$^2$ (ms$^2$)')
+            ax2.set_ylabel(r'$\sigma^2$ ($\mu$m$^2$)')
+            ax2.legend()
+            ax2.set_ylim(ymin=0)
+            ax2.tick_params(axis = 'x')
+            ax2.tick_params(axis = 'y')
+
+            ax2.grid(color='0.7', which='major')
+            ax2.grid(color='0.9', which='minor')
+            fig2.savefig(self.folder_path+'\\temperature_fit.png')
         return
 
-    def plot_amplitude_vs_parameter(self,):
+    def plot_amplitude_vs_parameter(self):
         """
-        plot amplitude vs parameter
+        plot amplitude vs parameter that is scanned, the image will be saved in the folder path
+
+        the amplitude will be first column of data.csv, eg. atom number, survival rate, etc
+        the data will be plotted against the first parameter for now
+
+        this can be modified for general use with multiple repetitions and multiple parameters
 
         """
         amplitude = self.load_atom_number()
@@ -618,14 +730,25 @@ class BulkGasAnalysis:
             unit = value[1]
             label_string = f'{key} ({unit})'
 
+        if self.n_rep > 1:
+            #TODO support multiple repetitions
+            raise NotImplementedError("multiple repetitions is not supported yet")
+
+        if len(self.params.keys()) == 1:
+            # 1D scanning case
             amplitude_resize = np.resize(amplitude, para.shape[0])
             amplitude_resize[len(amplitude):] = np.nan
+        else:
+            #TODO support 2D scanning
+            raise NotImplementedError("2 scanning parameters is not supported yet")
 
         ax.plot(para, amplitude_resize, '-o')
         ax.set_xlabel(label_string)
         ax.set_ylabel('amplitude')
         ax.grid(color='0.7', which='major')
         ax.grid(color='0.9', which='minor')
+
+        fig.savefig(self.folder_path+'\\amplitude_vs_parameter.png')
 
 
 class TweezerAnalysis(BulkGasAnalysis):
@@ -662,20 +785,20 @@ class TweezerAnalysis(BulkGasAnalysis):
             ],
             where all numbers are given in pixels.
         """
-
-        self.background_roi = bkg_roi
         self.imaging_setup = imaging_setup
         self.counts_per_atom = self.imaging_setup.counts_per_atom(
             self.scattering_rate,
             exposure_time,
         )
 
-        roi_x, roi_y, tweezer_roi_x, tweezer_roi_y = self.load_tweezer_roi(
+        roi_x, roi_y, site_roi_x, site_roi_y = self.load_tweezer_roi(
             load_tweezer_roi,
             atoms_roi,
             tweezer_roi)
         self.atom_roi = [roi_x, roi_y]
-        self.tweezer_roi = [tweezer_roi_x, tweezer_roi_y]
+        [roi_x_bkg, _] = bkg_roi
+        self.background_roi = [roi_x_bkg, roi_y]
+        self.site_roi = [site_roi_x, site_roi_y]
         self.threshold = self.load_threshold(load_threshold, threshold)
 
         self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
@@ -693,8 +816,14 @@ class TweezerAnalysis(BulkGasAnalysis):
                 'tweezer_roi_y': os.path.join(multi_shot_folder, "tweezer_roi_y.npy"),
                 'roi_x': os.path.join(multi_shot_folder, "roi_x.npy")}
 
-            tweezer_roi_x = np.load(roi_paths['tweezer_roi_x'])
-            tweezer_roi_y = np.load(roi_paths['tweezer_roi_y'])
+            site_roi_x = np.load(roi_paths['tweezer_roi_x'])
+            site_roi_y = np.load(roi_paths['tweezer_roi_y'])
+            site_roi_x = np.concatenate([[np.min(site_roi_x, axis=0)], site_roi_x])
+            site_roi_y = np.concatenate([[np.min(site_roi_y, axis=0) + 10], site_roi_y])
+
+            # Adjust site_roi_x relative to roi_x
+            if self.site_roi_x is not None:
+                self.site_roi_x = self.site_roi_x - self.roi_x[0]
             roi_x = np.load(roi_paths['roi_x'])
             roi_y = self.globals("tw_kinetix_roi_row")
         else:
@@ -704,7 +833,7 @@ class TweezerAnalysis(BulkGasAnalysis):
             self.tweezer_roi_y = tweezer_roi["tweezer_roi_x"]
             [roi_x, _] = atoms_roi
             roi_y = self.globals("tw_kinetix_roi_row")
-        return roi_x, roi_y, tweezer_roi_x, tweezer_roi_y
+        return roi_x, roi_y, site_roi_x, site_roi_y
 
     def load_threshold(self, load_threshold, default_threshold):
         """Load threshold value from file or use default."""
@@ -764,11 +893,12 @@ class TweezerAnalysis(BulkGasAnalysis):
         return np.array(array)
 
     def get_images_roi(self,):
-        [roi_x, roi_y] = self.atoms_roi
-        [roi_x_bkg, roi_y_bkg] = self.background_roi
+        [roi_x, _] = self.atoms_roi
+        [roi_x_bkg,_] = self.background_roi
         sub_images = self.sub_images
-        roi_atoms = sub_images[roi_y[0]:roi_y[1], roi_x[0]:roi_x[1]]
-        roi_bkg = sub_images[roi_y_bkg[0]:roi_y_bkg[1], roi_x_bkg[0]:roi_x_bkg[1]]
+        roi_atoms = sub_images[:, :, roi_x[0]:roi_x[1]]
+        roi_bkgs = sub_images[:, :, roi_x_bkg[0]:roi_x_bkg[1]]
+        return roi_atoms, roi_bkgs
 
 
 
