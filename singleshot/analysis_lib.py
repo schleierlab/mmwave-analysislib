@@ -762,8 +762,8 @@ class TweezerAnalysis(BulkGasAnalysis):
             bkg_roi,
             load_type='lyse',
             h5_path=None,
-            load_tweezer_roi=True,
-            tweezer_roi = None,
+            load_site_roi=True,
+            site_roi = None,
             load_threshold = True,
             threshold = None,
             method = 'average'):
@@ -791,10 +791,10 @@ class TweezerAnalysis(BulkGasAnalysis):
             exposure_time,
         )
 
-        roi_x, roi_y, site_roi_x, site_roi_y = self.load_tweezer_roi(
-            load_tweezer_roi,
+        roi_x, roi_y, site_roi_x, site_roi_y = self.load_site_roi(
+            load_site_roi,
             atoms_roi,
-            tweezer_roi)
+            site_roi)
         self.atom_roi = [roi_x, roi_y]
         [roi_x_bkg, _] = bkg_roi
         self.background_roi = [roi_x_bkg, roi_y]
@@ -807,17 +807,17 @@ class TweezerAnalysis(BulkGasAnalysis):
         self.atom_images, self.background_images, self.sub_images = self.get_image_bkg_sub(method = method)
         self.roi_atoms, self.roi_bkg = self.get_images_roi()
 
-    def load_tweezer_roi(self, load_tweezer_roi, atoms_roi, tweezer_roi):
+    def load_site_roi(self, load_site_roi, atoms_roi, site_roi):
         # File paths
-        if load_tweezer_roi:
+        if load_site_roi:
             multi_shot_folder = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
             roi_paths = {
-                'tweezer_roi_x': os.path.join(multi_shot_folder, "tweezer_roi_x.npy"),
-                'tweezer_roi_y': os.path.join(multi_shot_folder, "tweezer_roi_y.npy"),
+                'site_roi_x': os.path.join(multi_shot_folder, "site_roi_x.npy"),
+                'site_roi_y': os.path.join(multi_shot_folder, "site_roi_y.npy"),
                 'roi_x': os.path.join(multi_shot_folder, "roi_x.npy")}
 
-            site_roi_x = np.load(roi_paths['tweezer_roi_x'])
-            site_roi_y = np.load(roi_paths['tweezer_roi_y'])
+            site_roi_x = np.load(roi_paths['site_roi_x'])
+            site_roi_y = np.load(roi_paths['site_roi_y'])
             site_roi_x = np.concatenate([[np.min(site_roi_x, axis=0)], site_roi_x])
             site_roi_y = np.concatenate([[np.min(site_roi_y, axis=0) + 10], site_roi_y])
 
@@ -827,10 +827,10 @@ class TweezerAnalysis(BulkGasAnalysis):
             roi_x = np.load(roi_paths['roi_x'])
             roi_y = self.globals("tw_kinetix_roi_row")
         else:
-            if tweezer_roi is None:
-                raise ValueError ("When choose load_tweezer_roi is False, please provide tweezer_roi")
-            self.tweezer_roi_x = tweezer_roi["tweezer_roi_x"]
-            self.tweezer_roi_y = tweezer_roi["tweezer_roi_x"]
+            if site_roi is None:
+                raise ValueError ("When choose load_site_roi is False, please provide site_roi")
+            self.site_roi_x = site_roi["site_roi_x"]
+            self.site_roi_y = site_roi["site_roi_y"]
             [roi_x, _] = atoms_roi
             roi_y = self.globals("tw_kinetix_roi_row")
         return roi_x, roi_y, site_roi_x, site_roi_y
