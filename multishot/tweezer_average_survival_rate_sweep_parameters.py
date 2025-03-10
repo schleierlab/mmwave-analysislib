@@ -31,7 +31,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
+import scipy.optimize as optimize
 
+DO_LORENTZIAN = True
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
     n_shots = np.size([i for i in os.listdir(folder) if i.endswith('.h5')])
@@ -448,7 +450,7 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 1500 #np.max(first_shot_roi_number)/2
+    cpa = 2000 #np.max(first_shot_roi_number)/2
     sigma1 = 0.1*cpa
     sigma2 = 0.1*cpa
     mu1 = 500
@@ -646,7 +648,16 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para, folder_path, d
     fig.suptitle(f'n average = {n_average:.3f}')
     (ax1, ax2), (ax3, ax4), (ax5, ax6) = axs
     # print(f"survival sum std = {survival_std_each_para }")
-    ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o')
+    ebar = ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o', linestyle='')
+    if DO_LORENTZIAN is True:
+        popt, perr = fit_lorentzian(para,survival_rate_each_para)
+        x_plot = np.linspace(np.min(para), np.max(para), 1000)
+        ax1.plot(x_plot, lorentzian(x_plot, *popt), color = ebar[0].get_color())
+        fig.suptitle(
+            f'center freq = {popt[0]:.3f} +/- {perr[0]:.3f} Hz, '
+        )
+        print(f"fitting lorentzian, popt = {popt}, perr = {perr}")
+
     ax1.grid()
     # ax1.set_xlabel('x [px]')
     ax1.set_ylabel('survival rate')
@@ -688,6 +699,21 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para, folder_path, d
     np.savetxt(folder_path + '\plot_1d_data.txt', np.c_[para, survival_rate_each_para, appear_rate_each_para, lost_rate_each_para, fidelity_each_para, loading_rate_each_para, first_shot_count_sum_each_para],  delimiter=',')
     np.savetxt(folder_path + '\plot_1d_data_std.txt', np.c_[para, survival_rate_std_each_para, appear_rate_std_each_para, lost_rate_std_each_para, fidelity_std_each_para, loading_rate_std_each_para, first_shot_count_std_each_para],  delimiter=',')
 
+
+def lorentzian(x, x0, w, a, offset):
+    return offset - a * w/2/np.pi/((w/2)**2 + (x - x0)**2)
+
+def fit_lorentzian(x_data, y_data):
+    # Fit the data to a Lorentzian function
+    a_guess = max(y_data) - min(y_data)
+    offset_guess = max(y_data)
+    x0_guess = x_data[np.argmin(y_data)]
+    w_guess = 5 #2 * np.abs(x_data[np.argmin(np.abs(y_data - a_guess / 2))])
+    p0 = [x0_guess, w_guess, a_guess, offset_guess]
+
+    popt, pcov = optimize.curve_fit(lorentzian, x_data, y_data, p0=p0)
+    perr = np.sqrt(np.diag(pcov))
+    return popt, perr
 
 def avg_survival_rate_sweep_indvidual_sites(roi_number_lst, th, site_roi_x, para, folder_path, do_neighbour_bkg_sub=True):
     """
@@ -816,11 +842,11 @@ def avg_survival_rate_sweep_indvidual_sites(roi_number_lst, th, site_roi_x, para
     ax5.set_title(f'average loading rate: {np.mean(loading_rate_each_para):.3f}')
     fig2.colorbar(c, ax = ax5)
 
-    for i in np.arange(5):#tweezer_num):
+    for i in [8,29, 30]:#np.arange(5):#tweezer_num):
         ax6.plot(para,survival_rate_each_para[i,:], label = f"site{i}")
         # ax6.errorbar(para,survival_rate_each_para[i,:], yerr = survival_rate_std_each_para[i,:], label = f"site{i}")
     ax6.set_ylabel('survival rate')
-    # ax6.legend()
+    ax6.legend()
 
     fig2.savefig(folder_path + '\plot_2d.png')
 

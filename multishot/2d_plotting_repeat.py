@@ -112,7 +112,8 @@ try:
 
     # print(var_1)
     # print(var_2)
-    plot_extent = np.array([np.min(var_2)-0.5, np.max(var_2)+0.5, np.min(var_1)-0.5, np.max(var_1)+0.5])
+    # plot_extent = np.array([np.min(var_2)-0.5, np.max(var_2)+0.5, np.min(var_1)-0.5, np.max(var_1)+0.5])
+    plot_extent = np.array([np.min(var_2), np.max(var_2), np.min(var_1), np.max(var_1)])
     neg = ax1.imshow(avg_counts, extent=plot_extent, interpolation='none', aspect='auto', origin='lower')
     fig.colorbar(neg, ax = ax1)
     ax1.set_title("mean")

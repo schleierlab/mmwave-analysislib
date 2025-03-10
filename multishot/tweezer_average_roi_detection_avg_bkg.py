@@ -3,6 +3,7 @@
 @author: Lin Xin
 """
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -12,24 +13,24 @@ if root_path not in sys.path:
 try:
     lyse
 except:
-    import lyse
+    pass
 
 
-from analysis.data import h5lyze as hz
+import glob
+import os
+from pathlib import Path
+from tkinter import Tk
+from tkinter.filedialog import askdirectory
+
+import h5py
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+
 # from analysis.image.process import extractROIDataSingleSequence, getParamArray
 # from analysis.data import autolyze as az
 import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import csv
-import os
-import matplotlib.patches as patches
+from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
-import glob
-
-from tkinter import Tk
-from tkinter.filedialog import askdirectory
-from pathlib import Path
 
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
@@ -134,7 +135,6 @@ def avg_all_shots(folder, shots = 'defult', loop = True):
 
 def auto_roi_detection(data, neighborhood_size, threshold):
     #choose even number to make the roi centered
-    import scipy.ndimage.filters as filters
     import scipy.ndimage as ndimage
     data_max = ndimage.maximum_filter(data, neighborhood_size)
     maxima = (data == data_max)
@@ -158,6 +158,7 @@ def auto_roi_detection(data, neighborhood_size, threshold):
     site_roi_y = np.array(site_roi_y)
     roi_x = np.array([np.min(site_roi_x)-50, np.max(site_roi_x)+50])
     return site_roi_x, site_roi_y, roi_x
+
 
 def plot_shots_avg(data, site_roi_x,site_roi_y, n_shots =2, show_roi = True):
     # roi_x = np.array([np.min(site_roi_x)-10, np.max(site_roi_x)+10])
@@ -200,7 +201,6 @@ while True:
     try:
         folder = askdirectory(title='Select Folder for averaging the tweezer images') # shows dialog box and return the path
         print(folder)
-
     except:
         continue
     break
@@ -209,7 +209,7 @@ while True:
 
 avg_shot_bkg_sub, avg_shot_bkg, N = avg_all_shots(folder, loop = False)
 neighborhood_size = 5 #6
-threshold = 29 #np.max(avg_shot_bkg_sub[0])/3.8 #40 #48 #83 #60
+threshold = 23 #np.max(avg_shot_bkg_sub[0])/3.8 #40 #48 #83 #60
 site_roi_x, site_roi_y, roi_x = auto_roi_detection(avg_shot_bkg_sub[0], neighborhood_size, threshold)
 
 print(f'site_roi_x={repr(site_roi_x)}, site_roi_y={repr(site_roi_y)}')
@@ -232,7 +232,3 @@ np.save(avg_shot_bkg_file_path, avg_shot_bkg)
 
 root = Tk()
 root.destroy()
-
-
-
-

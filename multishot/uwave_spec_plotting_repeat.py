@@ -5,8 +5,8 @@ Created on Tue Feb 21 15:48:37 2023
 @author: sslab
 """
 import csv
-
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -19,11 +19,12 @@ try:
 except:
     import lyse
 
-from analysis.data import h5lyze as hz
-# from analysis.data import autolyze as az
-import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+
+# from analysis.data import autolyze as az
+import numpy as np
+from analysis.data import h5lyze as hz
 
 if lyse.spinning_top:
     # If so, use the filepath of the current h5_path
@@ -63,7 +64,7 @@ with h5py.File(h5_path, mode='r+') as f:
                 number_of_detunings = np.size(eval(g[group][glob][:]))
                 print(f"group = {str(group)}, glob = {str(glob)}")
                 unit = hz.attributesToDictionary(f['globals'][str(group)])['units'][str(glob)]
-            if glob == 'n_shot':
+            if glob == 'n_shots':
                 number_of_detunings_bk = np.size(eval('np.'+g[group][glob][:]))
                 unit_bk = 'shots'
 
@@ -71,7 +72,7 @@ try:
     print(f"number of detunings = {number_of_detunings}")
 except:
     number_of_detunings = number_of_detunings_bk
-    loop_glob = 'n_shot'
+    loop_glob = 'n_shots'
     unit = unit_bk
     print(f"number of detunings = {number_of_detunings}")
 
@@ -111,10 +112,15 @@ print(avg_counts, avg_vars)
 # ax.plot(avg_vars, avg_counts)
 ax.errorbar(avg_vars, avg_counts, yerr=std_counts, fmt='-o')
 ax.set_xlabel(f'{loop_glob} ({unit})')
-ax.set_ylabel('Gaussian Peak (counts)')
+ax.set_ylabel('Survival rate')
 
 ax.grid(color='0.7', which='major')
 ax.grid(color='0.9', which='minor')
 
 ax.tick_params(axis='both', which='major', labelsize=10)
 ax.tick_params(axis='both', which='minor', labelsize=10)
+
+
+fig.savefig(folder_path + '\data_avg.png')
+
+np.savetxt(folder_path + '\data_avg.txt', np.c_[avg_vars, avg_counts, std_counts])

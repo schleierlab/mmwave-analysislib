@@ -5,8 +5,8 @@ Created on Tue Feb 21 15:48:37 2023
 @author: sslab
 """
 import csv
-
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -19,11 +19,12 @@ try:
 except:
     import lyse
 
-from analysis.data import h5lyze as hz
-# from analysis.data import autolyze as az
-import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+
+# from analysis.data import autolyze as az
+import numpy as np
+from analysis.data import h5lyze as hz
 
 if lyse.spinning_top:
     # If so, use the filepath of the current h5_path
@@ -39,6 +40,7 @@ h5_path = df.filepath.iloc[-1]
 # print( lyse.data().filepath.iloc[-1])
 folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 count_file_path = folder_path+'\\data.csv'
+print(count_file_path, h5_path)
 
 
 try:
@@ -103,6 +105,7 @@ try:
     ax.set_xlabel(f'{loop_glob} ({unit})')
     # ax.set_ylabel('Gaussian Peak (counts)')
     ax.set_ylabel('Survival rate')
+    # ax.set_ylabel('Counts')
     # ax.set_ylabel('survival rate')
 
     ax.grid(color='0.7', which='major')
@@ -110,5 +113,8 @@ try:
 
     ax.tick_params(axis='both', which='major', labelsize=20)
     ax.tick_params(axis='both', which='minor', labelsize=10)
+
+    fig.savefig(folder_path + '\data.png')
+
 except:
     print("no data.csv found")

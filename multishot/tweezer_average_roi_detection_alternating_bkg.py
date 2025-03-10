@@ -3,6 +3,7 @@
 @author: Lin Xin
 """
 import sys
+
 root_path = r"X:\userlib\analysislib"
 #root_path = r"C:\Users\sslab\labscript-suite\userlib\analysislib"
 
@@ -12,23 +13,23 @@ if root_path not in sys.path:
 try:
     lyse
 except:
-    import lyse
+    pass
 
 
-from analysis.data import h5lyze as hz
+import glob
+import os
+from tkinter import Tk
+from tkinter.filedialog import askdirectory
+
+import h5py
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+
 # from analysis.image.process import extractROIDataSingleSequence, getParamArray
 # from analysis.data import autolyze as az
 import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import csv
-import os
-import matplotlib.patches as patches
+from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
-import glob
-
-from tkinter import Tk
-from tkinter.filedialog import askdirectory
 
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
@@ -99,7 +100,6 @@ def avg_all_shots(folder, shots = 'defult', loop = True):
 
 def auto_roi_detection(data, neighborhood_size, threshold):
     #choose even number to make the roi centered
-    import scipy.ndimage.filters as filters
     import scipy.ndimage as ndimage
     data_max = ndimage.maximum_filter(data, neighborhood_size)
     maxima = (data == data_max)
