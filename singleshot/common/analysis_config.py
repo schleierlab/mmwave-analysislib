@@ -21,6 +21,88 @@ import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 
 @dataclass
+class AnalysisConfig:
+    """Configuration class for image analysis parameters.
+    
+    This class consolidates all configuration parameters needed for analyzing
+    imaging data, including the imaging system setup, ROI definitions, and
+    analysis-specific parameters.
+    
+    Parameters
+    ----------
+    imaging_system : ImagingSystem
+        Configuration object for the imaging system setup
+    method : str, default='average'
+        Method for background subtraction:
+        - 'average': Use average background subtraction
+        - 'alternative': Use alternative background subtraction
+    bkg_roi_x : List[int]
+        X-coordinates [start, end] for background region
+    load_roi : bool, default=True
+        If True, load ROIs from standard .npy files:
+        - roi_x.npy: Main ROI x-coordinates
+        - site_roi_x.npy: Site ROI x-coordinates
+        - site_roi_y.npy: Site ROI y-coordinates
+        If False, load from YAML config
+    roi_config_path : Optional[str], default=None
+        Path to YAML configuration file for ROIs. Required when load_roi=False
+    roi_x : Optional[List[int]], default=None
+        X-coordinates [start, end] for atom imaging region.
+        Only required when load_roi=False
+    site_roi : Optional[Dict[str, List[List[int]]]], default=None
+        Dictionary containing site ROI coordinates. Only required when load_roi=False.
+        Must have:
+        - 'site_roi_x': List of [start, end] x-coordinates for each site
+        - 'site_roi_y': List of [start, end] y-coordinates for each site
+    load_threshold : bool, default=True
+        Whether to load threshold from file for tweezer analysis
+    threshold : Optional[float], default=None
+        Threshold value to use if not loading from file
+    exposure_time : Optional[float], default=None
+        Imaging exposure time in seconds, required for bulk gas analysis
+    atoms_roi : Optional[List[List[int]]], default=None
+        ROI for atoms in bulk gas analysis, in format:
+        [[x_min, x_max], [y_min, y_max]]
+    bkg_roi : Optional[List[List[int]]], default=None
+        ROI for background in bulk gas analysis, in format:
+        [[x_min, x_max], [y_min, y_max]]
+    """
+    imaging_system: ImagingSystem
+    method: str = 'average'
+    bkg_roi_x: List[int] = None
+    load_roi: bool = True
+    roi_config_path: Optional[str] = None
+    roi_x: Optional[List[int]] = None
+    site_roi: Optional[Dict[str, List[List[int]]]] = None
+    load_threshold: bool = True
+    threshold: Optional[float] = None
+    exposure_time: Optional[float] = None
+    atoms_roi: Optional[List[List[int]]] = None
+    bkg_roi: Optional[List[List[int]]] = None
+    # TODO: do we actually want to store defaults in a YAML file?
+    # Or do we just want to hard code the in the class?
+    # YAML makes sense if we are in fact changing the defaults often and have a huge list of them
+    # If we don't have one of those conditions then we might as well just hard code it
+
+    @classmethod
+    def from_yaml(cls, path: str):
+        """Create an AnalysisConfig instance from a YAML file.
+        
+        Parameters
+        ----------
+        path : str
+            Path to YAML configuration file
+            
+        Returns
+        -------
+        AnalysisConfig
+            Analysis configuration object
+        """
+        with open(path, 'r') as f:
+            config = yaml.safe_load(f)
+        return cls(**config)
+
+@dataclass
 class ImagingCamera:
     pixel_size: float
     """Pixel size, in m"""
@@ -102,89 +184,6 @@ class ImagingSystem:
             * self.camera.gain
         )
         return count_rate_per_atom * exposure_time
-
-
-@dataclass
-class AnalysisConfig:
-    """Configuration class for image analysis parameters.
-    
-    This class consolidates all configuration parameters needed for analyzing
-    imaging data, including the imaging system setup, ROI definitions, and
-    analysis-specific parameters.
-    
-    Parameters
-    ----------
-    imaging_system : ImagingSystem
-        Configuration object for the imaging system setup
-    method : str, default='average'
-        Method for background subtraction:
-        - 'average': Use average background subtraction
-        - 'alternative': Use alternative background subtraction
-    bkg_roi_x : List[int]
-        X-coordinates [start, end] for background region
-    load_roi : bool, default=True
-        If True, load ROIs from standard .npy files:
-        - roi_x.npy: Main ROI x-coordinates
-        - site_roi_x.npy: Site ROI x-coordinates
-        - site_roi_y.npy: Site ROI y-coordinates
-        If False, load from YAML config
-    roi_config_path : Optional[str], default=None
-        Path to YAML configuration file for ROIs. Required when load_roi=False
-    roi_x : Optional[List[int]], default=None
-        X-coordinates [start, end] for atom imaging region.
-        Only required when load_roi=False
-    site_roi : Optional[Dict[str, List[List[int]]]], default=None
-        Dictionary containing site ROI coordinates. Only required when load_roi=False.
-        Must have:
-        - 'site_roi_x': List of [start, end] x-coordinates for each site
-        - 'site_roi_y': List of [start, end] y-coordinates for each site
-    load_threshold : bool, default=True
-        Whether to load threshold from file for tweezer analysis
-    threshold : Optional[float], default=None
-        Threshold value to use if not loading from file
-    exposure_time : Optional[float], default=None
-        Imaging exposure time in seconds, required for bulk gas analysis
-    atoms_roi : Optional[List[List[int]]], default=None
-        ROI for atoms in bulk gas analysis, in format:
-        [[x_min, x_max], [y_min, y_max]]
-    bkg_roi : Optional[List[List[int]]], default=None
-        ROI for background in bulk gas analysis, in format:
-        [[x_min, x_max], [y_min, y_max]]
-    """
-    imaging_system: ImagingSystem
-    method: str = 'average'
-    bkg_roi_x: List[int] = None
-    load_roi: bool = True
-    roi_config_path: Optional[str] = None
-    roi_x: Optional[List[int]] = None
-    site_roi: Optional[Dict[str, List[List[int]]]] = None
-    load_threshold: bool = True
-    threshold: Optional[float] = None
-    exposure_time: Optional[float] = None
-    atoms_roi: Optional[List[List[int]]] = None
-    bkg_roi: Optional[List[List[int]]] = None
-    # TODO: do we actually want to store defaults in a YAML file?
-    # Or do we just want to hard code the in the class?
-    # YAML makes sense if we are in fact changing the defaults often and have a huge list of them
-    # If we don't have one of those conditions then we might as well just hard code it
-
-    @classmethod
-    def from_yaml(cls, path: str):
-        """Create an AnalysisConfig instance from a YAML file.
-        
-        Parameters
-        ----------
-        path : str
-            Path to YAML configuration file
-            
-        Returns
-        -------
-        AnalysisConfig
-            Analysis configuration object
-        """
-        with open(path, 'r') as f:
-            config = yaml.safe_load(f)
-        return cls(**config)
 
 manta_camera = ImagingCamera(
     pixel_size=5.5e-6,
