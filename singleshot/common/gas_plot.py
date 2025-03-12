@@ -62,11 +62,10 @@ class BulkGasPlotter:
         return
 
     def plot_atom_number(self):
-        """
-        To run this function, we need to run get_atom_number first and have data.csv in the same folder
-        plot atom number from data.csv vs the shot number and also save the image in the folder path
-        this plot all the shots in the same queue start with run number = 0
-        so that we can see the trend
+        """Plot atom number vs the shot number and save the image in the folder path.
+        
+        This function requires that get_atom_number has been run first to save the
+        atom number to processed_quantities.h5.
         """
         counts = self.load_atom_number()
         fig, ax = plt.subplots(figsize=self.plot_config.figure_size,
@@ -83,12 +82,13 @@ class BulkGasPlotter:
         return
 
     def plot_atom_temperature(self):
-        """
-        plot atom temperature from data.csv vs the shot number
-        fitting more accurate temperature with different time of flight through linear fit
-        since the size of the cloud is not zero at the begining of time of flight
-        plot the fitting result
-        save all the plots in the folder path
+        """Plot atom temperature vs shot number and fit temperature with time of flight.
+        
+        This function requires that get_atom_temperature has been run first to save
+        the temperature data to processed_quantities.h5.
+        
+        Fits temperature by analyzing cloud size at different time of flight values
+        through linear fit, accounting for non-zero initial cloud size.
         """
         time_of_flight, waist_x, waist_y, temperature_x, temperature_y = self.load_atom_temperature()
         fig, ax = plt.subplots(figsize=self.plot_config.figure_size,
@@ -146,13 +146,12 @@ class BulkGasPlotter:
         return
 
     def plot_amplitude_vs_parameter(self):
-        """
-        plot amplitude vs parameter that is scanned, the image will be saved in the folder path
-
-        the amplitude will be first column of data.csv, eg. atom number, survival rate, etc
-        the data will be plotted against the first parameter for now
-
-        this can be modified for general use with multiple repetitions and multiple parameters
+        """Plot amplitude vs scanned parameter.
+        
+        The amplitude (e.g. atom number, survival rate) is loaded from processed_quantities.h5.
+        The data is plotted against the first parameter for now.
+        
+        This can be modified for general use with multiple repetitions and multiple parameters.
         """
         amplitude = self.load_atom_number()
         fig, ax = plt.subplots(figsize=self.plot_config.figure_size,

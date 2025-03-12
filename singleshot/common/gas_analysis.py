@@ -227,7 +227,7 @@ class BulkGasAnalysis(ImagePreProcessor):
         """
         measure the atom number, temperature of atom through time of flight
         the waist of the cloud is determined through 2D gaussian fitting
-        all fitting parameters are saved in "data.csv"
+        all fitting parameters are saved in processed_quantities.h5
 
         Parameters
         ----------
@@ -295,75 +295,138 @@ class BulkGasAnalysis(ImagePreProcessor):
 
         return time_of_flight, atom_number_gaussian, gaussian_waist, temperature
 
-    def save_atom_number(self, atom_number):
-        """
-        save atom number to data.csv
-        if run number is 0, it will create a new file
-        otherwise it will append
-        """
-        run_number = self.run_number
+    def save_processed_quantities(self, **quantities):
+        """Save processed quantities to an HDF5 file.
 
-        count_file_path = self.folder_path+'\\data.csv'
-        file_open_mode = 'w' if run_number == 0 else 'a'
-        with open(count_file_path, file_open_mode) as f_object:
-                f_object.write(f'{atom_number}\n')
-        return
+        Parameters
+        ----------
+        **quantities : dict
+            Dictionary of quantities to save. Each key-value pair will be saved
+            as a dataset in the HDF5 file. Values must be numpy arrays or scalars.
+            Common quantities include:
+            - atom_number : number of atoms in the cloud
+            - time_of_flight : time of flight in seconds
+            - gaussian_waist : tuple of (x, y) waist sizes
+            - temperature : tuple of (x, y) temperatures
+        """
+        h5_path = os.path.join(self.folder_path, 'processed_quantities.h5')
+        
+        # Always write mode since each folder represents a single run
+        with h5py.File(h5_path, 'w') as f:
+            # Save each quantity
+            for name, value in quantities.items():
+                if isinstance(value, (tuple, list)):
+                    # Convert tuples/lists to numpy arrays
+                    value = np.array(value)
+                f.create_dataset(name, data=value)
+
+    def save_atom_number(self, atom_number):
+        """Save atom number to the HDF5 file."""
+        self.save_processed_quantities(atom_number=atom_number)
 
     def save_atom_temperature(self, atom_number, time_of_flight, gaussian_waist, temperature):
-        """
-        save atom temperature to data.csv
-        if run number is 0, it will create a new file
-        otherwise it will append
-        """
-        run_number = self.run_number
+        """Save temperature measurement data to the HDF5 file."""
+        self.save_processed_quantities(
+            atom_number=atom_number,
+            time_of_flight=time_of_flight,
+            gaussian_waist=gaussian_waist,
+            temperature=temperature
+        )
 
+    def load_processed_quantities(self, *quantities):
+        """Load processed quantities from the HDF5 file.
 
-        count_file_path = self.folder_path+'\\data.csv'
-        file_open_mode = 'w' if run_number == 0 else 'a'
-        with open(count_file_path, file_open_mode) as f_object:
-            f_object.write(f'{atom_number},'
-                           f'{time_of_flight},'
-                           f'{gaussian_waist[0]},'
-                           f'{gaussian_waist[1]},'
-                           f'{temperature[0]},'
-                           f'{temperature[1]}\n')
-
-        return
-
-    def load_atom_number(self,):
-        """
-        load the atom number that is already saved in data.csv
+        Parameters
+        ----------
+        *quantities : str
+            Names of quantities to load. If none specified, loads all available quantities.
 
         Returns
         -------
-        counts: float
-
+        dict
+            Dictionary of loaded quantities, with quantity names as keys
         """
-        h5_path = self.h5_path
-        folder_path = '\\'.join(h5_path.split('\\')[0:-1])
-        count_file_path = folder_path+'\\data.csv'
+        h5_path = os.path.join(self.folder_path, 'processed_quantities.h5')
+        
+        if not os.path.exists(h5_path):
+            raise FileNotFoundError(f"No processed quantities file found at {h5_path}")
+            
+        results = {}
+        with h5py.File(h5_path, 'r') as f:
+            # If no specific quantities requested, load all available
+            if not quantities:
+                quantities = f.keys()
+            
+            # Load each requested quantity
+            for quantity in quantities:
+                if quantity in f:
+                    results[quantity] = f[quantity][()]
+                
+        return results
+
+    def load_atom_number(self):
+        """Load atom number from the HDF5 file.
+
+        Returns
+        -------
+        float
+            Atom number for this run
+        """
         try:
-            with open(count_file_path, newline='') as csvfile:
-                counts = [list(map(float, row))[0] for row in csv.reader(csvfile)]
-        except:
-            raise FileExistsError('Please run get_atom_number first')
+            result = self.load_processed_quantities('atom_number')
+            return result['atom_number']
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Warning: Could not load atom number: {e}")
+            return None
 
-        return counts
-
-    def load_atom_temperature(self,):
-        """
-        load the atom number that is already saved in data.csv
+    def load_atom_temperature(self):
+        """Load temperature measurement data from the HDF5 file.
 
         Returns
         -------
-        counts: float
-
+        tuple
+            (time_of_flight, waist_x, waist_y, temperature_x, temperature_y)
         """
-        h5_path = self.h5_path
-        folder_path = '\\'.join(h5_path.split('\\')[0:-1])
-        count_file_path = folder_path+'\\data.csv'
-        with open(count_file_path, newline='') as csvfile:
-            matrix = [list(map(float, row)) for row in csv.reader(csvfile)]
-        matrix = np.array(matrix)
-        time_of_flight, waist_x, waist_y, temperature_x, temperature_y = [matrix[:,i] for i in np.arange(1,6)]
-        return time_of_flight, waist_x, waist_y, temperature_x, temperature_y
+        try:
+            result = self.load_processed_quantities(
+                'time_of_flight', 
+                'gaussian_waist', 
+                'temperature'
+            )
+            
+            time_of_flight = result['time_of_flight']
+            gaussian_waist = result['gaussian_waist']
+            temperature = result['temperature']
+            
+            # Split waist and temperature into x,y components
+            waist_x = gaussian_waist[0]
+            waist_y = gaussian_waist[1]
+            temperature_x = temperature[0]
+            temperature_y = temperature[1]
+            
+            return time_of_flight, waist_x, waist_y, temperature_x, temperature_y
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Warning: Could not load temperature data: {e}")
+            return None, None, None, None, None
+
+    def get_atom_temperature(self, time_of_flight, gaussian_waist):
+        """Get atom temperature from cloud size at different time of flight.
+
+        The cloud size is fitted with a Gaussian function to extract the waist.
+        The temperature is calculated from the waist size vs time of flight.
+        All fitting parameters are saved in processed_quantities.h5.
+
+        Parameters
+        ----------
+        time_of_flight : float
+            Time of flight in seconds
+        gaussian_waist : tuple
+            (x_waist, y_waist) in meters
+
+        Returns
+        -------
+        temperature : tuple
+            (x_temperature, y_temperature) in Kelvin
+        """
+        temperature = self.m / self.kB * (gaussian_waist/time_of_flight)**2
+        return temperature
