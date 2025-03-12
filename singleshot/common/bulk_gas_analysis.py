@@ -20,7 +20,7 @@ import scipy.optimize as opt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 from image_preprocessor import ImagePreProcessor
-from .image_config import AnalysisConfig, ImagingSystem
+from .analysis_config import AnalysisConfig, ImagingSystem
 
 class BulkGasAnalysis(ImagePreProcessor):
     """Analysis class for bulk gas imaging data.

@@ -21,7 +21,15 @@ import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 
 @dataclass
-class AnalysisConfig:
+class MOTAnalysisConfig:
+    imaging_system: ImagingSystem
+    exposure_time: float
+    atoms_roi: List[List[int]]
+    bkg_roi: List[List[int]]
+
+
+@dataclass
+class TweezerAnalysisConfig:
     """Configuration class for image analysis parameters.
     
     This class consolidates all configuration parameters needed for analyzing
@@ -67,7 +75,7 @@ class AnalysisConfig:
         ROI for background in bulk gas analysis, in format:
         [[x_min, x_max], [y_min, y_max]]
     """
-    imaging_system: ImagingSystem
+    imaging_system: ImagingSystem = kinetix_system
     method: str = 'average'
     bkg_roi_x: List[int] = None
     load_roi: bool = True
@@ -76,9 +84,7 @@ class AnalysisConfig:
     site_roi: Optional[Dict[str, List[List[int]]]] = None
     load_threshold: bool = True
     threshold: Optional[float] = None
-    exposure_time: Optional[float] = None
-    atoms_roi: Optional[List[List[int]]] = None
-    bkg_roi: Optional[List[List[int]]] = None
+
     # TODO: do we actually want to store defaults in a YAML file?
     # Or do we just want to hard code the in the class?
     # YAML makes sense if we are in fact changing the defaults often and have a huge list of them

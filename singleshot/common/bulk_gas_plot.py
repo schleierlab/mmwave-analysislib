@@ -153,7 +153,7 @@ class BulkGasPlotter:
         
         This can be modified for general use with multiple repetitions and multiple parameters.
         """
-        amplitude = self.load_atom_number()
+        amplitude = self.gas_analyzer.load_processed_quantities('atom_number')
         fig, ax = plt.subplots(figsize=self.plot_config.figure_size,
                               constrained_layout=self.plot_config.constrained_layout)
 

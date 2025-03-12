@@ -20,7 +20,7 @@ import scipy.optimize as opt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 from image_preprocessor import ImagePreProcessor
-from .image_config import AnalysisConfig, ImagingSystem
+from .analysis_config import TweezerAnalysisConfig, ImagingSystem
 
 class TweezerAnalysis(ImagePreProcessor):
     """Analysis class for tweezer imaging data.
@@ -35,14 +35,14 @@ class TweezerAnalysis(ImagePreProcessor):
 
     def __init__(
             self,
-            config: AnalysisConfig,
+            config: TweezerAnalysisConfig,
             load_type: str = 'lyse',
             h5_path: str = None):
         """Initialize TweezerAnalysis with analysis configuration.
 
         Parameters
-        ----------
-        config : AnalysisConfig
+        ----------      
+        config : TweezerAnalysisConfig
             Configuration object containing all analysis parameters including:
             - imaging_system: ImagingSystem configuration
             - method: Background subtraction method
@@ -81,7 +81,7 @@ class TweezerAnalysis(ImagePreProcessor):
         self.threshold = self.load_threshold(config.load_threshold, config.threshold)
 
         # Process images
-        self.atom_images, self.background_images, self.sub_images = self.get_image_bkg_sub(method=config.method)
+        self.atom_images, self.background_images, self.sub_images = self.get_image_bkg_sub()
         self.roi_atoms, self.roi_bkgs = self.get_images_roi()
 
     def load_roi(self, roi_config_path: str, bkg_roi_x: List[int], load_roi: bool):
@@ -160,9 +160,11 @@ class TweezerAnalysis(ImagePreProcessor):
         # Return ROIs in the format expected by the class
         return [roi_x, roi_y], [bkg_roi_x, roi_y], [site_roi_x, site_roi_y]    
 
-    def load_threshold(self, load_threshold, default_threshold):
+    def load_threshold(self):
         """Load threshold value from file or use default."""
-        if load_threshold:
+        default_threshold = self.analysis_config.threshold
+        
+        if self.analysis_config.load_threshold:
             threshold_path = os.path.join(self.multishot_path, "th.npy")
             try:
                 threshold = np.load(threshold_path)[0]
@@ -178,16 +180,8 @@ class TweezerAnalysis(ImagePreProcessor):
                 )
             return default_threshold
 
-    def get_image_bkg_sub(self, method: str = 'average'):
+    def get_image_bkg_sub(self):
         """Get background-subtracted images.
-
-        Parameters
-        ----------
-        method : str, default='average'
-            Method for background subtraction:
-            - 'average': Use average background subtraction
-            - 'alternative': Use alternative background subtraction
-
         Returns
         -------
         atom_images : ndarray
@@ -205,7 +199,7 @@ class TweezerAnalysis(ImagePreProcessor):
         average_bkg_path = os.path.join(folder_path, 'avg_shot_bkg.npy')
         last_bkg_sub_path = os.path.join(folder_path, 'last_bkg_sub')
 
-        if method == 'alternative':
+        if self.analysis_config.method == 'alternative':
             if self.globals['mot_do_coil']:
                 atom_images = images
                 background_images = np.load(alternative_bkg_path)
@@ -218,7 +212,7 @@ class TweezerAnalysis(ImagePreProcessor):
                 # load last background subtracted images
                 # during background taking shot to make
                 # sure there is something to plot
-        elif method == 'average':
+        elif self.analysis_config.method == 'average':
             atom_images = images
             background_images = np.load(average_bkg_path)
             sub_images = atom_images - background_images
