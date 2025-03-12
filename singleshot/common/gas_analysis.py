@@ -12,7 +12,6 @@ try:
 except:
     import lyse
 from analysis.data import h5lyze as hz
-# from analysis.data import autolyze as az
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
@@ -21,9 +20,20 @@ import scipy.optimize as opt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 from image_preprocessor import ImagePreProcessor
+from .image_config import AnalysisConfig, ImagingSystem
 
 class BulkGasAnalysis(ImagePreProcessor):
-    scattering_rate = 2 * np.pi * 5.2227e+6 # rad/s
+    """Analysis class for bulk gas imaging data.
+    
+    This class provides functionality for analyzing bulk gas imaging data, including
+    ROI-based analysis, background subtraction, and atom number calculations.
+    
+    The class uses a configuration-based approach where all analysis parameters
+    are specified through an AnalysisConfig object, which includes imaging system
+    setup, ROI definitions, and analysis parameters.
+    """
+    
+    scattering_rate = 2 * np.pi * 5.2227e+6  # rad/s
     """ Cesium scattering rate """
     # TODO: for what transition? Where did you get this number?
 
@@ -35,46 +45,48 @@ class BulkGasAnalysis(ImagePreProcessor):
 
     def __init__(
             self,
-            imaging_setup: ImagingSetup,
-            exposure_time,
-            atoms_roi,
-            bkg_roi,
-            load_type='lyse',
-            h5_path=None
+            config: AnalysisConfig,
+            load_type: str = 'lyse',
+            h5_path: str = None
             ):
-        """
+        """Initialize BulkGasAnalysis with analysis configuration.
+
         Parameters
         ----------
-        imaging_setup: ImagingSetup class
-         chose manta_path or kinetix_path for the current imaging setup
-        exposure_time: float
-            imaging exposure time in s
-        atoms_roi, bkg_roi: array_like, shape (2, 2)
-            Specification of the regions of interest for the atoms and for the background image.
-            The specification should take the form
-            [
-                [x_min, x_max],
-                [y_min, y_max],
-            ],
-            where all numbers are given in pixels.
-        load_type: str
-            'lyse' for h5 file active in lyse, 'h5' for h5 file with input h5_path
-        h5_path: str
-            path to h5 file, only used if load_type='h5'
+        config : AnalysisConfig
+            Configuration object containing all analysis parameters including:
+            - imaging_system: ImagingSystem configuration
+            - exposure_time: Imaging exposure time in seconds
+            - atoms_roi: ROI for atoms [[x_min, x_max], [y_min, y_max]]
+            - bkg_roi: ROI for background [[x_min, x_max], [y_min, y_max]]
+            - method: Background subtraction method
+        load_type : str, default='lyse'
+            Type of loading to perform
+             # TODO: what are the options for load_type?
+        h5_path : str, optional
+            Path to h5 file to load
         """
+        if config.exposure_time is None:
+            raise ValueError("exposure_time must be provided in AnalysisConfig for bulk gas analysis")
+        if config.atoms_roi is None or config.bkg_roi is None:
+            raise ValueError("atoms_roi and bkg_roi must be provided in AnalysisConfig for bulk gas analysis")
+
         # Initialize parent class first
         super().__init__(
-            imaging_setup=imaging_setup,
+            imaging_setup=config.imaging_system,
             load_type=load_type,
             h5_path=h5_path
         )
 
+        # Store config
+        self.analysis_config = config
+
         # Set class-specific attributes
-        self.atoms_roi = atoms_roi
-        self.background_roi = bkg_roi
+        self.atoms_roi = config.atoms_roi
+        self.background_roi = config.bkg_roi
         self.counts_per_atom = self.imaging_setup.counts_per_atom(
             self.scattering_rate,
-            exposure_time,
+            config.exposure_time,
         )
 
         # Process images
@@ -538,4 +550,3 @@ class BulkGasAnalysis(ImagePreProcessor):
         ax.grid(color='0.9', which='minor')
 
         fig.savefig(self.folder_path+'\\amplitude_vs_parameter.png')
-

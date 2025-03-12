@@ -12,7 +12,6 @@ try:
 except:
     import lyse
 from analysis.data import h5lyze as hz
-# from analysis.data import autolyze as az
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
@@ -21,71 +20,68 @@ import scipy.optimize as opt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 from image_preprocessor import ImagePreProcessor
+from .image_config import AnalysisConfig, ImagingSystem
 
 class TweezerAnalysis(ImagePreProcessor):
+    """Analysis class for tweezer imaging data.
+    
+    This class provides functionality for analyzing tweezer imaging data, including
+    ROI-based analysis, background subtraction, and threshold-based detection.
+    
+    The class uses a configuration-based approach where all analysis parameters
+    are specified through an AnalysisConfig object, which includes imaging system
+    setup, ROI definitions, and analysis parameters.
+    """
 
     def __init__(
             self,
-            imaging_setup: ImagingSetup,
-            method: str = 'average',
-            bkg_roi_x: List[int] = [1900, 2400],
-            load_roi: bool = True,
-            roi_config_path: str = None,
-            load_threshold: bool = True,
-            threshold: Optional[float] = None,
+            config: AnalysisConfig,
             load_type: str = 'lyse',
-            h5_path: str = None,):
-        """Initialize TweezerAnalysis with ROI configuration and analysis parameters.
+            h5_path: str = None):
+        """Initialize TweezerAnalysis with analysis configuration.
 
         Parameters
         ----------
-        imaging_setup : ImagingSetup
-            Imaging setup configuration object
-        bkg_roi_x : List[int]
-            X-coordinates [start, end] for background region
-        roi_config_path : str
-            Path to YAML configuration file for ROIs
-        method : str, default='alternative'
-            Method for background subtraction, one of:
-            - 'alternative': Use alternative background subtraction
-            - 'standard': Use standard background subtraction
-        load_roi : bool, default=True
-            If True, load roi_x and site ROIs from standard .npy files:
-            - roi_x.npy: Main ROI x-coordinates
-              - site_roi_x.npy: Site ROI x-coordinates
-              - site_roi_y.npy: Site ROI y-coordinates
-            If False, load from YAML config (requires roi_x and site_roi)
-        load_type : str, optional
+        config : AnalysisConfig
+            Configuration object containing all analysis parameters including:
+            - imaging_system: ImagingSystem configuration
+            - method: Background subtraction method
+            - bkg_roi_x: Background ROI x-coordinates
+            - load_roi: Whether to load ROIs from files
+            - roi_config_path: Path to ROI config YAML
+            - load_threshold: Whether to load threshold from file
+            - threshold: Optional threshold value
+        load_type : str, default='lyse'
             Type of loading to perform
+            # TODO: what are the options for load_type?
         h5_path : str, optional
             Path to h5 file to load
-        load_threshold : bool, default=True
-            Whether to load threshold from file
-        threshold : float, optional
-            Threshold value to use if not loading from file
         """
         # Standard file locations
         self.multishot_path = 'X:\\userlib\\analysislib\\scripts\\multishot'
 
         # Initialize parent class first
         super().__init__(
-            imaging_setup=imaging_setup,
+            imaging_setup=config.imaging_system,
             load_type=load_type,
             h5_path=h5_path
         )
 
+        # Store config
+        self.analysis_config = config
+
         # Load ROIs and set class attributes
         self.atom_roi, self.background_roi, self.site_roi = self.load_roi(
-            roi_config_path=roi_config_path,
-            bkg_roi_x=bkg_roi_x,
-            load_roi=load_roi
+            roi_config_path=config.roi_config_path,
+            bkg_roi_x=config.bkg_roi_x,
+            load_roi=config.load_roi
         )
             
         # Set threshold
-        self.threshold = self.load_threshold(load_threshold, threshold)
+        self.threshold = self.load_threshold(config.load_threshold, config.threshold)
 
         # Process images
-        self.atom_images, self.background_images, self.sub_images = self.get_image_bkg_sub(method=method)
+        self.atom_images, self.background_images, self.sub_images = self.get_image_bkg_sub(method=config.method)
         self.roi_atoms, self.roi_bkgs = self.get_images_roi()
 
     def load_roi(self, roi_config_path: str, bkg_roi_x: List[int], load_roi: bool):
@@ -146,18 +142,17 @@ class TweezerAnalysis(ImagePreProcessor):
             site_roi_y = np.concatenate([[np.min(site_roi_y, axis=0) - 10], np.array(site_roi_y)])
 
         else:
-            roi_config = ROIConfig.from_yaml(roi_config_path)
             # When not loading from files, validate YAML config
-            if roi_config.roi_x is None:
+            config = AnalysisConfig.from_yaml(roi_config_path)
+            if config.roi_x is None:
                 raise ValueError("When load_roi is False, the YAML config must include 'roi_x' coordinates")
-            if roi_config.site_roi is None:
+            if config.site_roi is None:
                 raise ValueError("When load_roi is False, the YAML config must include a 'site_roi' section with 'site_roi_x' and 'site_roi_y' arrays")
 
             # Load ROIs from YAML
-            roi_x = roi_config.roi_x
-            site_roi_config = roi_config.site_roi
-            site_roi_x = np.array(site_roi_config['site_roi_x'])
-            site_roi_y = np.array(site_roi_config['site_roi_y'])
+            roi_x = config.roi_x
+            site_roi_x = np.array(config.site_roi['site_roi_x'])
+            site_roi_y = np.array(config.site_roi['site_roi_y'])
 
         # Always get roi_y from globals
         roi_y = self.globals["tw_kinetix_roi_row"]
