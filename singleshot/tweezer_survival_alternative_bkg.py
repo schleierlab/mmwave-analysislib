@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 roi_config_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\tweezer_roi.yaml'
 
 analysis_config = AnalysisConfig.from_yaml(roi_config_path)
+analysis_config.method = 'alternative'
 
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_analyzer = TweezerAnalysis(

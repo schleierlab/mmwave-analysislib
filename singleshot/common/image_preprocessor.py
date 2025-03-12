@@ -20,10 +20,10 @@ import csv
 import scipy.optimize as opt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
-from image_config import ROIConfig, ImagingCamera
+from analysis_config import ImagingSystem
 
 class ImagePreProcessor:
-    def __init__(self, imaging_setup: ImagingSetup, load_type: str = 'lyse', h5_path: Optional[str] = None):
+    def __init__(self, imaging_setup: ImagingSystem, load_type: str = 'lyse', h5_path: Optional[str] = None):
         """Initialize image preprocessing.
         
         Parameters
