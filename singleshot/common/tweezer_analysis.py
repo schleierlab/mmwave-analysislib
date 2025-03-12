@@ -8,7 +8,7 @@ root_path = r"X:\userlib\analysislib"
 if root_path not in sys.path:
     sys.path.append(root_path)
 try:
-    lyse
+    import lyse
 except:
     import lyse
 from analysis.data import h5lyze as hz
@@ -258,14 +258,19 @@ class TweezerAnalysis(ImagePreProcessor):
         return roi_atoms, roi_bkgs
     
     def get_site_counts(self, sub_image):
-        """Get counts in each tweezer site ROI.
+        """Get the summed counts in each site ROI.
+
+        Parameters
+        ----------
+        sub_image : ndarray
+            Background-subtracted image to analyze
 
         Returns
         -------
-        roi_number_lst : list
+        site_roi_sums : list
             List of summed counts in each site ROI
         """
-        roi_number_lst = []
+        site_roi_sums = []
         site_roi_x = self.site_roi[0]
         site_roi_y = self.site_roi[1]
 
@@ -275,31 +280,24 @@ class TweezerAnalysis(ImagePreProcessor):
 
             site_roi_signal = sub_image[y_start:y_end, x_start:x_end]
             signal_sum = np.sum(site_roi_signal)
-            roi_number_lst.append(signal_sum)
+            site_roi_sums.append(signal_sum)
 
-        return roi_number_lst
+        return site_roi_sums
 
-    def analyze_site_existence(self, roi_number_lst):
-        """Analyze atom existence in each site and create visualization rectangles.
+    def analyze_site_existence(self, site_roi_sums):
+        """Analyze whether atoms exist in each site based on the summed counts.
 
         Parameters
         ----------
-        roi_number_lst : list
-            List of summed counts in each site ROI from get_site_counts
-
-        Returns
-        -------
-        rect_sig : list
-            List of Rectangle patches for visualization
-        atom_exist_lst : list
-            List of booleans indicating atom presence in each site
+        site_roi_sums : list
+            List of summed counts in each site ROI
         """
         rect_sig = []
         atom_exist_lst = []
         site_roi_x = self.site_roi[0]
         site_roi_y = self.site_roi[1]
 
-        for i, signal_sum in enumerate(roi_number_lst):
+        for i, signal_sum in enumerate(site_roi_sums):
             y_start, y_end = site_roi_y[i,0], site_roi_y[i,1]
             x_start, x_end = site_roi_x[i,0], site_roi_x[i,1]
 
