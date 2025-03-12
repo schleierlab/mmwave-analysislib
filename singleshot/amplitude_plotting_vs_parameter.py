@@ -1,4 +1,4 @@
-from analysis_lib import BulkGasAnalysis, manta_path
+from analysis_lib import BulkGasAnalysis, manta_setup
 
 roi_x = [900, 1150] # Region of interest of X direction
 roi_y = [900, 1150] # Region of interest of Y direction
@@ -20,7 +20,7 @@ gaussian_fit_params = [
 # The only parameter that is free is the amplitude
 
 bulk_gas_analysis_obj = BulkGasAnalysis(
-    imaging_setup=manta_path,
+    imaging_setup=manta_setup,
     exposure_time=t_expo,
     atoms_roi=[roi_x, roi_y],
     bkg_roi=[roi_x_bkg, roi_y_bkg],

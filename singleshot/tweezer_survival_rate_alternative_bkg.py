@@ -1,21 +1,22 @@
-from analysis_lib import TweezerAnalysis, kinetix_path
+from analysis_lib import TweezerAnalysis, kinetix_setup
 import matplotlib.pyplot as plt
 
-roi_x = [1200, 1450]#roi_x = [850, 1250] # Region of interest of X direction
-roi_y = [1080, 1100] #[750, 1150] # Region of interest of Y direction
-roi_x_bkg = [1900, 2400] # Region of interest of X direction
-roi_y_bkg= [1900, 2400] # Region of interest of Y direction
+# ROI config path: use when load_roi = False
+roi_config_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\tweezer_roi.yaml'
 
-t_expo = 80e-3 #s, exposre time
+# use when load_threshold = False
+threshold = 1000
 
+# Initialize analysis with background ROI and standard ROI loading
 tweezer_analysis_obj = TweezerAnalysis(
-    imaging_setup=kinetix_path,
-    exposure_time=t_expo,
-    atoms_roi=[roi_x, roi_y],
-    bkg_roi=[roi_x_bkg, roi_y_bkg],
-    method = 'alternative'
+    imaging_setup=kinetix_setup,
+    method='alternative',  # Use alternative background subtraction
+    bkg_roi_x=[1900, 2400],  # Background ROI x-coordinates
+    load_roi=True,  # If True, load roi_x and site ROIs from standard .npy files
+    roi_config_path= None, 
+    load_threshold=True,
+    threshold=None, # If load_threshold is False, provide threshold
 )
 
-tweezer_analysis_obj.get_atom_number()
-tweezer_analysis_obj.plot_images()
-tweezer_analysis_obj.plot_atom_number()
+# plot results
+tweezer_analysis_obj.plot_images(roi_image_scale=150, show_site_roi=True, plot_bkg_roi=True)
