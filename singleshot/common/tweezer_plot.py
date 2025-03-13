@@ -1,6 +1,39 @@
+import sys
+from pathlib import Path
+from typing import Optional, Dict, Any, List, Union, Tuple
+import os
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.collections import PatchCollection
+
+try:
+    import lyse
+except ImportError:
+    from analysis.data import h5lyze as lyse
+
 from .plot_config import PlotConfig
+from .tweezer_analysis import TweezerAnalysis
+
+# Add analysis library root to Python path
+root_path = r"X:\userlib\analysislib"
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 class TweezerPlotter:
+    """Class for plotting tweezer analysis results.
+    
+    This class provides methods for visualizing tweezer analysis results,
+    including raw images, background-subtracted images, and ROI counts.
+    
+    Parameters
+    ----------
+    tweezer_analyzer : TweezerAnalysis
+        Analyzer object containing the data to plot
+    plot_config : PlotConfig, optional
+        Configuration object for plot styling
+    """
     def __init__(self, tweezer_analyzer, plot_config: PlotConfig = None):
         self.tweezer_analyzer = tweezer_analyzer
         self.plot_config = plot_config or PlotConfig()
@@ -68,9 +101,10 @@ class TweezerPlotter:
                         x_end - x_start,
                         y_end - y_start,
                         linewidth=1,
-                        edgecolor='blue',
+                        edgecolor='gold',
                         facecolor='none',
-                        alpha=0.3)
+                        alpha=0.5,
+                        fill=False)
                     base_rects.append(rect)
                 pc_base = PatchCollection(base_rects, match_original=True)
                 ax_tweezer.add_collection(pc_base)

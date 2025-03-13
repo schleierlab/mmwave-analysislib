@@ -1,38 +1,40 @@
-from dataclasses import dataclass
 import sys
-import yaml
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, Tuple
 import os
-root_path = r"X:\userlib\analysislib"
-if root_path not in sys.path:
-    sys.path.append(root_path)
-try:
-    import lyse
-except:
-    import lyse
-from analysis.data import h5lyze as hz
+
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
-import csv
-import scipy.optimize as opt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
-from image_preprocessor import ImagePreProcessor
+
+try:
+    import lyse
+except ImportError:
+    from analysis.data import h5lyze as lyse
+
+from .image_preprocessor import ImagePreProcessor
 from .analysis_config import TweezerAnalysisConfig, ImagingSystem
 
 class TweezerAnalysis(ImagePreProcessor):
     """Analysis class for tweezer imaging data.
     
-    This class provides functionality for analyzing tweezer imaging data, including
-    ROI-based analysis, background subtraction, and threshold-based detection.
+    This class handles the analysis of tweezer imaging data, including:
+    - Loading and preprocessing images
+    - Background subtraction
+    - ROI-based analysis
+    - Threshold-based atom detection
     
-    The class uses a configuration-based approach where all analysis parameters
-    are specified through an AnalysisConfig object, which includes imaging system
-    setup, ROI definitions, and analysis parameters.
+    Parameters
+    ----------
+    config : TweezerAnalysisConfig
+        Configuration object containing all analysis parameters
+    load_type : str, default='lyse'
+        Type of data loading to use
+    h5_path : Optional[str], default=None
+        Path to H5 file for data loading
     """
-
     def __init__(
             self,
             config: TweezerAnalysisConfig,

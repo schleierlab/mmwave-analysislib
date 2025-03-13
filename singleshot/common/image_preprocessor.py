@@ -1,34 +1,50 @@
-from dataclasses import dataclass
 import sys
-import yaml
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, Tuple
 import os
-root_path = r"X:\userlib\analysislib"
-if root_path not in sys.path:
-    sys.path.append(root_path)
-try:
-    lyse
-except:
-    import lyse
-from analysis.data import h5lyze as hz
-# from analysis.data import autolyze as az
+
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
-import csv
-import scipy.optimize as opt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
-from analysis_config import ImagingSystem
+
+try:
+    import lyse
+except ImportError:
+    from analysis.data import h5lyze as lyse
+
+from .analysis_config import ImagingSystem
+
+root_path = r"X:\userlib\analysislib"
+if root_path not in sys.path:
+    sys.path.append(root_path)
 
 class ImagePreProcessor:
-    def __init__(self, imaging_setup: ImagingSystem, load_type: str = 'lyse', h5_path: Optional[str] = None):
+    """Base class for image preprocessing.
+    
+    This class handles the basic image loading and preprocessing operations
+    common to both tweezer and bulk gas analysis.
+    
+    Parameters
+    ----------
+    imaging_setup : ImagingSystem
+        Configuration object for the imaging system setup
+    load_type : str, default='lyse'
+        Type of data loading to use
+    h5_path : Optional[str], default=None
+        Path to H5 file for data loading
+    """
+    def __init__(
+            self,
+            imaging_setup: ImagingSystem,
+            load_type: str = 'lyse',
+            h5_path: Optional[str] = None):
         """Initialize image preprocessing.
         
         Parameters
         ----------
-        imaging_setup : ImagingSetup
+        imaging_setup : ImagingSystem
             Imaging setup configuration
         load_type : str, default='lyse'
             'lyse' for h5 file active in lyse, 'h5' for h5 file with input h5_path

@@ -1,24 +1,149 @@
-from dataclasses import dataclass
 import sys
-import yaml
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, Tuple
 import os
-root_path = r"X:\userlib\analysislib"
-if root_path not in sys.path:
-    sys.path.append(root_path)
-try:
-    lyse
-except:
-    import lyse
-from analysis.data import h5lyze as hz
+
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
-import csv
-import scipy.optimize as opt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
+import yaml
+import csv
+import scipy.optimize as opt
+
+try:
+    import lyse
+except ImportError:
+    from analysis.data import h5lyze as lyse
+
+# Add analysis library root to Python path
+root_path = r"X:\userlib\analysislib"
+if root_path not in sys.path:
+    sys.path.append(root_path)
+
+@dataclass
+class ImagingCamera:
+    """Configuration class for imaging camera parameters.
+    
+    Parameters
+    ----------
+    pixel_size : float
+        Physical size of camera pixels in meters
+    image_size : float
+        Size of camera sensor in pixels
+    quantum_efficiency : float
+        Quantum efficiency of camera
+    gain : float
+        Camera gain setting
+    image_name : str
+        Name identifier for the camera images
+    """
+    pixel_size: float
+    image_size: float
+    quantum_efficiency: float
+    gain: float
+    image_name: str
+
+@dataclass
+class ImagingSystem:
+    """Configuration class for imaging system parameters.
+    
+    Parameters
+    ----------
+    imaging_f : float
+        Focal length of imaging lens in meters
+    objective_f : float
+        Focal length of objective lens in meters
+    lens_diameter : float
+        Diameter of imaging lens in meters
+    imaging_loss : float
+        Loss factor in imaging system
+    camera : ImagingCamera
+        Camera configuration object
+    """
+    imaging_f: float
+    objective_f: float
+    lens_diameter: float
+    imaging_loss: float
+    camera: ImagingCamera
+
+    def magnification(self):
+        """Calculate imaging system magnification."""
+        return self.imaging_f / self.objective_f
+
+    def pixel_size_before_maginification(self):
+        """Get effective pixel size before magnification."""
+        return self.camera.pixel_size / self.magnification()
+
+    def solid_angle_fraction(self):
+        """Calculate solid angle fraction captured by imaging system.
+        
+        Makes a small angle approximation for the imaging NA.
+        """
+        return (self.lens_diameter / 2)**2 / (4 * self.imaging_f**2)
+
+    def counts_per_atom(self, scattering_rate, exposure_time):
+        """
+        For an image of atoms with given scattering rate taken with a given exposure time,
+        find the camera counts per atom we expect with this imaging setup.
+        Note that the scattering rate is for resonance light not for the detuned light.
+        
+        Parameters
+        ----------
+        scattering_rate : float
+            Scattering rate (Γ) for atoms being imaged
+        exposure_time : float
+            Exposure time in seconds
+            
+        Returns
+        -------
+        float
+            Expected camera counts per atom
+        """
+        count_rate_per_atom = (
+            scattering_rate/2
+            * self.solid_angle_fraction()
+            * self.imaging_loss
+            * self.camera.quantum_efficiency
+            * self.camera.gain
+        )
+        return count_rate_per_atom * exposure_time
+
+
+# Pre-configured camera systems
+manta_camera = ImagingCamera(
+    pixel_size=5.5e-6,
+    image_size=2048,
+    quantum_efficiency=0.4,
+    gain=1,
+    image_name='manta419b_mot_images'
+)
+
+manta_system = ImagingSystem(
+    imaging_f=50e-3,
+    objective_f=125e-3,
+    lens_diameter=25.4e-3,
+    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
+    camera=manta_camera,
+)
+
+kinetix_camera = ImagingCamera(
+    pixel_size=6.5e-6,
+    image_size=2400,
+    quantum_efficiency=0.58,
+    gain=1,
+    image_name='kinetix_images'
+)
+
+kinetix_system = ImagingSystem(
+    imaging_f=40.4e-3,
+    objective_f=300e-3,
+    lens_diameter=50.8e-3,
+    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
+    camera=kinetix_camera,
+)
 
 @dataclass
 class BulkGasAnalysisConfig:
@@ -112,121 +237,5 @@ class TweezerAnalysisConfig:
             Analysis configuration object
         """
         with open(path, 'r') as f:
-            config = yaml.safe_load(f)
-        return cls(**config)
-
-@dataclass
-class ImagingCamera:
-    pixel_size: float
-    """Pixel size, in m"""
-
-    image_size: float
-    """Size of sensor, in pixels (assumes square sensor)"""
-
-    quantum_efficiency: float
-    """Quantum efficiency of the camera"""
-
-    gain: float
-    """
-    Additional conversion from detected electron counts to camera counts,
-    (for cameras like EMCCDs).
-    """
-
-    image_name: str
-    """
-    Name of the image file to load.
-    """
-
-
-@dataclass
-class ImagingSystem:
-    imaging_f: float
-    """Focal length of imaging lens, in m"""
-
-    objective_f: float
-    """Focal length of objective lens, in m"""
-
-    lens_diameter: float  # diameter of light collection lenses
-    """Diameter of imaging and objective lenses (or the smaller of the two), in m"""
-
-    imaging_loss: float
-    """Fractional power loss along imaging path."""
-
-    camera: ImagingCamera
-    """Detection camera"""
-
-    @property
-    def magnification(self):
-        return self.imaging_f / self.objective_f
-
-    @property
-    def pixel_size_before_maginification(self):
-        return  self.camera.pixel_size/self.magnification
-
-    @property
-    def solid_angle_fraction(self):
-        """
-        Solid angle captured by the imaging setup as a fraction of 4\pi.
-        Makes a small angle approximation for the imaging NA.
-        """
-        return (self.lens_diameter / 2)**2 / (4 * self.imaging_f**2)
-
-    def counts_per_atom(self, scattering_rate, exposure_time):
-        """
-        For an image of atoms with given scattering rate taken with a given exposure time,
-        find the camera counts per atom we expect with this imaging setup.
-        Note that the scattering rate is for resonance light not for the detuned light.
-
-        Parameters
-        ----------
-        scattering_rate: float
-            Scattering rate (\Gamma) for atoms being imaged.
-        exposure_time: float
-            Exposure time of the image in seconds.
-
-        Returns
-        -------
-        float
-            Camera counts per atom for this imaging setup.
-        """
-        count_rate_per_atom = (
-            scattering_rate/2
-            * self.solid_angle_fraction
-            * self.imaging_loss
-            * self.camera.quantum_efficiency
-            * self.camera.gain
-        )
-        return count_rate_per_atom * exposure_time
-
-manta_camera = ImagingCamera(
-    pixel_size=5.5e-6,
-    image_size=2048,
-    quantum_efficiency=0.4,
-    gain=1,
-    image_name='manta419b_mot_images'
-)
-
-
-manta_system = ImagingSystem(
-    imaging_f=50e-3,
-    objective_f=125e-3,
-    lens_diameter=25.4e-3,
-    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
-    camera=manta_camera,
-)
-
-kinetix_camera = ImagingCamera(
-    pixel_size=6.5e-6,
-    image_size=2400,
-    quantum_efficiency=0.58,
-    gain=1,
-    image_name='kinetix_images'
-)
-
-kinetix_system = ImagingSystem(
-    imaging_f=40.4e-3,
-    objective_f=300e-3,
-    lens_diameter=50.8e-3,
-    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
-    camera=kinetix_camera,
-)
+            config_dict = yaml.safe_load(f)
+        return cls(**config_dict)
