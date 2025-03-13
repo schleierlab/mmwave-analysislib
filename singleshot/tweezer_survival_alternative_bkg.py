@@ -3,10 +3,7 @@ import matplotlib.pyplot as plt
 from .analysis_config import kinetix_system, TweezerAnalysisConfig
 from .plot_config import PlotConfig
 
-# ROI config path: use when load_roi = False
-roi_config_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\tweezer_roi.yaml'
-
-analysis_config = TweezerAnalysisConfig.from_yaml(roi_config_path)
+analysis_config = TweezerAnalysisConfig()
 analysis_config.method = 'alternative'
 
 # Initialize analysis with background ROI and standard ROI loading
