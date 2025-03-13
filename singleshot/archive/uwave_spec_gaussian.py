@@ -26,8 +26,8 @@ import scipy.optimize as opt
 from analysis.data import h5lyze as hz
 
 # Constants
-roi_x = [900, 1150]  # roi_x = [850, 1250] # Region of interest of X direction
-roi_y = [900, 1150]  # [750, 1150] # Region of interest of Y direction
+roi_x = [900-100, 1150-50]  # roi_x = [850, 1250] # Region of interest of X direction
+roi_y = [900-50, 1150]  # [750, 1150] # Region of interest of Y direction
 roi_x_bkg = [1900, 2400]  # Region of interest of X direction
 roi_y_bkg = [1900, 2400]  # Region of interest of Y direction
 
@@ -154,26 +154,38 @@ rep = h5_path[-5:-3]
 #     uwave_detuning = float(hz.attributesToDictionary(f).get('globals').get('mw_detuning'))
 #     run_number = info_dict.get('run number')
 
+
+
+loop_glob = []
+i = 0
 with h5py.File(h5_path, mode="r+") as f:
     g = hz.attributesToDictionary(f["globals"])
     for group in g:
         for glob in g[group]:
             if g[group][glob][0:2] == "np":
-                loop_glob = glob
+                loop_glob.append(glob)
+
     info_dict = hz.getAttributeDict(f)
     images = hz.datasetsToDictionary(f["manta419b_mot_images"], recursive=True)
+    run_number = info_dict.get("run number")
     try:
         uwave_detuning = float(
-            hz.attributesToDictionary(f).get("globals").get(loop_glob)
+            hz.attributesToDictionary(f).get("globals").get(loop_glob[0])
         )
     except:
         uwave_detuning = float(
             hz.attributesToDictionary(f).get("globals").get("n_shot")
         )
+    try:
+        other_params = float(
+            hz.attributesToDictionary(f).get("globals").get(loop_glob[1])
+        )
+    except:
+        pass
 
-    run_number = info_dict.get("run number")
     print(f"run number = {run_number}")
 
+print(other_params)
 
 image_types = list(images.keys())
 
@@ -190,7 +202,7 @@ roi_bkg = sub_image[roi_y_bkg[0] : roi_y_bkg[1], roi_x_bkg[0] : roi_x_bkg[1]]
 
 # popt, pcov = fit_gauss2D(roi_MOT)
 # print(repr(popt))
-# #Integrating the Gaussian fit based on the amplitude and standard deviations
+#Integrating the Gaussian fit based on the amplitude and standard deviations
 # gaussian_peak = popt[0]
 
 
@@ -204,15 +216,11 @@ x, y = np.meshgrid(x_l, y_l)
 #         2.73066766e+01, -1.41966933e-01,  8.83168756e-01]
 # popt = [1.21933798e+03, 1.46759391e+02, 8.41609890e+01, 2.99674671e+01,
 #        2.47317059e+01, 9.75698771e-02, 6.57764716e+00]
-popt = [
-    25.65785665,
-    167.40629676,
-    78.80645476,
-    39.60946011,
-    32.51922039,
-    -0.51510428,
-    1.7804111,
-]
+
+# initial guess
+popt = [ 2.36897661e+03,  1.56660614e+02,  1.26195366e+02,  3.36923261e+01,
+        2.42917405e+01, -2.77906615e-01,  2.17344935e+01]
+
 popt_1, pcov = opt.curve_fit(
     lambda xy, A, offset: gauss2D(
         xy, A, popt[1], popt[2], popt[3], popt[4], popt[5], offset
@@ -275,11 +283,19 @@ fig.colorbar(pos, ax=ax_bkg_roi)
 folder_path = "\\".join(h5_path.split("\\")[0:-1])
 count_file_path = folder_path + "\\data.csv"
 
+if other_params is None:
+    if run_number == 0:  # rep == '_0':
+        with open(count_file_path, "w") as f_object:
+            f_object.write(f"{atom_number},{uwave_detuning}\n")
 
-if run_number == 0:  # rep == '_0':
-    with open(count_file_path, "w") as f_object:
-        f_object.write(f"{atom_number},{uwave_detuning}\n")
-
+    else:
+        with open(count_file_path, "a") as f_object:
+            f_object.write(f"{atom_number},{uwave_detuning}\n")
 else:
-    with open(count_file_path, "a") as f_object:
-        f_object.write(f"{atom_number},{uwave_detuning}\n")
+    if run_number == 0:  # rep == '_0':
+        with open(count_file_path, "w") as f_object:
+            f_object.write(f"{atom_number},{uwave_detuning},{other_params}\n")
+
+    else:
+        with open(count_file_path, "a") as f_object:
+            f_object.write(f"{atom_number},{uwave_detuning},{other_params}\n")

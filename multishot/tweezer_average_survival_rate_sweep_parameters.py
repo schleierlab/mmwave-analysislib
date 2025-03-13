@@ -33,7 +33,7 @@ from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
 import scipy.optimize as optimize
 
-DO_LORENTZIAN = True
+DO_LORENTZIAN = False
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
     n_shots = np.size([i for i in os.listdir(folder) if i.endswith('.h5')])
@@ -450,7 +450,7 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 2000 #np.max(first_shot_roi_number)/2
+    cpa = 1500 #np.max(first_shot_roi_number)/2
     sigma1 = 0.1*cpa
     sigma2 = 0.1*cpa
     mu1 = 500
@@ -648,13 +648,14 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para, folder_path, d
     fig.suptitle(f'n average = {n_average:.3f}')
     (ax1, ax2), (ax3, ax4), (ax5, ax6) = axs
     # print(f"survival sum std = {survival_std_each_para }")
-    ebar = ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o', linestyle='')
+    # ebar = ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o', linestyle='')
+    ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o')
     if DO_LORENTZIAN is True:
         popt, perr = fit_lorentzian(para,survival_rate_each_para)
         x_plot = np.linspace(np.min(para), np.max(para), 1000)
         ax1.plot(x_plot, lorentzian(x_plot, *popt), color = ebar[0].get_color())
         fig.suptitle(
-            f'center freq = {popt[0]:.3f} +/- {perr[0]:.3f} Hz, '
+            f'center freq = {popt[0]:.3f} +/- {perr[0]:.3f} MHz, '
         )
         print(f"fitting lorentzian, popt = {popt}, perr = {perr}")
 
@@ -662,6 +663,9 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para, folder_path, d
     # ax1.set_xlabel('x [px]')
     ax1.set_ylabel('survival rate')
     ax1.set_title(f'average survival rate: {np.mean(survival_rate_each_para):.3f}')
+
+    desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+    np.save(os.path.join(desktop_path, 'survival_rate_each_para.npy'), survival_rate_each_para)
 
     ax2.errorbar(para, appear_rate_each_para, yerr = appear_rate_std_each_para, marker='o')
     ax2.grid()

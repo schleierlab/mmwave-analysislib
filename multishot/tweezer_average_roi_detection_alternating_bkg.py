@@ -31,8 +31,8 @@ import numpy as np
 from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
 
-ROI_DETECTION = False
-ROI_X = np.array([600,1100]) # This is used only when ROI_DETECTION = False. Otherwise, roi_x is auto calculated
+ROI_DETECTION = True
+ROI_X = np.array([1000,1450]) # This is used only when ROI_DETECTION = False. Otherwise, roi_x is auto calculated
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
     n_shots = np.size([i for i in os.listdir(folder) if i.endswith('.h5')])
@@ -155,6 +155,10 @@ def plot_shots_avg(data, site_roi_x,site_roi_y, n_shots =2, show_roi = True):
     ax_first_image.set_title('first shot')
     pos = ax_first_image.imshow(data[0,:, roi_x[0]:roi_x[1]], **raw_img_color_kw)
     #fig.colorbar(pos, ax=ax_first_image)
+    folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
+    average_first_shot_path =  folder_path + "\\average_first_shot.npy"
+    np.save(average_first_shot_path, data[0,:, roi_x[0]:roi_x[1]])
+
 
     ax_second_image.set_title('second shot')
     pos = ax_second_image.imshow(data[1,:, roi_x[0]:roi_x[1]], **raw_img_color_kw)
@@ -179,17 +183,18 @@ while True:
 
 avg_shot_bkg_sub, avg_shot_bkg, N = avg_all_shots(folder)
 neighborhood_size = 6
-threshold = 30 #np.max(avg_shot_bkg_sub[0])/2 #40 #48 #83 #60
+threshold = 25 #np.max(avg_shot_bkg_sub[0])/2 #40 #48 #83 #60
 
 if ROI_DETECTION:
     site_roi_x, site_roi_y, roi_x = auto_roi_detection(avg_shot_bkg_sub[0], neighborhood_size, threshold)
     print(f'site_roi_x={repr(site_roi_x)}, site_roi_y={repr(site_roi_y)}')
     print(f'size of site roi = {site_roi_x.shape[0]} ')
+    plot_shots_avg(avg_shot_bkg_sub, site_roi_x,site_roi_y, N, show_roi=True)
 else:
     site_roi_x = None
     site_roi_y = None
     roi_x = ROI_X
-plot_shots_avg(avg_shot_bkg_sub, site_roi_x,site_roi_y, N, show_roi=False)
+    plot_shots_avg(avg_shot_bkg_sub, site_roi_x,site_roi_y, N, show_roi=False)
 
 folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
 site_roi_x_file_path = folder_path + "\\site_roi_x.npy"

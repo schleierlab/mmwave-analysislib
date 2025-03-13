@@ -46,7 +46,7 @@ def auto_roi_detection(data, neighborhood_size, threshold):
 
     site_roi_x = np.array(site_roi_x)
     site_roi_y = np.array(site_roi_y)
-    # print(f"site_roi_x ={site_roi_x}")
+    print(f"site_roi_x ={site_roi_x}")
     ind = np.argsort(site_roi_x[:, 0])
     site_roi_x = site_roi_x[ind]
     site_roi_y = site_roi_y[ind]
@@ -62,6 +62,7 @@ def plot_shots_avg(data, site_roi_x, site_roi_y, dx, n_shots =2, show_roi = True
     #     roi_x = np.array([np.min(site_roi_x)-10, np.max(site_roi_x)+10])
 
     roi_x = np.array([0, 2560])
+    roi_x = np.array([0, 2048])
 
     #print(f'roi_x = {repr(roi_x)}')
     # roi_x = [1275,1475] #[1250, 1450]
@@ -86,7 +87,7 @@ def plot_shots_avg(data, site_roi_x, site_roi_y, dx, n_shots =2, show_roi = True
     raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 
     #ax_first_image.set_title('first shot')
-    print(roi_x)
+    # print(roi_x)
     pos = ax_first_image.imshow(data[:,roi_x[0]:roi_x[1]], **raw_img_color_kw)
     fig.colorbar(pos, ax=ax_first_image)
     raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale, extent = [0, data.shape[1]*dx, 0,data.shape[0]*dx], aspect = 'equal')
@@ -175,133 +176,137 @@ def avg_shots_gauss_fit(data, site_roi_x, site_roi_y, plot = True):
         params_lst.append(params)
     return np.array(params_lst)
 
+if __name__ == '__main__':
+    # Is this script being run from within an interactive lyse session?
+    if lyse.spinning_top:
+        # If so, use the filepath of the current h5_path
+        h5_path = lyse.path
+        print(h5_path)
+    else:
+        # If not, get the filepath of the last h5_path of the lyse DataFrame
+        df = lyse.data()
+        h5_path = df.filepath.iloc[-1]
 
-# Is this script being run from within an interactive lyse session?
-if lyse.spinning_top:
-    # If so, use the filepath of the current h5_path
-    h5_path = lyse.path
-    print(h5_path)
-else:
-    # If not, get the filepath of the last h5_path of the lyse DataFrame
-    df = lyse.data()
-    h5_path = df.filepath.iloc[-1]
+    with h5py.File(h5_path, mode='r+') as f:
+        g = hz.attributesToDictionary(f['globals'])
+        info_dict = hz.getAttributeDict(f)
+        run_number = info_dict.get('run number')
+        #images = hz.datasetsToDictionary(f['manta419b_tweezer_images'], recursive=True)
+        images = hz.datasetsToDictionary(f['kinetix_images'], recursive=True)
 
-with h5py.File(h5_path, mode='r+') as f:
-    g = hz.attributesToDictionary(f['globals'])
-    info_dict = hz.getAttributeDict(f)
-    run_number = info_dict.get('run number')
-    images = hz.datasetsToDictionary(f['manta419b_tweezer_images'], recursive=True)
+    image_types = list(images.keys())
+    data = images[image_types[0]]
 
-image_types = list(images.keys())
-data = images[image_types[0]]
+    neighborhood_size = 10 #10 #6
+    threshold = 200 #35 #85 #100 #100
+    roi_y = [0, 2048]#[0, 1550]# [0, 2560]  #[1300,1860] #
+    roi_x = [0, 2048]#[0, 1500]#[0, 2560]  #[1300,1860] #
+    mag = 750/40.4  # 250/40.4
+    pix = 5.5  # um
+    dx = pix/mag
 
-neighborhood_size = 10 #10 #6
-threshold = 200 #35 #85 #100 #100
-roi_y = [0, 1550]# [0, 2560]  #[1300,1860] #
-roi_x = [0, 1500]#[0, 2560]  #[1300,1860] #
-mag = 750/40.4  # 250/40.4
-pix = 5.5  # um
-dx = pix/mag
+    data_new = data[roi_y[0]:roi_y[1], roi_x[0]:roi_x[1]]
 
-data_new = data[roi_y[0]:roi_y[1], roi_x[0]:roi_x[1]]
+    # fig, axs = plt.subplots(nrows=1, ncols=1)
 
-# fig, axs = plt.subplots(nrows=1, ncols=1)
+    # axs.set_xlabel('x [px]')
+    # axs.set_ylabel('y [px]')
 
-# axs.set_xlabel('x [px]')
-# axs.set_ylabel('y [px]')
+    # image_scale = 3000
+    # raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 
-# image_scale = 3000
-# raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
-
-# axs.set_title('Raw')
-# pos = axs.imshow(data_new, **raw_img_color_kw)
-# fig.colorbar(pos, ax=axs)
+    # axs.set_title('Raw')
+    # pos = axs.imshow(data_new, **raw_img_color_kw)
+    # fig.colorbar(pos, ax=axs)
 
 
-site_roi_x, site_roi_y = auto_roi_detection(data_new, neighborhood_size, threshold)
+    site_roi_x, site_roi_y = auto_roi_detection(data_new, neighborhood_size, threshold)
 
-# print(repr(site_roi_x), repr(site_roi_y))
+    # print(repr(site_roi_x), repr(site_roi_y))
 
-# site_roi_x = np.array([[1078, 1088],
-#        [1094, 1104],
-#        [1110, 1120],
-#        [1127, 1137],
-#        [1143, 1153],
-#        [1159, 1169],
-#        [1175, 1185],
-#        [1192, 1202],
-#        [1208, 1218],
-#        [1225, 1235],
-#        [1241, 1251],
-#        [1257, 1267],
-#        [1273, 1283],
-#        [1289, 1299],
-#        [1306, 1316],
-#        [1322, 1332],
-#        [1338, 1348],
-#        [1354, 1364],
-#        [1371, 1381],
-#        [1387, 1397]])
+    # site_roi_x = np.array([[1078, 1088],
+    #        [1094, 1104],
+    #        [1110, 1120],
+    #        [1127, 1137],
+    #        [1143, 1153],
+    #        [1159, 1169],
+    #        [1175, 1185],
+    #        [1192, 1202],
+    #        [1208, 1218],
+    #        [1225, 1235],
+    #        [1241, 1251],
+    #        [1257, 1267],
+    #        [1273, 1283],
+    #        [1289, 1299],
+    #        [1306, 1316],
+    #        [1322, 1332],
+    #        [1338, 1348],
+    #        [1354, 1364],
+    #        [1371, 1381],
+    #        [1387, 1397]])
 
-# site_roi_y = np.array([[943, 953],
-    # [927, 937],
-    # [912, 922],
-    # [896, 906],
-    #    [880, 890],
-    #    [865, 875],
-    #    [849, 859],
-    #    [833, 843],
-    #    [818, 828],
-    #    [802, 812],
-    #    [786, 796],
-    #    [771, 781],
-    #    [755, 765],
-    #    [739, 749],
-    #    [724, 734],
-    #    [708, 718],
-    #    [692, 702],
-    #    [677, 687],
-    #    [661, 671],
-    #    [645, 655]])
+    # site_roi_y = np.array([[943, 953],
+        # [927, 937],
+        # [912, 922],
+        # [896, 906],
+        #    [880, 890],
+        #    [865, 875],
+        #    [849, 859],
+        #    [833, 843],
+        #    [818, 828],
+        #    [802, 812],
+        #    [786, 796],
+        #    [771, 781],
+        #    [755, 765],
+        #    [739, 749],
+        #    [724, 734],
+        #    [708, 718],
+        #    [692, 702],
+        #    [677, 687],
+        #    [661, 671],
+        #    [645, 655]])
 
-plot_shots_avg(data_new, site_roi_x, site_roi_y, n_shots=1, dx=dx, show_roi=True)
+    plot_shots_avg(data_new, site_roi_x, site_roi_y, n_shots=1, dx=dx, show_roi=True)
 
-roi_number_lst = []
-for i in np.arange(site_roi_x.shape[0]):
-    site_roi_signal = data_new[site_roi_y[i,0]:site_roi_y[i,1], site_roi_x[i,0]:site_roi_x[i,1]]
-    roi_number_lst.append(np.sum(site_roi_signal))
+    roi_number_lst = []
+    for i in np.arange(site_roi_x.shape[0]):
+        site_roi_signal = data_new[site_roi_y[i,0]:site_roi_y[i,1], site_roi_x[i,0]:site_roi_x[i,1]]
+        roi_number_lst.append(np.sum(site_roi_signal))
 
-params_lst = avg_shots_gauss_fit(data_new, site_roi_x, site_roi_y, plot = False)
-amplitude, mux, muy, sigmax, sigmay, rotation, offset = params_lst[:, 0], params_lst[:, 1], params_lst[:, 2], params_lst[:, 3], params_lst[:, 4], params_lst[:, 5], params_lst[:, 6]
+    params_lst = avg_shots_gauss_fit(data_new, site_roi_x, site_roi_y, plot = False)
+    amplitude, mux, muy, sigmax, sigmay, rotation, offset = params_lst[:, 0], params_lst[:, 1], params_lst[:, 2], params_lst[:, 3], params_lst[:, 4], params_lst[:, 5], params_lst[:, 6]
 
-print(f" mux = {repr(mux)}, muy = {repr(muy)}, sigma_x = {repr(sigmax)}, sigmay = {repr(sigmay)}, rotation = {repr(rotation)},offset = {repr(offset)}")
-waist_x = 2*np.mean(sigmax)*dx
-waist_y = 2*np.mean(sigmay)*dx
-amplitude = np.abs(amplitude)
+    print(f" mux = {repr(mux)}, muy = {repr(muy)}, sigma_x = {repr(sigmax)}, sigmay = {repr(sigmay)}, rotation = {repr(rotation)},offset = {repr(offset)}")
+    waist_x = 2*np.mean(sigmax)*dx
+    waist_y = 2*np.mean(sigmay)*dx
+    amplitude = np.abs(amplitude)
 
-folder_path = '\\'.join(h5_path.split('\\')[0:-1])
-count_file_path = folder_path+'\\tweezer_waist.csv'
+    folder_path = '\\'.join(h5_path.split('\\')[0:-1])
+    count_file_path = folder_path+'\\tweezer_waist.csv'
 
-# if run_number == 0:
-#     with open(count_file_path, 'w') as f_object:
-#         f_object.write(f'{waist_x},{waist_y}\n')
+    # if run_number == 0:
+    #     with open(count_file_path, 'w') as f_object:
+    #         f_object.write(f'{waist_x},{waist_y}\n')
 
-# else:
-with open(count_file_path, 'a') as f_object:
-        f_object.write(f'{waist_x},{waist_y}\n')
+    # else:
+    with open(count_file_path, 'a') as f_object:
+            f_object.write(f'{waist_x},{waist_y}\n')
 
-folder_path = '\\'.join(h5_path.split('\\')[0:-1])
-count_file_path = folder_path+'\\tweezer_amplitude.csv'
-roi_number_lst_path = folder_path+'\\roi_number_lst.csv'
+    folder_path = '\\'.join(h5_path.split('\\')[0:-1])
+    count_file_path = folder_path+'\\tweezer_amplitude.csv'
+    roi_number_lst_path = folder_path+'\\roi_number_lst.csv'
+    waist_sites_lst_path = folder_path+'\\waist_sites_lst.csv'
 
-np.savetxt(count_file_path, amplitude)
-np.savetxt(roi_number_lst_path, roi_number_lst)
+    np.savetxt(waist_sites_lst_path, np.concatenate((2*sigmax*dx, 2*sigmay*dx)))
 
-count_file_path = folder_path+'\\site_roi_x.csv'
-np.savetxt(count_file_path, site_roi_x)
+    np.savetxt(count_file_path, amplitude)
+    np.savetxt(roi_number_lst_path, roi_number_lst)
 
-# plt.plot(2*sigmax*dx,'o',label="waist x")
-# plt.plot(2*sigmay*dx,'o',label="waist y")
-# plt.xlabel("sites")
-# plt.ylabel("Gaussian waist (um)")
-# plt.legend()
+    count_file_path = folder_path+'\\site_roi_x.csv'
+    np.savetxt(count_file_path, site_roi_x)
+
+    # plt.plot(2*sigmax*dx,'o',label="waist x")
+    # plt.plot(2*sigmay*dx,'o',label="waist y")
+    # plt.xlabel("sites")
+    # plt.ylabel("Gaussian waist (um)")
+    # plt.legend()

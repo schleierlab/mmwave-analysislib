@@ -34,8 +34,7 @@ counts_per_atom = 1 # Counts per atom 16.6 counts per atom per ms
 #roi_y = [800, 1500] #roi_y = [800, 1000] #[750, 1150] # Region of interest of Y direction, MOT beam imaging
 
 #for dipole trap:(20240109)
-roi_x = [1100, 1800]
-# roi_x = [0,2400]
+# roi_x = [1100, 2400]
 # roi_x = [1400,1800]#[750, 1200]#roi_x = [850, 1250] # Region of interest of X direction, Img beam imaging
 # roi_y = [1150,1300]#[1500, 2000] #[750, 1150] # Region of interest of Y direction, Img beam imaging
 
@@ -50,13 +49,10 @@ roi_x = [1100, 1800]
 # roi_x = [1100, 1550]
 # roi_x = [1100, 1500]
 
-roi_y = [800, 1100]
-# roi_y = [0,2400]
-# roi_x = [0, 2400]
+roi_x = [1100, 1700]
+roi_y = [1160, 1220]
 roi_x_bkg = [2000, 2400] # Region of interest of X direction
 roi_y_bkg= [2000, 2400] # Region of interest of Y direction
-
-para_name = 'manta_exposure'
 
 
 
@@ -158,7 +154,7 @@ for ax in axs[1]:
     ax.set_xlabel('x [px]')
     ax.set_ylabel('y [px]')
 
-image_scale = 4096 #2000 #4096 # 12 bit depth
+image_scale =  200 #4096 # 12 bit depth
 raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 
 ax_mot_raw.set_title('Raw')
@@ -169,7 +165,7 @@ ax_bkg_raw.set_title('Raw, no MOT')
 pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
 fig.colorbar(pos, ax=ax_bkg_raw)
 
-roi_image_scale = 350
+roi_image_scale = 100
 roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
 
 ax_mot_roi.set_title('MOT ROI')

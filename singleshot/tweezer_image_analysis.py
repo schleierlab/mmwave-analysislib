@@ -383,6 +383,7 @@ class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
 
     def __init__(self, roi_config, roi_paths, threshold=1185.5, show_site_roi=True, load_roi=True):
         super().__init__(roi_config, roi_paths, show_site_roi, load_roi)
+        self.load_roi = load_roi
         self.threshold = threshold
 
     def process_run(self, h5_path, images):
@@ -446,20 +447,24 @@ class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
         # Process and analyze images
         tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2 = self.process_images(
             first_image, second_image, first_image_bkg, second_image_bkg)
-
-        rect_sig_1, atom_exist_lst_1, roi_number_lst_1 = self.analyze_site_signals(
-            tweezer_roi_1, self.threshold)
-        rect_sig_2, atom_exist_lst_2, roi_number_lst_2 = self.analyze_site_signals(
-            tweezer_roi_2, self.threshold)
+        if self.load_roi is True:
+            rect_sig_1, atom_exist_lst_1, roi_number_lst_1 = self.analyze_site_signals(
+                tweezer_roi_1, self.threshold)
+            rect_sig_2, atom_exist_lst_2, roi_number_lst_2 = self.analyze_site_signals(
+                tweezer_roi_2, self.threshold)
+        else:
+            rect_sig_1 = None
+            rect_sig_2 = None
 
         # Plot results
         self.plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2,
                          rect_sig_1, rect_sig_2)
 
         # Calculate and save results
-        survival_rate, _ = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
-        roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
-        self.save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number)
+        if self.load_roi is True:
+            survival_rate, _ = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
+            roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
+            self.save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number)
 
 class AverageBackground2DScanAnalyzer(AverageBackgroundAnalyzer):
     """Extended analyzer for 2D parameter scans."""
