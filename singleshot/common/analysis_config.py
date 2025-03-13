@@ -183,7 +183,7 @@ class TweezerAnalysisConfig:
         Method for background subtraction:
         - 'average': Use average background subtraction
         - 'alternative': Use alternative background subtraction
-    bkg_roi_x : List[int]
+    bkg_roi_x : Tuple[int, int]
         X-coordinates [start, end] for background region
     load_roi : bool, default=True
         If True, load ROIs from standard .npy files:
@@ -208,7 +208,7 @@ class TweezerAnalysisConfig:
     """
     imaging_system: ImagingSystem = kinetix_system
     method: str = 'average'
-    bkg_roi_x: List[int] = [1900, 2400]
+    bkg_roi_x: Tuple[int, int] = (1900, 2400)
     load_roi: bool = True
     roi_config_path: Optional[str] = None
     roi_x: Optional[List[int]] = None
