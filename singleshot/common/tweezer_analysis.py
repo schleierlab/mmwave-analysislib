@@ -68,23 +68,19 @@ class TweezerAnalysis(ImagePreProcessor):
         )
 
         # Store config
-        self.analysis_config = config
+        self.config = config
 
         # Load ROIs and set class attributes
-        self.atom_roi, self.background_roi, self.site_roi = self.load_roi(
-            roi_config_path=config.roi_config_path,
-            bkg_roi_x=config.bkg_roi_x,
-            load_roi=config.load_roi
-        )
+        self.atom_roi, self.background_roi, self.site_roi = self.load_roi()
             
         # Set threshold
-        self.threshold = self.load_threshold(config.load_threshold, config.threshold)
+        self.threshold = self.load_threshold()
 
         # Process images
         self.atom_images, self.background_images, self.sub_images = self.get_image_bkg_sub()
         self.roi_atoms, self.roi_bkgs = self.get_images_roi()
 
-    def load_roi(self, roi_config_path: str, bkg_roi_x: List[int], load_roi: bool):
+    def load_roi(self):
         """Load ROI and site ROI either from file or from provided configuration.
         
         Parameters
@@ -118,15 +114,13 @@ class TweezerAnalysis(ImagePreProcessor):
             print("Warning: tw_kinetix_roi_row not found in globals, using full camera height")
             roi_y = [0, self.imaging_setup.camera.image_size]
 
-        # Standard file locations for ROIs
-        roi_paths = {
-            'site_roi_x': os.path.join(self.multishot_path, "site_roi_x.npy"),
-            'site_roi_y': os.path.join(self.multishot_path, "site_roi_y.npy"),
-            'roi_x': os.path.join(self.multishot_path, "roi_x.npy")
-        }
-
-        if load_roi:
+        if self.config.load_roi:
             # Load ROIs from standard .npy files
+            roi_paths = {
+                'site_roi_x': os.path.join(self.multishot_path, "site_roi_x.npy"),
+                'site_roi_y': os.path.join(self.multishot_path, "site_roi_y.npy"),
+                'roi_x': os.path.join(self.multishot_path, "roi_x.npy")
+            }
             try:
                 roi_x = np.load(roi_paths['roi_x']).tolist()
                 site_roi_x = np.load(roi_paths['site_roi_x'])  # Keep as numpy array for calculations
@@ -142,29 +136,25 @@ class TweezerAnalysis(ImagePreProcessor):
             site_roi_y = np.concatenate([[np.min(site_roi_y, axis=0) - 10], np.array(site_roi_y)])
 
         else:
-            # When not loading from files, validate YAML config
-            config = AnalysisConfig.from_yaml(roi_config_path)
-            if config.roi_x is None:
-                raise ValueError("When load_roi is False, the YAML config must include 'roi_x' coordinates")
-            if config.site_roi is None:
-                raise ValueError("When load_roi is False, the YAML config must include a 'site_roi' section with 'site_roi_x' and 'site_roi_y' arrays")
+            # When not loading from files, get the ROIs from the config
+            if self.config.roi_x is None:
+                raise ValueError("When load_roi is False, the config must include 'roi_x' coordinates")
+            if self.config.site_roi is None:
+                raise ValueError("When load_roi is False, the config must include a 'site_roi' section with 'site_roi_x' and 'site_roi_y' arrays")
 
-            # Load ROIs from YAML
-            roi_x = config.roi_x
-            site_roi_x = np.array(config.site_roi['site_roi_x'])
-            site_roi_y = np.array(config.site_roi['site_roi_y'])
-
-        # Always get roi_y from globals
-        roi_y = self.globals["tw_kinetix_roi_row"]
+            # Load ROIs from config
+            roi_x = self.config.roi_x
+            site_roi_x = np.array(self.config.site_roi[0])
+            site_roi_y = np.array(self.config.site_roi[1])
 
         # Return ROIs in the format expected by the class
-        return [roi_x, roi_y], [bkg_roi_x, roi_y], [site_roi_x, site_roi_y]    
+        return [roi_x, roi_y], [self.config.bkg_roi_x, roi_y], [site_roi_x, site_roi_y]    
 
     def load_threshold(self):
         """Load threshold value from file or use default."""
-        default_threshold = self.analysis_config.threshold
-        
-        if self.analysis_config.load_threshold:
+        default_threshold = self.config.threshold
+
+        if self.config.load_threshold:
             threshold_path = os.path.join(self.multishot_path, "th.npy")
             try:
                 threshold = np.load(threshold_path)[0]
@@ -199,7 +189,7 @@ class TweezerAnalysis(ImagePreProcessor):
         average_bkg_path = os.path.join(folder_path, 'avg_shot_bkg.npy')
         last_bkg_sub_path = os.path.join(folder_path, 'last_bkg_sub')
 
-        if self.analysis_config.method == 'alternative':
+        if self.config.method == 'alternative':
             if self.globals['mot_do_coil']:
                 atom_images = images
                 background_images = np.load(alternative_bkg_path)
@@ -212,7 +202,7 @@ class TweezerAnalysis(ImagePreProcessor):
                 # load last background subtracted images
                 # during background taking shot to make
                 # sure there is something to plot
-        elif self.analysis_config.method == 'average':
+        elif self.config.method == 'average':
             atom_images = images
             background_images = np.load(average_bkg_path)
             sub_images = atom_images - background_images
