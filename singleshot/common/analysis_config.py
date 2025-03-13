@@ -21,12 +21,26 @@ import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 
 @dataclass
-class MOTAnalysisConfig:
+class BulkGasAnalysisConfig:
+    """Configuration class for bulk gas analysis parameters.
+
+    Parameters
+    ----------
+    imaging_system : ImagingSystem
+        Configuration object for the imaging system setup
+    exposure_time : float
+        Imaging exposure time in seconds
+    atoms_roi : List[List[int]]
+        ROI for atoms in bulk gas analysis, in format:
+        [[x_min, x_max], [y_min, y_max]]
+    bkg_roi : List[List[int]]
+        ROI for background in bulk gas analysis, in format:
+        [[x_min, x_max], [y_min, y_max]]
+    """
     imaging_system: ImagingSystem
     exposure_time: float
     atoms_roi: List[List[int]]
     bkg_roi: List[List[int]]
-
 
 @dataclass
 class TweezerAnalysisConfig:
@@ -66,18 +80,10 @@ class TweezerAnalysisConfig:
         Whether to load threshold from file for tweezer analysis
     threshold : Optional[float], default=None
         Threshold value to use if not loading from file
-    exposure_time : Optional[float], default=None
-        Imaging exposure time in seconds, required for bulk gas analysis
-    atoms_roi : Optional[List[List[int]]], default=None
-        ROI for atoms in bulk gas analysis, in format:
-        [[x_min, x_max], [y_min, y_max]]
-    bkg_roi : Optional[List[List[int]]], default=None
-        ROI for background in bulk gas analysis, in format:
-        [[x_min, x_max], [y_min, y_max]]
     """
     imaging_system: ImagingSystem = kinetix_system
     method: str = 'average'
-    bkg_roi_x: List[int] = None
+    bkg_roi_x: List[int] = [1900, 2400]
     load_roi: bool = True
     roi_config_path: Optional[str] = None
     roi_x: Optional[List[int]] = None
@@ -86,12 +92,13 @@ class TweezerAnalysisConfig:
     threshold: Optional[float] = None
 
     # TODO: do we actually want to store defaults in a YAML file?
+    # If so, we can store here: 'X:\\userlib\\analysislib\\scripts\\multishot\\tweezer_roi.yaml'
     # Or do we just want to hard code the in the class?
     # YAML makes sense if we are in fact changing the defaults often and have a huge list of them
     # If we don't have one of those conditions then we might as well just hard code it
 
     @classmethod
-    def from_yaml(cls, path: str):
+    def from_yaml(cls, path: str): # not being used for now
         """Create an AnalysisConfig instance from a YAML file.
         
         Parameters
