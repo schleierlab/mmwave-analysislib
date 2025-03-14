@@ -288,7 +288,7 @@ class TweezerAnalysis(ImagePreProcessor):
 
         return atom_exist_lst
 
-    def all_site_existence(self):
+    def site_existence_lst(self):
         """
         Analyze whether atoms exist in each site for all images in one shot.
         
@@ -308,3 +308,56 @@ class TweezerAnalysis(ImagePreProcessor):
             atom_exist_lst.append(atom_exist_lst_i)
 
         return atom_exist_lst
+
+    def calculate_survival_rate(self, method='default') -> tuple[float, float]:
+            """Calculate survival rate (and uncertainty thereof) from atom existence lists.
+
+            Parameters
+            ----------
+            atom_exist_lst_1, atom_exist_lst_2 : array_like, shape (n_sites,)
+                Lists of atom existence values for the two tweezer images.
+            method : {'default', 'laplace'}, optional
+                Method for calculating the survival rate and uncertainty.
+                Defaults to 'default' (which does the usual thing)
+
+                'laplace': estimate the survival rate (and associated uncertainty)
+                using Laplace's rule of succession (https://en.wikipedia.org/wiki/Rule_of_succession),
+                whereby we inflate the number of atoms by 2 and the number of survivors by 1.
+                Seems to be a better metric for closed-loop optimization by M-LOOP.
+            """
+            atom_exist_lst = self.site_existence_lst()
+            n_initial_atoms = np.sum(atom_exist_lst[0])
+            survivors = sum(1 for x,y in zip(atom_exist_lst[0], atom_exist_lst[1])
+                    if x == 1 and y == 1)
+
+            if method == 'default':
+                survival_rate = survivors / n_initial_atoms
+                uncertainty = np.sqrt(survival_rate * (1 - survival_rate) / n_initial_atoms)
+            elif method == 'laplace':
+                # expectation value of posterior beta distribution
+                survival_rate = (survivors + 1) / (n_initial_atoms + 2)
+
+                # calculate based on binomial distribution
+                # uncertainty = np.sqrt(survival_rate * (1 - survival_rate) / (n_initial_atoms + 2))
+
+                # sqrt of variance of the posterior beta distribution
+                uncertainty = np.sqrt((survivors + 1) * (n_initial_atoms - survivors + 1) / ((n_initial_atoms + 3) * (n_initial_atoms + 2) ** 2))
+            return survival_rate, uncertainty
+
+    def save_data(self, folder_path, survival_rate, loop_var, site_counts_lst, run_number):
+        """Save analysis results to files."""
+        count_file_path = os.path.join(folder_path, 'tweezer_data.csv')
+        site_counts_lst_file_path = os.path.join(folder_path, 'site_counts_lst.npy')
+
+        if run_number == 1:  # Initialize files for first run
+            with open(count_file_path, 'w') as f_object:
+                f_object.write(f'{survival_rate},{loop_var}\n')
+            np.save(site_counts_lst_file_path, site_counts_lst)
+        else:  # Append to existing files
+            with open(count_file_path, 'a') as f_object:
+                f_object.write(f'{survival_rate},{loop_var}\n')
+            roi_number_lst_old = np.load(site_counts_lst_file_path)
+            roi_number_lst_new = np.dstack((roi_number_lst_old, site_counts_lst))
+            np.save(site_counts_lst_file_path, roi_number_lst_new)
+
+    

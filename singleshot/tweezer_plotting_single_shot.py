@@ -28,9 +28,8 @@ tweezer_analyzer = TweezerAnalysis(
 
 # Initialize plotter with consistent styling
 tweezer_plotter = TweezerPlotter(
-    tweezer_analyzer,
     plot_config=PlotConfig()
 )
 
-# plot results
+
 tweezer_plotter.plot_images(show_site_roi=True, plot_bkg_roi=True)

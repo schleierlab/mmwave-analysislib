@@ -24,18 +24,14 @@ if root_path not in sys.path:
 class TweezerPlotter:
     """Class for plotting tweezer analysis results.
     
-    This class provides methods for visualizing tweezer analysis results,
-    including raw images, background-subtracted images, and ROI counts.
+    This class provides methods for visualizing tweezer analysis results.
     
     Parameters
     ----------
-    tweezer_analyzer : TweezerAnalysis
-        Analyzer object containing the data to plot
     plot_config : PlotConfig, optional
         Configuration object for plot styling
     """
-    def __init__(self, tweezer_analyzer, plot_config: PlotConfig = None):
-        self.tweezer_analyzer = tweezer_analyzer
+    def __init__(self, plot_config: PlotConfig = None):
         self.plot_config = plot_config or PlotConfig()
 
     def plot_images(self, show_site_roi=True, plot_bkg_roi=True):
@@ -51,6 +47,7 @@ class TweezerPlotter:
         num_of_imgs = len(self.sub_images)
         
         # Get site counts and analyze existence for each image
+        # TODO: load atom_exist_lst from file instead
         rect_sig = []
         atom_exist_lst = []
         for i in range(num_of_imgs):
