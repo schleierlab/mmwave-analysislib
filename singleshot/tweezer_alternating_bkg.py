@@ -23,7 +23,7 @@ from scripts.singleshot.tweezer_image_analysis import AlternatingBackgroundAnaly
 
 # Configuration Constants
 SHOW_SITE_ROI = False
-LOAD_ROI = True
+LOAD_ROI = False
 THRESHOLD = 744 #1185.5  # Fixed threshold for alternating background method
 
 # ROI Configuration
