@@ -1,24 +1,26 @@
+from dataclasses import dataclass
 import sys
+import yaml
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, Tuple
 import os
-
-import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.collections import PatchCollection
-
-try:
-    import lyse
-except ImportError:
-    from analysis.data import h5lyze as lyse
-
-from .analysis_config import ImagingSystem
-
 root_path = r"X:\userlib\analysislib"
 if root_path not in sys.path:
     sys.path.append(root_path)
+try:
+    lyse
+except:
+    import lyse
+from analysis.data import h5lyze as hz
+# from analysis.data import autolyze as az
+import numpy as np
+import h5py
+import matplotlib.pyplot as plt
+import csv
+import scipy.optimize as opt
+import matplotlib.patches as patches
+from matplotlib.collections import PatchCollection
+from .analysis_config import ImagingSystem
 
 class ImagePreProcessor:
     """Base class for image preprocessing.

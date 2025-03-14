@@ -278,28 +278,33 @@ class TweezerAnalysis(ImagePreProcessor):
         site_roi_sums : list
             List of summed counts in each site ROI
         """
-        rect_sig = []
         atom_exist_lst = []
-        site_roi_x = self.site_roi[0]
-        site_roi_y = self.site_roi[1]
 
-        for i, signal_sum in enumerate(site_roi_sums):
-            y_start, y_end = site_roi_y[i,0], site_roi_y[i,1]
-            x_start, x_end = site_roi_x[i,0], site_roi_x[i,1]
-
+        for signal_sum in site_roi_sums:
             if signal_sum > self.threshold:
-                rect = patches.Rectangle(
-                    (x_start, y_start),
-                    x_end - x_start,
-                    y_end - y_start,
-                    linewidth=1,
-                    edgecolor='gold',
-                    facecolor='none',
-                    alpha=0.5,
-                    fill=False)
-                rect_sig.append(rect)
                 atom_exist_lst.append(1)
             else:
                 atom_exist_lst.append(0)
 
-        return rect_sig, atom_exist_lst
+        return atom_exist_lst
+
+    def all_site_existence(self):
+        """
+        Analyze whether atoms exist in each site for all images in one shot.
+        
+        Returns
+        -------
+        atom_exist_lst : list
+            List of lists, where each inner list contains 1 or 0 for each site in each image
+        """
+        num_of_imgs = len(self.sub_images)
+        
+        # Get site counts and analyze existence for each image
+        atom_exist_lst = []
+        for i in range(num_of_imgs):
+            sub_image = self.sub_images[i]
+            roi_number_lst_i = self.get_site_counts(sub_image)
+            atom_exist_lst_i = self.analyze_site_existence(roi_number_lst_i)
+            atom_exist_lst.append(atom_exist_lst_i)
+
+        return atom_exist_lst

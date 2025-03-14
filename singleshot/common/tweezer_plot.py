@@ -101,7 +101,7 @@ class TweezerPlotter:
                         x_end - x_start,
                         y_end - y_start,
                         linewidth=1,
-                        edgecolor='gold',
+                        edgecolor='r',
                         facecolor='none',
                         alpha=0.5,
                         fill=False)
