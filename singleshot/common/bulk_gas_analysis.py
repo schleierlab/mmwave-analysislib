@@ -1,38 +1,30 @@
-from dataclasses import dataclass
-import sys
-import yaml
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Union, Tuple
 import os
-root_path = r"X:\userlib\analysislib"
-if root_path not in sys.path:
-    sys.path.append(root_path)
+
+import numpy as np
+import h5py
+import scipy.optimize as opt
+
 try:
     lyse
 except:
     import lyse
-from analysis.data import h5lyze as hz
-import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import csv
-import scipy.optimize as opt
-import matplotlib.patches as patches
-from matplotlib.collections import PatchCollection
-from image_preprocessor import ImagePreProcessor
-from .analysis_config import AnalysisConfig, ImagingSystem
 
-class BulkGasAnalysis(ImagePreProcessor):
+from analysislib.analysis.data import h5lyze as hz
+from .analysis_config import AnalysisConfig
+from .image_preprocessor import ImagePreprocessor
+
+
+class BulkGasAnalysis(ImagePreprocessor):
     """Analysis class for bulk gas imaging data.
-    
+
     This class provides functionality for analyzing bulk gas imaging data, including
     ROI-based analysis, background subtraction, and atom number calculations.
-    
+
     The class uses a configuration-based approach where all analysis parameters
     are specified through an AnalysisConfig object, which includes imaging system
     setup, ROI definitions, and analysis parameters.
     """
-    
+
     scattering_rate = 2 * np.pi * 5.2227e+6  # rad/s
     """ Cesium scattering rate """
     # TODO: for what transition? Where did you get this number?
@@ -124,8 +116,6 @@ class BulkGasAnalysis(ImagePreProcessor):
                 n_rep = 1
 
         return params, n_rep
-
-
 
     def get_image_bkg_sub(self, debug = False):
         """
@@ -287,7 +277,7 @@ class BulkGasAnalysis(ImagePreProcessor):
         else:
             raise NotImplementedError('option should be "all parameters" or "amplitude only"')
 
-        gaussian_waist = np.array(sigma)*self.imaging_setup.pixel_size_before_maginification# convert from pixel to distance m
+        gaussian_waist = np.array(sigma)*self.imaging_setup.pixel_size_before_magnification  # convert from pixel to distance m
         time_of_flight = self.globals['bm_tof_imaging_delay']
         temperature = self.m / self.kB * (gaussian_waist/time_of_flight)**2
 
@@ -310,7 +300,7 @@ class BulkGasAnalysis(ImagePreProcessor):
             - temperature : tuple of (x, y) temperatures
         """
         h5_path = os.path.join(self.folder_path, 'processed_quantities.h5')
-        
+
         # Always write mode since each folder represents a single run
         with h5py.File(h5_path, 'w') as f:
             # Save each quantity
@@ -347,21 +337,21 @@ class BulkGasAnalysis(ImagePreProcessor):
             Dictionary of loaded quantities, with quantity names as keys
         """
         h5_path = os.path.join(self.folder_path, 'processed_quantities.h5')
-        
+
         if not os.path.exists(h5_path):
             raise FileNotFoundError(f"No processed quantities file found at {h5_path}")
-            
+
         results = {}
         with h5py.File(h5_path, 'r') as f:
             # If no specific quantities requested, load all available
             if not quantities:
                 quantities = f.keys()
-            
+
             # Load each requested quantity
             for quantity in quantities:
                 if quantity in f:
                     results[quantity] = f[quantity][()]
-                
+
         return results
 
     def load_atom_number(self):
@@ -389,21 +379,21 @@ class BulkGasAnalysis(ImagePreProcessor):
         """
         try:
             result = self.load_processed_quantities(
-                'time_of_flight', 
-                'gaussian_waist', 
+                'time_of_flight',
+                'gaussian_waist',
                 'temperature'
             )
-            
+
             time_of_flight = result['time_of_flight']
             gaussian_waist = result['gaussian_waist']
             temperature = result['temperature']
-            
+
             # Split waist and temperature into x,y components
             waist_x = gaussian_waist[0]
             waist_y = gaussian_waist[1]
             temperature_x = temperature[0]
             temperature_y = temperature[1]
-            
+
             return time_of_flight, waist_x, waist_y, temperature_x, temperature_y
         except (FileNotFoundError, ValueError) as e:
             print(f"Warning: Could not load temperature data: {e}")

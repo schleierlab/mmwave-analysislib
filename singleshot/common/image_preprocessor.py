@@ -1,33 +1,26 @@
-from dataclasses import dataclass
-import sys
-import yaml
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Union, Tuple
+from abc import abstractmethod, ABC
 import os
-root_path = r"X:\userlib\analysislib"
-if root_path not in sys.path:
-    sys.path.append(root_path)
+from typing import Any, Optional, Literal
+
+import numpy as np
+
+import h5py
+
 try:
     lyse
 except:
     import lyse
-from analysis.data import h5lyze as hz
-# from analysis.data import autolyze as az
-import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import csv
-import scipy.optimize as opt
-import matplotlib.patches as patches
-from matplotlib.collections import PatchCollection
-from .analysis_config import ImagingSystem
 
-class ImagePreProcessor:
+from .analysis_config import ImagingSystem
+from analysislib.analysis.data import h5lyze as hz
+
+
+class ImagePreprocessor(ABC):
     """Base class for image preprocessing.
-    
+
     This class handles the basic image loading and preprocessing operations
     common to both tweezer and bulk gas analysis.
-    
+
     Parameters
     ----------
     imaging_setup : ImagingSystem
@@ -37,13 +30,18 @@ class ImagePreProcessor:
     h5_path : Optional[str], default=None
         Path to H5 file for data loading
     """
+
+    run_number: int
+    h5_path: str
+    folder_path: str
+
     def __init__(
             self,
             imaging_setup: ImagingSystem,
             load_type: str = 'lyse',
             h5_path: Optional[str] = None):
         """Initialize image preprocessing.
-        
+
         Parameters
         ----------
         imaging_setup : ImagingSystem
@@ -57,8 +55,9 @@ class ImagePreProcessor:
         self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
         self.params, self.n_rep = self.get_scanning_params()
         self.images, self.run_number, self.globals = self.load_images()
-    
-    def get_h5_path(self, load_type, h5_path):
+
+    # TODO migrate to using pathlib Paths instead
+    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path) -> tuple[str, str]:
         """
         get h5_path based on load_type
         Parameters
@@ -94,6 +93,7 @@ class ImagePreProcessor:
 
         return h5_path, folder_path
 
+    # TODO unit tests for this
     def get_scanning_params(self,):
         """
         get scanning parameters and number of repetitions based
@@ -103,9 +103,9 @@ class ImagePreProcessor:
 
         Returns
         -------
-        params: list
-            list of scanning parameters
-            list.key = parameter name, list.value = [parameter value, unit]
+        params: dict
+            Scanning parameters; key is the parameter name
+            and value is a tuple (parameter_values, unit)
         n_rep: int
             number of repetitions
         """
@@ -119,21 +119,24 @@ class ImagePreProcessor:
                     if value == 'outer' or value == 'inner':
                         global_var = hz.getAttributeDict(globals[group])[key]
                         global_unit = hz.getAttributeDict(globals[group]['units'])[key]
-                        params[key] = [global_var, global_unit]
+                        params[key] = (global_var, global_unit)
 
-            rep_str =params['n_shots'][0]
-            if rep_str[0:2] != 'np':
-                rep_str = 'np.' + rep_str
-            rep = eval(rep_str)
-            n_rep = rep.shape[0]
-            del params['n_shots']
-            if len(params) == 0:
-                params['n_shots'] = [rep_str,'Shots']
+            if 'n_shots' in params:
+                rep_str, _ = params['n_shots']
+                if rep_str[0:2] != 'np':
+                    rep_str = 'np.' + rep_str
+                rep = eval(rep_str)
+                n_rep = rep.shape[0]
+                del params['n_shots']
+                if len([key for key in params if 'do' not in key]) == 0:
+                    params['n_shots'] = [rep_str, 'Shots']
+                    n_rep = 1
+            else:
                 n_rep = 1
 
         return params, n_rep
 
-    def load_images(self,):
+    def load_images(self,) -> tuple[dict[str, np.ndarray], int, dict[str, Any]]:
         """
         load image inside the h5 file, return current run number and globals
 
@@ -149,6 +152,13 @@ class ImagePreProcessor:
         """
         with h5py.File(self.h5_path, mode='r+') as f:
             globals = hz.getGlobalsFromFile(self.h5_path)
-            images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_name], recursive=True)
+            images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
             run_number = f.attrs['run number']
         return images, run_number, globals
+
+    @abstractmethod
+    def process_shot(self,) -> None:
+        """
+        Abstract method that should be overriden by subclasses to process the image data from a single shot.
+        """
+        raise NotImplementedError

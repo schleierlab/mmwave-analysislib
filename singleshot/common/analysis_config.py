@@ -1,32 +1,19 @@
-import sys
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Union, Tuple
-import os
+from typing import Literal, Optional, TypeVar
 
-import numpy as np
-import h5py
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.collections import PatchCollection
 import yaml
-import csv
-import scipy.optimize as opt
 
-try:
-    import lyse
-except ImportError:
-    from analysis.data import h5lyze as lyse
+from .image import ROI
 
-# Add analysis library root to Python path
-root_path = r"X:\userlib\analysislib"
-if root_path not in sys.path:
-    sys.path.append(root_path)
+
+T = TypeVar('T')
+PairPair = tuple[tuple[T, T], tuple[T, T]]
+
 
 @dataclass
 class ImagingCamera:
     """Configuration class for imaging camera parameters.
-    
+
     Parameters
     ----------
     pixel_size : float
@@ -37,19 +24,26 @@ class ImagingCamera:
         Quantum efficiency of camera
     gain : float
         Camera gain setting
-    image_name : str
-        Name identifier for the camera images
+    image_group_name : str
+        Name of the group in the h5 file containing the camera images
+    image_name_stem : str
+        Stem of the names for the datasets holding the camera images;
+        full names will be
+            f'{image_name_stem}{shot_number}'
+        such as 'kinetix0', ...
     """
     pixel_size: float
     image_size: float
     quantum_efficiency: float
     gain: float
-    image_name: str
+    image_group_name: str
+    image_name_stem: str
+
 
 @dataclass
 class ImagingSystem:
     """Configuration class for imaging system parameters.
-    
+
     Parameters
     ----------
     imaging_f : float
@@ -73,13 +67,13 @@ class ImagingSystem:
         """Calculate imaging system magnification."""
         return self.imaging_f / self.objective_f
 
-    def pixel_size_before_maginification(self):
+    def pixel_size_before_magnification(self):
         """Get effective pixel size before magnification."""
         return self.camera.pixel_size / self.magnification()
 
     def solid_angle_fraction(self):
         """Calculate solid angle fraction captured by imaging system.
-        
+
         Makes a small angle approximation for the imaging NA.
         """
         return (self.lens_diameter / 2)**2 / (4 * self.imaging_f**2)
@@ -89,14 +83,14 @@ class ImagingSystem:
         For an image of atoms with given scattering rate taken with a given exposure time,
         find the camera counts per atom we expect with this imaging setup.
         Note that the scattering rate is for resonance light not for the detuned light.
-        
+
         Parameters
         ----------
         scattering_rate : float
             Scattering rate (Γ) for atoms being imaged
         exposure_time : float
             Exposure time in seconds
-            
+
         Returns
         -------
         float
@@ -118,7 +112,8 @@ manta_camera = ImagingCamera(
     image_size=2048,
     quantum_efficiency=0.4,
     gain=1,
-    image_name='manta419b_mot_images'
+    image_group_name='manta419b_mot_images',
+    image_name_stem='manta419b_mot',
 )
 
 manta_system = ImagingSystem(
@@ -134,7 +129,8 @@ kinetix_camera = ImagingCamera(
     image_size=2400,
     quantum_efficiency=0.58,
     gain=1,
-    image_name='kinetix_images'
+    image_group_name='kinetix_images',
+    image_name_stem='kinetix',
 )
 
 kinetix_system = ImagingSystem(
@@ -144,6 +140,7 @@ kinetix_system = ImagingSystem(
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
     camera=kinetix_camera,
 )
+
 
 @dataclass
 class BulkGasAnalysisConfig:
@@ -155,26 +152,27 @@ class BulkGasAnalysisConfig:
         Configuration object for the imaging system setup
     exposure_time : float
         Imaging exposure time in seconds
-    atoms_roi : List[List[int]]
+    atoms_roi : list[list[int]]
         ROI for atoms in bulk gas analysis, in format:
         [[x_min, x_max], [y_min, y_max]]
-    bkg_roi : List[List[int]]
+    bkg_roi : list[list[int]]
         ROI for background in bulk gas analysis, in format:
         [[x_min, x_max], [y_min, y_max]]
     """
     imaging_system: ImagingSystem
     exposure_time: float
-    atoms_roi: List[List[int]]
-    bkg_roi: List[List[int]]
+    atoms_roi: list[list[int]]
+    bkg_roi: list[list[int]]
+
 
 @dataclass
 class TweezerAnalysisConfig:
     """Configuration class for image analysis parameters.
-    
+
     This class consolidates all configuration parameters needed for analyzing
     imaging data, including the imaging system setup, ROI definitions, and
     analysis-specific parameters.
-    
+
     Parameters
     ----------
     imaging_system : ImagingSystem
@@ -182,7 +180,7 @@ class TweezerAnalysisConfig:
     method : str, default='average'
         Method for background subtraction:
         - 'average': Use average background subtraction
-        - 'alternative': Use alternative background subtraction
+        - 'alternating': Use alternating background subtraction
     bkg_roi_x : Tuple[int, int]
         X-coordinates [start, end] for background region
     load_roi : bool, default=True
@@ -193,10 +191,10 @@ class TweezerAnalysisConfig:
         If False, load from YAML config
     roi_config_path : Optional[str], default=None
         Path to YAML configuration file for ROIs. Required when load_roi=False
-    roi_x : Optional[List[int]], default=None
+    roi_x : Optional[list[int]], default=None
         X-coordinates [start, end] for atom imaging region.
         Only required when load_roi=False
-    site_roi : Optional[Dict[str, List[List[int]]]], default=None
+    site_roi : Optional[Dict[str, list[list[int]]]], default=None
         Dictionary containing site ROI coordinates. Only required when load_roi=False.
         Must have:
         - 'site_roi_x': List of [start, end] x-coordinates for each site
@@ -207,12 +205,12 @@ class TweezerAnalysisConfig:
         Threshold value to use if not loading from file
     """
     imaging_system: ImagingSystem = kinetix_system
-    method: str = 'average'
-    bkg_roi_x: Tuple[int, int] = (1900, 2400)
+    method: Literal['average', 'alternating'] = 'average'
+    bkg_roi_x: tuple[int, int] = (1900, 2400)
     load_roi: bool = True
     roi_config_path: Optional[str] = None
-    roi_x: Optional[List[int]] = None
-    site_roi: Optional[Dict[str, List[List[int]]]] = None
+    roi_x: Optional[tuple[int, int]] = None
+    site_roi: Optional[dict[str, ROI]] = None
     load_threshold: bool = True
     threshold: Optional[float] = None
 
@@ -225,12 +223,12 @@ class TweezerAnalysisConfig:
     @classmethod
     def from_yaml(cls, path: str): # not being used for now
         """Create an AnalysisConfig instance from a YAML file.
-        
+
         Parameters
         ----------
         path : str
             Path to YAML configuration file
-            
+
         Returns
         -------
         AnalysisConfig

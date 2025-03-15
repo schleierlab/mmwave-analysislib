@@ -1,4 +1,9 @@
+from matplotlib import pyplot as plt
+import numpy as np
+from uncertainties import ufloat
+
 from .plot_config import PlotConfig
+
 
 class BulkGasPlotter:
     def __init__(self, bulk_gas_analyzer, plot_config: PlotConfig = None):
@@ -17,7 +22,7 @@ class BulkGasPlotter:
         [roi_x, roi_y] = self.atoms_roi
         [roi_x_bkg, roi_y_bkg] = self.background_roi
 
-        fig, axs = plt.subplots(nrows=2, ncols=2, 
+        fig, axs = plt.subplots(nrows=2, ncols=2,
                                figsize=self.plot_config.figure_size,
                                constrained_layout=self.plot_config.constrained_layout)
         (ax_atom_raw, ax_bkg_raw), (ax_bkg_roi, ax_atom_roi) = axs
@@ -39,12 +44,12 @@ class BulkGasPlotter:
         pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
         fig.colorbar(pos, ax=ax_bkg_raw).ax.tick_params(labelsize=self.plot_config.label_font_size)
 
-        pixel_size_before_maginification = self.imaging_setup.pixel_size_before_maginification
+        pixel_size_before_magnification = self.imaging_setup.pixel_size_before_magnification
         ax_atom_roi.set_title('Atom ROI', fontsize=self.plot_config.title_font_size)
         roi_img_color_kw = dict(cmap=self.plot_config.colormap, vmin=0, vmax=self.plot_config.roi_image_scale)
         pos = ax_atom_roi.imshow(
             roi_atoms,
-            extent=np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]])*pixel_size_before_maginification,
+            extent=np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]])*pixel_size_before_magnification,
             **roi_img_color_kw,
         )
         fig.colorbar(pos, ax=ax_atom_roi).ax.tick_params(labelsize=self.plot_config.label_font_size)
@@ -54,7 +59,7 @@ class BulkGasPlotter:
             roi_bkg,
             vmin=-10,
             vmax=10,
-            extent=np.array([roi_x_bkg[0], roi_x_bkg[1], roi_y_bkg[0], roi_y_bkg[1]])*pixel_size_before_maginification,
+            extent=np.array([roi_x_bkg[0], roi_x_bkg[1], roi_y_bkg[0], roi_y_bkg[1]])*pixel_size_before_magnification,
             cmap=self.plot_config.colormap
         )
         fig.colorbar(pos, ax=ax_bkg_roi).ax.tick_params(labelsize=self.plot_config.label_font_size)
@@ -63,7 +68,7 @@ class BulkGasPlotter:
 
     def plot_atom_number(self):
         """Plot atom number vs the shot number and save the image in the folder path.
-        
+
         This function requires that get_atom_number has been run first to save the
         atom number to processed_quantities.h5.
         """
@@ -83,10 +88,10 @@ class BulkGasPlotter:
 
     def plot_atom_temperature(self):
         """Plot atom temperature vs shot number and fit temperature with time of flight.
-        
+
         This function requires that get_atom_temperature has been run first to save
         the temperature data to processed_quantities.h5.
-        
+
         Fits temperature by analyzing cloud size at different time of flight values
         through linear fit, accounting for non-zero initial cloud size.
         """
@@ -106,7 +111,7 @@ class BulkGasPlotter:
         fig.savefig(self.folder_path+'\\temperature_single_shot.png')
 
         if self.run_number >= 2:
-            # linear fit to extrac the velocity of the atoms through sphereical expansion
+            # linear fit to extract the velocity of the atoms through sphereical expansion
             slope_lst = []
             intercept_lst = []
             slope_uncertainty_lst = []
@@ -147,10 +152,10 @@ class BulkGasPlotter:
 
     def plot_amplitude_vs_parameter(self):
         """Plot amplitude vs scanned parameter.
-        
+
         The amplitude (e.g. atom number, survival rate) is loaded from processed_quantities.h5.
         The data is plotted against the first parameter for now.
-        
+
         This can be modified for general use with multiple repetitions and multiple parameters.
         """
         amplitude = self.gas_analyzer.load_processed_quantities('atom_number')
