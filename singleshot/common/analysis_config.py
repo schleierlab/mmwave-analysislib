@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal, Optional
 
+import numpy as np
 import yaml
 
 from .image import ROI
@@ -54,10 +55,19 @@ class ImagingSystem:
         Camera configuration object
     """
     imaging_f: float
+    '''Focal length of the imaging lens (that produces the camera image), in meters'''
+
     objective_f: float
+    '''Focal length of the objective lens, in meters'''
+
     lens_diameter: float
+    '''Diameter of the objective lens, in meters'''
+
     imaging_loss: float
+    '''Power loss factor in the imaging system (should be between 0 and 1)'''
+
     camera: ImagingCamera
+    '''Camera in the imaging system.'''
 
     def magnification(self):
         """Calculate imaging system magnification."""
@@ -70,11 +80,11 @@ class ImagingSystem:
 
     @property
     def solid_angle_fraction(self):
-        """Calculate solid angle fraction captured by imaging system.
-
-        Makes a small angle approximation for the imaging NA.
         """
-        return (self.lens_diameter / 2)**2 / (4 * self.imaging_f**2)
+        Calculate solid angle fraction captured by imaging system.
+        """
+        cone_half_angle = np.arctan(self.lens_diameter / (2 * self.objective_f))
+        return (1 - np.cos(cone_half_angle)) / 2
 
     def counts_per_atom(self, scattering_rate, exposure_time):
         """
