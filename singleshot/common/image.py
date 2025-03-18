@@ -7,7 +7,6 @@ from typing import Literal, NamedTuple, Optional, Union
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-
 MaybeInt = Optional[int]
 
 class ROI(NamedTuple):
@@ -19,6 +18,18 @@ class ROI(NamedTuple):
     xmax: MaybeInt
     ymin: MaybeInt
     ymax: MaybeInt
+
+    @property
+    def width(self):
+        return self.xmax - self.xmin
+
+    @property
+    def height(self):
+        return self.ymax - self.ymin
+
+    @property
+    def pixel_area(self):
+        return self.width * self.height
 
     @classmethod
     def from_roi_xy(cls, roi_x: tuple[MaybeInt, MaybeInt], roi_y: tuple[MaybeInt, MaybeInt]):
@@ -35,6 +46,10 @@ class ROI(NamedTuple):
 
 @dataclass
 class Image:
+    '''
+    Barebones class to wrap a 2D image array and a background array,
+    together with convenience functions for cropping, averaging, etc.
+    '''
     array: NDArray
     background: Union[NDArray, Literal[0]] = 0
 
@@ -42,14 +57,18 @@ class Image:
     def bkg_array(self):
         return np.broadcast_to(self.background, self.array.shape)
 
+    @property
+    def subtracted_array(self):
+        return self.array - self.bkg_array
+
     def roi_view(self, roi: ROI):
         '''
         Returns a view of the full image cropped to the specified ROI.
         '''
-        return (
-            self.array[roi.ymin:roi.ymax, roi.xmin:roi.xmax]
-            - self.bkg_array[roi.ymin:roi.ymax, roi.xmin:roi.xmax]
-        )
+        return self.subtracted_array[roi.ymin:roi.ymax, roi.xmin:roi.xmax]
+
+    def roi_mean(self, roi: ROI):
+        return np.mean(self.roi_view(roi))
 
     def roi_sum(self, roi: ROI):
         return np.sum(self.roi_view(roi))
