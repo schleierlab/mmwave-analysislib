@@ -4,8 +4,9 @@ from common.analysis_config import TweezerAnalysisConfig, kinetix_system
 from common.plot_config import PlotConfig
 
 
-analysis_config = TweezerAnalysisConfig()
-analysis_config.method = 'average'
+analysis_config = TweezerAnalysisConfig(
+    imaging_system=kinetix_system,
+)
 
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_analyzer = TweezerPreprocessor(

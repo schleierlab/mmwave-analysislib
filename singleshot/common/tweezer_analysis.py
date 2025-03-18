@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 from typing_extensions import assert_never
@@ -8,7 +7,7 @@ import h5py
 import numpy as np
 
 from .image_preprocessor import ImagePreprocessor
-from .analysis_config import PairPair, TweezerAnalysisConfig
+from .analysis_config import TweezerAnalysisConfig
 from .image import Image, ROI
 
 class TweezerPreprocessor(ImagePreprocessor):
@@ -37,8 +36,8 @@ class TweezerPreprocessor(ImagePreprocessor):
     SITE_ROI_X_PATH: ClassVar[Path] = MULTISHOT_PATH / 'site_roi_x.npy'
     SITE_ROI_Y_PATH: ClassVar[Path] = MULTISHOT_PATH / 'site_roi_y.npy'
 
-    atom_roi: PairPair[int]
-    background_roi: PairPair[int]
+    atom_roi: ROI
+    background_roi: ROI
     site_rois: Sequence[ROI]
     threshold: float
 
@@ -105,11 +104,11 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         Returns
         -------
-        atom_roi : list[list[int]]
+        atom_roi : ROI
             [[x_min, x_max], [y_min, y_max]] for atom ROI
-        background_roi : list[list[int]]
+        background_roi : ROI
             [[x_min, x_max], [y_min, y_max]] for background ROI
-        site_roi : list[list[list[int]]]
+        site_roi : list[ROI]
             [site_roi_x, site_roi_y] for site-specific ROIs
         """
         # Get y-coordinates from globals

@@ -35,6 +35,9 @@ class ImagePreprocessor(ABC):
     h5_path: str
     folder_path: str
 
+    n_runs: int
+    '''Total number of runs for this runmanager expansion.'''
+
     def __init__(
             self,
             imaging_setup: ImagingSystem,
@@ -55,6 +58,9 @@ class ImagePreprocessor(ABC):
         self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
         self.params, self.n_rep = self.get_scanning_params()
         self.images, self.run_number, self.globals = self.load_images()
+
+        with h5py.File(self.h5_path, mode='r') as f:
+            self.n_runs = f.attrs['n_runs']
 
     # TODO migrate to using pathlib Paths instead
     def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path) -> tuple[str, str]:
@@ -136,6 +142,38 @@ class ImagePreprocessor(ABC):
 
         return params, n_rep
 
+    @staticmethod
+    def get_scanning_params_static(h5_path):
+        """
+        get scanning parameters from globals
+
+        Returns
+        -------
+        params: list
+        """
+        with h5py.File(h5_path, mode='r+') as f:
+            globals = f['globals']
+            params = {}
+            for group in globals.keys():
+                expansion = hz.getAttributeDict(globals[group]['expansion'])
+                for key, value in expansion.items():
+                    if value == 'outer' or value == 'inner':
+                        global_var = hz.getAttributeDict(globals[group])[key]
+                        global_unit = hz.getAttributeDict(globals[group]['units'])[key]
+                        params[key] = [global_var, global_unit]
+
+            rep_str =params['n_shots'][0]
+            if rep_str[0:2] != 'np':
+                rep_str = 'np.' + rep_str
+            rep = eval(rep_str)
+            n_rep = rep.shape[0]
+            del params['n_shots']
+            if len(params) == 0:
+                params['n_shots'] = [rep_str,'Shots']
+                n_rep = 1
+
+        return params, n_rep
+
     def load_images(self,) -> tuple[dict[str, np.ndarray], int, dict[str, Any]]:
         """
         load image inside the h5 file, return current run number and globals
@@ -155,6 +193,62 @@ class ImagePreprocessor(ABC):
             images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
             run_number = f.attrs['run number']
         return images, run_number, globals
+
+    # def load_processed_quantities(self, *quantities):
+    #     """Load processed quantities from the HDF5 file.
+
+    #     Parameters
+    #     ----------
+    #     *quantities : str
+    #         Names of quantities to load. If none specified, loads all available quantities.
+
+    #     Returns
+    #     -------
+    #     dict
+    #         Dictionary of loaded quantities, with quantity names as keys
+    #     """
+    #     h5_path = os.path.join(self.folder_path, 'processed_quantities.h5')
+
+    #     if not os.path.exists(h5_path):
+    #         raise FileNotFoundError(f"No processed quantities file found at {h5_path}")
+
+    #     results = {}
+    #     with h5py.File(h5_path, 'r') as f:
+    #         # If no specific quantities requested, load all available
+    #         if not quantities:
+    #             quantities = f.keys()
+
+    #         # Load each requested quantity
+    #         for quantity in quantities:
+    #             if quantity in f:
+    #                 results[quantity] = f[quantity][()]
+
+    #     return results
+
+    # def save_processed_quantities(self, **quantities):
+    #     """Save processed quantities to an HDF5 file.
+
+    #     Parameters
+    #     ----------
+    #     **quantities : dict
+    #         Dictionary of quantities to save. Each key-value pair will be saved
+    #         as a dataset in the HDF5 file. Values must be numpy arrays or scalars.
+    #         Common quantities include:
+    #         - atom_number : number of atoms in the cloud
+    #         - time_of_flight : time of flight in seconds
+    #         - gaussian_waist : tuple of (x, y) waist sizes
+    #         - temperature : tuple of (x, y) temperatures
+    #     """
+    #     h5_path = os.path.join(self.folder_path, 'processed_quantities.h5')
+
+    #     # Always write mode since each folder represents a single run
+    #     with h5py.File(h5_path, 'w') as f:
+    #         # Save each quantity
+    #         for name, value in quantities.items():
+    #             if isinstance(value, (tuple, list)):
+    #                 # Convert tuples/lists to numpy arrays
+    #                 value = np.array(value)
+    #             f.create_dataset(name, data=value)
 
     @abstractmethod
     def process_shot(self,) -> None:

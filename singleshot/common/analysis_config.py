@@ -1,13 +1,9 @@
 from dataclasses import dataclass
-from typing import Literal, Optional, TypeVar
+from typing import Literal, Optional
 
 import yaml
 
 from .image import ROI
-
-
-T = TypeVar('T')
-PairPair = tuple[tuple[T, T], tuple[T, T]]
 
 
 @dataclass
@@ -67,10 +63,12 @@ class ImagingSystem:
         """Calculate imaging system magnification."""
         return self.imaging_f / self.objective_f
 
-    def pixel_size_before_magnification(self):
+    @property
+    def atom_plane_pixel_size(self):
         """Get effective pixel size before magnification."""
         return self.camera.pixel_size / self.magnification()
 
+    @property
     def solid_angle_fraction(self):
         """Calculate solid angle fraction captured by imaging system.
 
@@ -98,7 +96,7 @@ class ImagingSystem:
         """
         count_rate_per_atom = (
             scattering_rate/2
-            * self.solid_angle_fraction()
+            * self.solid_angle_fraction
             * self.imaging_loss
             * self.camera.quantum_efficiency
             * self.camera.gain
@@ -161,8 +159,8 @@ class BulkGasAnalysisConfig:
     """
     imaging_system: ImagingSystem
     exposure_time: float
-    atoms_roi: list[list[int]]
-    bkg_roi: list[list[int]]
+    atoms_roi: ROI
+    bkg_roi: ROI
 
 
 @dataclass
