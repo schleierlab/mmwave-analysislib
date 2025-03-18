@@ -21,7 +21,7 @@ except NameError:
 from scripts.singleshot.tweezer_image_analysis import AverageBackgroundAnalyzer
 
 # Configuration Constants
-SHOW_SITE_ROI = True
+SHOW_SITE_ROI = False
 LOAD_ROI = True
 LOAD_THRESHOLD = True
 

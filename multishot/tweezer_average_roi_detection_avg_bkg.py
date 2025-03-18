@@ -116,9 +116,8 @@ def avg_all_shots(folder, shots = 'defult', loop = True):
             except:
                 sys.exit('The data is not created, start from the first shot')
 
-            folder_2 = Path(folder)
-            folder_path_2 = folder_2.parent #'X:\\userlib\\analysislib\\scripts\\multishot\\'
-            avg_shot_bkg_file_path =  Path(folder_path_2, 'avg_shot_bkg.npy') #folder_path + "\\avg_shot_bkg.npy"
+            folder_path = Path(folder)
+            avg_shot_bkg_file_path = Path(folder_path.parent, 'avg_shot_bkg.npy')
             try:
                 bkg = bkg + np.load(avg_shot_bkg_file_path)
             except:
@@ -157,6 +156,7 @@ def auto_roi_detection(data, neighborhood_size, threshold):
     site_roi_x = np.array(site_roi_x)
     site_roi_y = np.array(site_roi_y)
     roi_x = np.array([np.min(site_roi_x)-50, np.max(site_roi_x)+50])
+
     return site_roi_x, site_roi_y, roi_x
 
 
@@ -209,7 +209,7 @@ while True:
 
 avg_shot_bkg_sub, avg_shot_bkg, N = avg_all_shots(folder, loop = False)
 neighborhood_size = 5 #6
-threshold = 23 #np.max(avg_shot_bkg_sub[0])/3.8 #40 #48 #83 #60
+threshold = 30 #np.max(avg_shot_bkg_sub[0])/3.8 #40 #48 #83 #60
 site_roi_x, site_roi_y, roi_x = auto_roi_detection(avg_shot_bkg_sub[0], neighborhood_size, threshold)
 
 print(f'site_roi_x={repr(site_roi_x)}, site_roi_y={repr(site_roi_y)}')

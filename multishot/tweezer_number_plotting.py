@@ -34,7 +34,7 @@ else:
     h5_path = df.filepath.iloc[-1]
 
 folder_path = '\\'.join(h5_path.split('\\')[0:-1])
-count_file_path = folder_path+'\\tweezer_data.csv'
+count_file_path = folder_path+'\\data.csv'
 
 counts = []
 with open(count_file_path, newline='') as csvfile:

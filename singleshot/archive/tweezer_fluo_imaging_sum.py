@@ -117,7 +117,7 @@ for ax in axs[1]:
     ax.set_xlabel('x [px]')
     ax.set_ylabel('y [px]')
 
-image_scale = 500 #4096 # 12 bit depth
+image_scale = 100 #4096 # 12 bit depth
 raw_img_color_kw = dict(cmap='viridis', vmin=0, vmax=image_scale)
 
 ax_mot_raw.set_title('Raw')

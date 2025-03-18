@@ -113,6 +113,7 @@ print(avg_counts, avg_vars)
 ax.errorbar(avg_vars, avg_counts, yerr=std_counts, fmt='-o')
 ax.set_xlabel(f'{loop_glob} ({unit})')
 ax.set_ylabel('Survival rate')
+# ax.set_ylabel('Count')
 
 ax.grid(color='0.7', which='major')
 ax.grid(color='0.9', which='minor')
