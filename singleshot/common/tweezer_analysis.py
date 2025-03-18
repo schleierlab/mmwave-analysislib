@@ -1,14 +1,19 @@
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Optional, cast
+from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from typing_extensions import assert_never
 
 import h5py
 import numpy as np
+import yaml
 
 from .image_preprocessor import ImagePreprocessor
 from .analysis_config import TweezerAnalysisConfig
 from .image import Image, ROI
+
 
 class TweezerPreprocessor(ImagePreprocessor):
     """Analysis class for tweezer imaging data.
@@ -35,6 +40,8 @@ class TweezerPreprocessor(ImagePreprocessor):
     ROI_X_PATH: ClassVar[Path] = MULTISHOT_PATH / 'roi_x.npy'
     SITE_ROI_X_PATH: ClassVar[Path] = MULTISHOT_PATH / 'site_roi_x.npy'
     SITE_ROI_Y_PATH: ClassVar[Path] = MULTISHOT_PATH / 'site_roi_y.npy'
+
+    ROI_CONFIG_PATH: ClassVar[Path] = MULTISHOT_PATH / 'roi_config.yml'
 
     atom_roi: ROI
     background_roi: ROI
@@ -77,62 +84,114 @@ class TweezerPreprocessor(ImagePreprocessor):
         # Store config
         self.config = config
 
-        self.atom_roi, self.background_roi, self.site_rois = self.load_rois()
-        self.threshold = self.load_threshold()
+        self.atom_roi, self.background_roi, self.site_rois = self.load_rois_from_yaml()
+        self.threshold = self.load_threshold_from_yaml()
 
     @property
     def n_sites(self):
         return len(self.site_rois)
 
     # TODO this return signature is a mess -- can we simplify?
-    def load_rois(self) -> tuple[ROI, ROI, list[ROI]]:
-        """Load ROI and site ROI either from file or from provided configuration.
+    # TODO: Nolan: I can delete this?
+    # def load_rois(self) -> tuple[ROI, ROI, list[ROI]]:
+    #     """Load ROI and site ROI either from file or from provided configuration.
 
-        Parameters
-        ----------
-        roi_config_path : str
-            Path to YAML configuration file containing ROI specifications.
-            When load_roi=False:
-            - Must contain 'roi_x' key with [start, end] coordinates
-            - Must contain 'site_roi' section with 'site_roi_x' and 'site_roi_y'
-        bkg_roi_x : list[int]
-            X-coordinates [start, end] for background region.
-            This is passed directly from __init__ rather than loaded from YAML.
-        load_roi : bool
-            If True, load ROIs from standard file locations
-            If False, use ROIs from YAML config
+    #     Parameters
+    #     ----------
+    #     roi_config_path : str
+    #         Path to YAML configuration file containing ROI specifications.
+    #         When load_roi=False:
+    #         - Must contain 'roi_x' key with [start, end] coordinates
+    #         - Must contain 'site_roi' section with 'site_roi_x' and 'site_roi_y'
+    #     bkg_roi_x : list[int]
+    #         X-coordinates [start, end] for background region.
+    #         This is passed directly from __init__ rather than loaded from YAML.
+    #     load_roi : bool
+    #         If True, load ROIs from standard file locations
+    #         If False, use ROIs from YAML config
 
-        Returns
-        -------
-        atom_roi : ROI
-            [[x_min, x_max], [y_min, y_max]] for atom ROI
-        background_roi : ROI
-            [[x_min, x_max], [y_min, y_max]] for background ROI
-        site_roi : list[ROI]
-            [site_roi_x, site_roi_y] for site-specific ROIs
-        """
+    #     Returns
+    #     -------
+    #     atom_roi : ROI
+    #         [[x_min, x_max], [y_min, y_max]] for atom ROI
+    #     background_roi : ROI
+    #         [[x_min, x_max], [y_min, y_max]] for background ROI
+    #     site_roi : list[ROI]
+    #         [site_roi_x, site_roi_y] for site-specific ROIs
+    #     """
+    #     # Get y-coordinates from globals
+    #     try:
+    #         roi_y = self.globals["tw_kinetix_roi_row"]
+    #     except KeyError:
+    #         print("Warning: tw_kinetix_roi_row not found in globals, using full camera height")
+    #         roi_y = [0, self.imaging_setup.camera.image_size]
+
+    #     if self.config.load_roi:
+    #         # Load ROIs from standard .npy files
+    #         try:
+    #             roi_x = np.load(self.ROI_X_PATH).tolist()
+    #             site_roi_x = np.load(self.SITE_ROI_X_PATH)
+    #             site_roi_y = np.load(self.SITE_ROI_Y_PATH)
+    #         except FileNotFoundError as e:
+    #             raise FileNotFoundError(f"Could not load ROI files from {self.MULTISHOT_PATH}: {e}")
+
+    #         # Adjust site_roi_x relative to roi_x
+    #         site_roi_x = site_roi_x - roi_x[0]
+
+    #         # Add bkg site roi
+    #         site_roi_x = np.concatenate([[np.min(site_roi_x, axis=0)], np.array(site_roi_x)])
+    #         site_roi_y = np.concatenate([[np.min(site_roi_y, axis=0) - 10], np.array(site_roi_y)])
+
+    #     else:
+    #         # When not loading from files, get the ROIs from the config
+    #         if self.config.roi_x is None:
+    #             raise ValueError("When load_roi is False, the config must include 'roi_x' coordinates")
+    #         if self.config.site_roi is None:
+    #             raise ValueError("When load_roi is False, the config must include a 'site_roi' section with 'site_roi_x' and 'site_roi_y' arrays")
+
+    #         # Load ROIs from config
+    #         roi_x = self.config.roi_x
+    #         site_roi_x = np.array(self.config.site_roi[0])
+    #         site_roi_y = np.array(self.config.site_roi[1])
+
+    #     # Return ROIs in the format expected by the class
+
+    #     # swap axes so that shape is (n_sites, 2[x, y], 2[min, max])
+    #     site_roi_arr = np.transpose([site_roi_x, site_roi_y], (1, 0, 2))
+
+    #     return (
+    #         ROI.from_roi_xy(roi_x, roi_y),
+    #         ROI.from_roi_xy(self.config.bkg_roi_xlims, roi_y),
+    #         [ROI.from_roi_xy(*pairpair) for pairpair in site_roi_arr]
+    #     )
+
+    def load_rois_from_yaml(self):
         # Get y-coordinates from globals
         try:
-            roi_y = self.globals["tw_kinetix_roi_row"]
+            atom_roi_ymin, atom_roi_height = self.globals["tw_kinetix_roi_row"]
+            atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
         except KeyError:
-            print("Warning: tw_kinetix_roi_row not found in globals, using full camera height")
-            roi_y = [0, self.imaging_setup.camera.image_size]
+            raise KeyError('tw_kinetix_roi_row not found in globals')
 
         if self.config.load_roi:
-            # Load ROIs from standard .npy files
-            try:
-                roi_x = np.load(self.ROI_X_PATH).tolist()
-                site_roi_x = np.load(self.SITE_ROI_X_PATH)
-                site_roi_y = np.load(self.SITE_ROI_Y_PATH)
-            except FileNotFoundError as e:
-                raise FileNotFoundError(f"Could not load ROI files from {self.MULTISHOT_PATH}: {e}")
+            with open(self.ROI_CONFIG_PATH) as stream:
+                try:
+                    loaded_yaml = yaml.safe_load(stream)
+                except yaml.YAMLError as exc:
+                    print(exc)
 
-            # Adjust site_roi_x relative to roi_x
-            site_roi_x = site_roi_x - roi_x[0]
+            site_roi_arr = loaded_yaml['site_rois']
+            atom_roi_xlims = loaded_yaml['atom_roi_xlims']
 
-            # Add bkg site roi
-            site_roi_x = np.concatenate([[np.min(site_roi_x, axis=0)], np.array(site_roi_x)])
-            site_roi_y = np.concatenate([[np.min(site_roi_y, axis=0) - 10], np.array(site_roi_y)])
+            # # Add bkg site roi
+            # site_roi_x = np.concatenate([
+            #     [np.min(site_roi_x, axis=0)],
+            #     np.array(site_roi_x),
+            # ])
+            # site_roi_y = np.concatenate([
+            #     [np.min(site_roi_y, axis=0) - 10],
+            #     np.array(site_roi_y),
+            # ])
 
         else:
             # When not loading from files, get the ROIs from the config
@@ -142,27 +201,44 @@ class TweezerPreprocessor(ImagePreprocessor):
                 raise ValueError("When load_roi is False, the config must include a 'site_roi' section with 'site_roi_x' and 'site_roi_y' arrays")
 
             # Load ROIs from config
-            roi_x = self.config.roi_x
+            atom_roi_xlims = self.config.roi_x
             site_roi_x = np.array(self.config.site_roi[0])
             site_roi_y = np.array(self.config.site_roi[1])
-
-        # Return ROIs in the format expected by the class
-
-        # swap axes so that shape is (n_sites, 2[x, y], 2[min, max])
-        site_roi_arr = np.transpose([site_roi_x, site_roi_y], (1, 0, 2))
+            site_roi_arr = np.transpose([site_roi_x, site_roi_y], (1, 0, 2))
 
         return (
-            ROI.from_roi_xy(roi_x, roi_y),
-            ROI.from_roi_xy(self.config.bkg_roi_x, roi_y),
+            ROI.from_roi_xy(atom_roi_xlims, atom_roi_ylims),
+            ROI.from_roi_xy(self.config.bkg_roi_xlims, atom_roi_ylims),
             [ROI.from_roi_xy(*pairpair) for pairpair in site_roi_arr]
         )
 
-    def load_threshold(self) -> float:
+    # TODO: Nolan: I can delete this?
+    # def load_threshold(self) -> float:
+    #     """Load threshold value from file or use default."""
+    #     if self.config.load_threshold:
+    #         try:
+    #             threshold = np.load(self.THRESHOLD_PATH)[0]
+    #             return threshold
+    #         except FileNotFoundError as e:
+    #             raise FileNotFoundError(f'Could not load threshold from {self.THRESHOLD_PATH}: file does not exist! {e}')
+
+    #     default_threshold = self.config.threshold
+    #     if default_threshold is None:
+    #         raise ValueError(
+    #             'When load_threshold is False, default_threshold must be provided'
+    #         )
+
+    #     return default_threshold
+
+    def load_threshold_from_yaml(self):
         """Load threshold value from file or use default."""
         if self.config.load_threshold:
             try:
-                threshold = np.load(self.THRESHOLD_PATH)[0]
-                return threshold
+                with open(self.ROI_CONFIG_PATH) as stream:
+                    try:
+                        return yaml.safe_load(stream)['threshold']
+                    except yaml.YAMLError as exc:
+                        print(exc)
             except FileNotFoundError as e:
                 raise FileNotFoundError(f'Could not load threshold from {self.THRESHOLD_PATH}: file does not exist! {e}')
 
@@ -174,68 +250,30 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         return default_threshold
 
-    def get_image_bkg_sub(self):
-        """Get background-subtracted images.
-        Returns
-        -------
-        atom_images : ndarray
-            Array of atom images
-        background_images : ndarray
-            Array of background images
-        sub_images : ndarray
-            Array of background-subtracted images
-        """
-        images = self.images
-        folder_path = Path(self.folder_path)
-
-        # Set up paths for background images
-        alternating_bkg_path = folder_path / 'alternating_bkg'
-        last_bkg_sub_path = folder_path / 'last_bkg_sub'
-
-        if self.config.method == 'alternating':
-            if self.globals['mot_do_coil']:
-                atom_images = images
-                background_images = np.load(alternating_bkg_path)
-                subtracted_images = atom_images - background_images
-                np.save(last_bkg_sub_path, subtracted_images)
-            else:
-                background_images = images
-                np.save(alternating_bkg_path, images)
-                subtracted_images = np.load(last_bkg_sub_path)
-                # load last background subtracted images
-                # during background taking shot to make
-                # sure there is something to plot
-        elif self.config.method == 'average':
-            atom_images = images
-            background_images = np.load(folder_path / 'avg_shot_bkg.npy')
-            subtracted_images = atom_images - background_images
-            np.save(last_bkg_sub_path, subtracted_images)
-        else:
-            assert_never(self.config.method)
-
-        return atom_images, background_images, subtracted_images
-
     def process_shot(self):
-        n_images = len(self.images) - 1
+        n_images = len(self.exposures) - 1
 
         name_stem = self.imaging_setup.camera.image_name_stem
         images = [
             Image(
-                self.images[f'{name_stem}{i}'],
-                background=self.images[f'{name_stem}{n_images - 1}'],
+                self.exposures[f'{name_stem}{i}'],
+                background=self.exposures[f'{name_stem}{n_images}'],
+                yshift=self.atom_roi.ymin,
             )
             for i in range(n_images)
         ]
+        self.images = images
 
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in images])
-        site_occupancies = camera_counts > 100  # self.threshold
+        self.site_occupancies = camera_counts > self.threshold
 
         run_number = self.run_number
         fname = Path(self.folder_path) / 'tweezer_preprocess.h5'
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.create_dataset('camera_counts', data=camera_counts[np.newaxis, ...], maxshape=(None, 10, 100))  # shape: (n_shots, n_images, n_sites)
-                f.create_dataset('site_occupancies', data=site_occupancies[np.newaxis, ...], maxshape=(None, 10, 100))
+                f.create_dataset('site_occupancies', data=self.site_occupancies[np.newaxis, ...], maxshape=(None, 10, 100))
+                f['site_occupancies'].attrs['threshold'] = self.threshold
                 f.create_dataset('site_rois', data=ROI.toarray(self.site_rois))
                 f['site_rois'].attrs['fields'] = ['xmin', 'xmax', 'ymin', 'ymax']
         else:
@@ -244,6 +282,31 @@ class TweezerPreprocessor(ImagePreprocessor):
                 f['camera_counts'][run_number] = camera_counts
 
                 f['site_occupancies'].resize(run_number + 1, axis=0)
-                f['site_occupancies'][run_number] = site_occupancies
+                f['site_occupancies'][run_number] = self.site_occupancies
 
         return fname
+
+    def show_image(self, roi_patches: bool = True, fig: Optional[Figure] = None, vmax: Optional[int] = 70):
+        if fig is None:
+            fig, axs = plt.subplots(
+                nrows=len(self.images),
+                ncols=1,
+            )
+        else:
+            axs = fig.subplots(nrows=2, ncols=1)
+
+        for i, image in enumerate(self.images):
+            ax = cast(Axes, axs[i])
+            im = image.imshow_view(
+                self.atom_roi, ax=ax,
+                cmap='bone',
+                vmin=10,
+                vmax=vmax,
+            )
+            plt.colorbar(im, ax=ax, label='Counts')
+            ax.set_title(f'Image {i}')
+            if roi_patches:
+                for j, roi in enumerate(self.site_rois):
+                    ax.add_patch(roi.patch(
+                        edgecolor=('yellow' if self.site_occupancies[i, j] else 'red'),
+                    ))

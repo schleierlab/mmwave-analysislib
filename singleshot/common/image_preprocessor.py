@@ -56,8 +56,8 @@ class ImagePreprocessor(ABC):
         """
         self.imaging_setup = imaging_setup
         self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
-        self.params, self.n_rep = self.get_scanning_params()
-        self.images, self.run_number, self.globals = self.load_images()
+        self.exposures, self.run_number, self.globals = self.load_images()
+        self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
         with h5py.File(self.h5_path, mode='r') as f:
             self.n_runs = f.attrs['n_runs']
@@ -119,6 +119,7 @@ class ImagePreprocessor(ABC):
         with h5py.File(h5_path, mode='r+') as f:
             globals = f['globals']
             params = {}
+            current_params = []
             for group in globals.keys():
                 expansion = hz.getAttributeDict(globals[group]['expansion'])
                 for key, value in expansion.items():
@@ -126,7 +127,6 @@ class ImagePreprocessor(ABC):
                         global_var = hz.getAttributeDict(globals[group])[key]
                         global_unit = hz.getAttributeDict(globals[group]['units'])[key]
                         params[key] = (global_var, global_unit)
-
             if 'n_shots' in params:
                 rep_str, _ = params['n_shots']
                 if rep_str[0:2] != 'np':
@@ -139,8 +139,21 @@ class ImagePreprocessor(ABC):
                     n_rep = 1
             else:
                 n_rep = 1
+            for key, value in params.items():
+                current_params.append(self.globals[key])
 
-        return params, n_rep
+        return params, n_rep, np.array(current_params)
+
+    def get_current_scanning_params(self,):
+        """
+        get current scanning parameters from globals
+
+        Returns
+        -------
+        current_param_vals: dict
+            Current scanning parameters; key is the parameter name
+            and value is the parameter value
+        """
 
     @staticmethod
     def get_scanning_params_static(h5_path):

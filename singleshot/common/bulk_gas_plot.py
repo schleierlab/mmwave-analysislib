@@ -12,14 +12,17 @@ from .plot_config import PlotConfig
 
 
 class BulkGasPlotter:
-    def __init__(self, h5_path, preprocessor: BulkGasPreprocessor, plot_config: PlotConfig = None):
+    def __init__(self, h5_path, plot_config: PlotConfig = None):
         self.plot_config = plot_config or PlotConfig()
-        self.preprocessor = preprocessor
         self._load_processed_quantities(h5_path)
 
     def _load_processed_quantities(self, h5_path):
         with h5py.File(h5_path, 'r') as f:
             self.atom_numbers = f['atom_numbers'][:]
+            self.params_list = f['params'][:]
+            print(self.params_list)
+            self.current_params = f['current_params'][:]
+            
 
     # def plot_images(self):
     #     """
@@ -90,13 +93,14 @@ class BulkGasPlotter:
             )
         else:
             ax = fig.subplots()
-
+        
+        loop_params = np.transpose(np.array(self.current_params))[0]
         ax.plot(
-            self.atom_numbers,
+            loop_params, self.atom_numbers,
             marker='.',
         )
         ax.set_xlabel(
-            'Shot number',
+            f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
             fontsize=self.plot_config.label_font_size,
         )
         ax.set_ylabel(
@@ -111,61 +115,6 @@ class BulkGasPlotter:
 
         ax.grid(color=self.plot_config.grid_color_major, which='major')
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
-
-    @staticmethod
-    def _roi_patch(roi: ROI, scale_factor: float = 1.0):
-        return patches.Rectangle(
-            (roi.xmin * scale_factor, roi.ymin * scale_factor),
-            roi.width * scale_factor, roi.height * scale_factor,
-            linewidth=1,
-            edgecolor='r',
-            facecolor='none',
-        )
-
-    def plot_images(self):
-        fig, axs = plt.subplots(
-            nrows=2,
-            ncols=2,
-            figsize=(5, 6),
-            layout='compressed',
-        )
-        fig.suptitle(self.preprocessor.h5_path)
-        fig.supxlabel('Length (mm)')
-        fig.supylabel('Length (mm)')
-        plot_unit = 1e-3
-        plot_units_per_pixel = self.preprocessor.imaging_setup.atom_plane_pixel_size / plot_unit
-
-        img_obj = self.preprocessor.image
-
-        axs[0, 0].set_title('Raw, with MOT')
-        axs[0, 1].set_title('Raw, no MOT')
-        for i, img in enumerate([img_obj.array, img_obj.background]):
-            cast(Axes, axs[0, i]).imshow(
-                img,
-                cmap='bone',
-                vmax=100,
-                extent=plot_units_per_pixel * np.array([0, img.shape[1], img.shape[0], 0]),
-            )
-
-        atoms_roi = self.preprocessor.atoms_roi
-        axs[0, 0].add_patch(self._roi_patch(atoms_roi, scale_factor=plot_units_per_pixel))
-        axs[1, 0].set_title('MOT (background subtracted)')
-        cast(Axes, axs[1, 0]).imshow(
-            img_obj.roi_view(self.preprocessor.atoms_roi),
-            cmap='bone',
-            extent=plot_units_per_pixel * np.array([atoms_roi.xmin, atoms_roi.xmax, atoms_roi.ymax, atoms_roi.ymin]),
-        )
-
-        bkg_roi = self.preprocessor.background_roi
-        axs[0, 1].add_patch(self._roi_patch(bkg_roi, scale_factor=plot_units_per_pixel))
-        axs[1, 1].set_title(f'Background region (background subtracted), mean {img_obj.roi_mean(bkg_roi):.2f}')
-        axs[1, 1].imshow(
-            img_obj.roi_view(bkg_roi),
-            cmap='coolwarm',
-            vmin=-20,
-            vmax=+20,
-            extent=plot_units_per_pixel * np.array([bkg_roi.xmin, bkg_roi.xmax, bkg_roi.ymax, bkg_roi.ymin]),
-        )
 
     # def plot_atom_temperature(self):
     #     """Plot atom temperature vs shot number and fit temperature with time of flight.

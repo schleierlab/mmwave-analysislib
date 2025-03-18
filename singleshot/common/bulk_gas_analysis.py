@@ -1,8 +1,13 @@
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, cast, Optional
 
 import h5py
 from scipy.constants import pi, k as k_B
+
+from matplotlib import colors, patches, pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+import numpy as np
 
 try:
     lyse
@@ -82,7 +87,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             config.exposure_time,
         )
 
-        images = self.images
+        images = self.exposures
         image_types = list(images.keys())
         atom_image = images[image_types[0]]
         background_image = images[image_types[1]]
@@ -202,17 +207,93 @@ class BulkGasPreprocessor(ImagePreprocessor):
     #     """
     #     return cls.m_cesium / k_B * (gaussian_waist / time_of_flight)**2
 
-    def process_shot(self):
-        atom_number = self.get_atom_number(method='sum', subtraction='double')
+    def process_shot(self) -> str:
+        """
+        Process a single shot of bulk gas.
 
+        Returns
+        -------
+        str
+            Path to the processed results file
+        """
+        atom_number = self.get_atom_number(method='sum', subtraction='double')
         run_number = self.run_number
         fname = Path(self.folder_path) / 'bulkgas_preprocess.h5'
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.create_dataset('atom_numbers', data=[atom_number], maxshape=(self.n_runs,))
+                f.create_dataset(
+                    'current_params',
+                    data=self.current_params[np.newaxis, ...],
+                    maxshape=(self.n_runs, len(self.current_params)),
+                    chunks = True,
+                )
+                param_list = []
+                for key in self.params.keys():
+                    param_list.append([key, self.params[key][1], self.params[key][0]])
+                f.create_dataset('params', data=param_list)
         else:
             with h5py.File(fname, 'a') as f:
                 f['atom_numbers'].resize(run_number + 1, axis=0)
                 f['atom_numbers'][run_number] = atom_number
+                f['current_params'].resize(run_number + 1, axis=0)
+                f['current_params'][run_number] = self.current_params
 
         return fname
+
+    def show_images(self, fig: Optional[Figure] = None, raw_img_scale = 100) -> None:
+        """
+        Show the images of raw image/background image full frame and background subtracted images in ROIs
+        We use the convention show_images() to show camera images at the processing level
+        """
+        if fig is None:
+            fig, axs = plt.subplots(
+                nrows=2,
+                ncols=2,
+                figsize=(10, 10),
+                layout='constrained',
+            )
+        else:
+            axs = fig.subplots(nrows=2, ncols=2)
+
+        fig.suptitle(self.h5_path)
+        fig.supxlabel('Length (mm)')
+        fig.supylabel('Length (mm)')
+        plot_unit = 1e-3
+        plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+
+        img_obj = self.image
+
+        axs[0, 0].set_title('Raw, with atoms')
+        axs[0, 1].set_title('Raw, without atoms')
+        for i, img in enumerate([img_obj.array, img_obj.background]):
+            cast(Axes, axs[0, i]).imshow(
+                img,
+                cmap='magma',
+                vmax= raw_img_scale,
+                extent=plot_units_per_pixel * np.array([0, img.shape[1], img.shape[0], 0]),
+            )
+
+        atoms_roi = self.atoms_roi
+        print(img_obj.array.shape)
+        axs[0, 0].add_patch(atoms_roi.patch(scale_factor=plot_units_per_pixel))
+        axs[1, 0].set_title('Cloud Region (background subtracted)')
+        cast(Axes, axs[1, 0]).imshow(
+            img_obj.roi_view(atoms_roi),
+            cmap='magma',
+            extent=plot_units_per_pixel * np.array([atoms_roi.xmin, atoms_roi.xmax, atoms_roi.ymax, atoms_roi.ymin]),
+        )
+
+        bkg_roi = self.background_roi
+        # print(img_obj.roi_view(bkg_roi))
+        axs[0, 1].add_patch(bkg_roi.patch(scale_factor=plot_units_per_pixel))
+        axs[1, 1].set_title(f'Background region (background subtracted), mean {img_obj.roi_mean(bkg_roi):.2f}')
+        axs[1, 1].imshow(
+            img_obj.roi_view(bkg_roi),
+            cmap='coolwarm',
+            vmin=-20,
+            vmax=+20,
+            extent=plot_units_per_pixel * np.array([bkg_roi.xmin, bkg_roi.xmax, bkg_roi.ymax, bkg_roi.ymin]),
+        )
+
+

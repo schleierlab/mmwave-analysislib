@@ -142,8 +142,8 @@ kinetix_camera = ImagingCamera(
 )
 
 kinetix_system = ImagingSystem(
-    imaging_f=40.4e-3,
-    objective_f=300e-3,
+    imaging_f=300e-3,
+    objective_f=40.4e-3,
     lens_diameter=50.8e-3,
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
     camera=kinetix_camera,
@@ -214,7 +214,7 @@ class TweezerAnalysisConfig:
     """
     imaging_system: ImagingSystem = kinetix_system
     method: Literal['average', 'alternating'] = 'average'
-    bkg_roi_x: tuple[int, int] = (1900, 2400)
+    bkg_roi_xlims: tuple[int, int] = (1900, 2400)
     load_roi: bool = True
     roi_config_path: Optional[str] = None
     roi_x: Optional[tuple[int, int]] = None

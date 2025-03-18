@@ -1,7 +1,7 @@
+from typing import Optional
+from matplotlib.figure import Figure
 import h5py
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.collections import PatchCollection
 import numpy as np
 
 from .plot_config import PlotConfig
@@ -157,14 +157,15 @@ class TweezerPlotter:
     #             pos = ax_bkg.imshow(self.roi_bkgs[i], **roi_img_color_kw)
     #             fig.colorbar(pos, ax=ax_bkg).ax.tick_params(labelsize=self.plot_config.label_font_size)
 
-    def plot_survival_rate(self, fig=None, ax=None):
-        if (fig is None) != (ax is None):
-            raise ValueError
+    def plot_survival_rate(self, fig: Optional[Figure] = None):
         if fig is None:
             fig, ax = plt.subplots(
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
+        else:
+            ax = fig.subplots()
+
         initial_atoms = self.site_occupancies[:, 0].sum(axis=-1)
 
         # axis=1 corresponds to the before/after tweezer images
@@ -177,3 +178,12 @@ class TweezerPlotter:
             survival_rates,
             marker='.',
         )
+        #ax.set_xlabel('Shot number', fontsize=self.plot_config.label_font_size)
+        ax.set_ylabel('Survival rate', fontsize=self.plot_config.label_font_size)
+        ax.tick_params(
+            axis='both',
+            which='major',
+            labelsize=self.plot_config.label_font_size,
+        )
+        ax.grid(color=self.plot_config.grid_color_major, which='major')
+        ax.grid(color=self.plot_config.grid_color_minor, which='minor')
