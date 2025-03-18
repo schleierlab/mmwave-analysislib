@@ -24,6 +24,7 @@ from analysis.data import h5lyze as hz
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
+# from uncertainties import ufloat
 
 if lyse.spinning_top:
     # If so, use the filepath of the current h5_path
@@ -54,13 +55,28 @@ with open(tof_fit_file_path, newline='') as csvfile:
         sigma_a.append(list(map(float, row))[3])
 
 t = np.array(tof)
+
+# TODO make uncertainties bit work
+
+# coefficient_a, cov_a = np.polyfit(t**2, np.array(sigma_a)**2, 1, cov = True)
+# uncertain_a = np.sqrt(np.diag(cov_a))
+# [slope_a, intercept_a] = coefficient_a
+
+# slope_a_uncertain = ufloat(slope_a, uncertain_a[0])
+# coefficient_b, cov_b = np.polyfit(t**2, np.array(sigma_b)**2, 1, cov = True)
+# [slope_b, intercept_b] = coefficient_b
+# uncertain_b = np.sqrt(np.diag(cov_b))
+# slope_b_uncertain = ufloat(slope_b, uncertain_b[0])
+# slope_uncertain = np.array([slope_a_uncertain, slope_b_uncertain])
+# T = slope_uncertain*m/kB*1e6
+
 slope_a, intercept_a = np.polyfit(t**2, np.array(sigma_a)**2, 1)
 slope_b, intercept_b = np.polyfit(t**2, np.array(sigma_b)**2, 1)
 slope = np.array([slope_a, slope_b])
 T = slope*m/kB*1e6
 
 fig, axs = plt.subplots(nrows=2, ncols=1, constrained_layout=True)
-(ax_count),(ax_tof_fit) = axs
+(ax_count), (ax_tof_fit) = axs
 
 ax_count.plot(t*1e3 , counts,'-o')
 ax_count.set_xlabel('Time of flight (ms)')
@@ -71,8 +87,13 @@ ax_count.grid(color='0.7', which='major')
 ax_count.grid(color='0.9', which='minor')
 
 t_plot = np.arange(0,max(t)+1e-3,1e-3)
+
+
 ax_tof_fit.plot(t_plot**2*1e6 , (slope_a*t_plot**2 + intercept_a)*1e12, label=rf'major axis fit, $T = {T[0]:.3f}$ $\mu$K')
 ax_tof_fit.plot(t_plot**2*1e6 , (slope_b*t_plot**2 + intercept_b)*1e12, label=rf'minor axis fit, $T = {T[1]:.3f}$ $\mu$K')
+# ax_tof_fit.plot(t_plot**2*1e6 , (slope_a*t_plot**2 + intercept_a)*1e12, label=rf'major axis fit, $T = {T[0]:SL}$ $\mu$K')
+# ax_tof_fit.plot(t_plot**2*1e6 , (slope_b*t_plot**2 + intercept_b)*1e12, label=rf'minor axis fit, $T = {T[1]:SL}$ $\mu$K')
+
 ax_tof_fit.plot(t**2*1e6, np.array(sigma_a)**2*1e12, 'oC0')
 ax_tof_fit.plot(t**2*1e6, np.array(sigma_b)**2*1e12, 'oC1')
 ax_tof_fit.set_xlabel(r'Time$^2$ (ms$^2$)')

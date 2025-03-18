@@ -53,11 +53,22 @@ else:
     df = lyse.data()
     h5_path = df.filepath.iloc[-1]
 
+
 with h5py.File(h5_path, mode='r+') as f:
-    g = hz.attributesToDictionary(f['globals'])
+    globals_dict = hz.attributesToDictionary(f['globals'])
     info_dict = hz.getAttributeDict(f)
-    # images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
     images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
+
+    # Find looping global variable
+    loop_glob = next((glob for group in globals_dict
+                    for glob in globals_dict[group]
+                    if globals_dict[group][glob][0:2] == "np"), None)
+
+    try:
+        loop_var = float(f['globals'].attrs.get(loop_glob))
+    except:
+        loop_var = info_dict.get('run number')
+
 
 
 image_types = list(images.keys())
@@ -154,4 +165,4 @@ folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 count_file_path = folder_path+'\\data.csv'
 
 with open(count_file_path, 'a') as f_object:
-    f_object.write(f'{atom_number}\n')
+    f_object.write(f'{atom_number},{loop_var}\n')

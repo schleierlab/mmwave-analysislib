@@ -11,12 +11,11 @@ from pathlib import Path
 
 import h5py
 import lyse
-import matplotlib.patches as patches
-import matplotlib.pyplot as plt
+import matplotlib
+from matplotlib import patches, pyplot as plt, colors
+from matplotlib import collections as mcollections
 import numpy as np
 from analysis.data import h5lyze as hz
-from matplotlib.collections import PatchCollection
-
 
 class TweezerImageAnalyzer:
     """
@@ -122,6 +121,7 @@ class TweezerImageAnalyzer:
 
         # Extract regions of interest for signal and background
         tweezer_roi_1 = sub_image1[:, self.roi_config['x'][0]:self.roi_config['x'][1]]
+        print(self.roi_config['x'][0], self.roi_config['x'][1])
         bkg_roi_1 = sub_image1[:, self.roi_config['background_x'][0]:self.roi_config['background_x'][1]]
 
         tweezer_roi_2 = sub_image2[:, self.roi_config['x'][0]:self.roi_config['x'][1]]
@@ -181,10 +181,10 @@ class TweezerImageAnalyzer:
         ax_tweezer_1.set_title('1st Tweezer ROI', fontsize=14, pad=10)
         pos = ax_tweezer_1.imshow(tweezer_roi_1, **roi_img_color_kw)
         if self.show_site_roi:
-            pc = PatchCollection(self.rect, match_original=True, alpha=0.3)
+            pc = mcollections.PatchCollection(self.rect, match_original=True, alpha=0.3)
             ax_tweezer_1.add_collection(pc)
             if rect_sig_1:
-                pc_sig = PatchCollection(rect_sig_1, match_original=True)
+                pc_sig = mcollections.PatchCollection(rect_sig_1, match_original=True)
                 ax_tweezer_1.add_collection(pc_sig)
         fig.colorbar(pos, ax=ax_tweezer_1).ax.tick_params(labelsize=12)
 
@@ -192,10 +192,10 @@ class TweezerImageAnalyzer:
         ax_tweezer_2.set_title('2nd Tweezer ROI', fontsize=14, pad=10)
         pos = ax_tweezer_2.imshow(tweezer_roi_2, **roi_img_color_kw)
         if self.show_site_roi:
-            pc = PatchCollection(self.rect, match_original=True, alpha=0.3)
+            pc = mcollections.PatchCollection(self.rect, match_original=True, alpha=0.3)
             ax_tweezer_2.add_collection(pc)
             if rect_sig_2:
-                pc_sig = PatchCollection(rect_sig_2, match_original=True)
+                pc_sig = mcollections.PatchCollection(rect_sig_2, match_original=True)
                 ax_tweezer_2.add_collection(pc_sig)
         fig.colorbar(pos, ax=ax_tweezer_2).ax.tick_params(labelsize=12)
 
@@ -207,6 +207,141 @@ class TweezerImageAnalyzer:
         ax_bkg_2.set_title('2nd Background ROI', fontsize=14, pad=10)
         pos = ax_bkg_2.imshow(bkg_roi_2, **roi_img_color_kw)
         fig.colorbar(pos, ax=ax_bkg_2).ax.tick_params(labelsize=12)
+
+    def plot_third_exposure_test(self, tweezer_rois, bkg_rois, h5_path):
+
+        roi_image_scale = 150
+        roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
+
+        fig, axs = plt.subplots(
+            figsize=(20, 20),
+            ncols=3,
+            nrows=5,
+            layout='compressed',
+            sharex=True,
+            sharey=True,
+        )
+
+        for i in range(3):
+            axs[i, 0].imshow(tweezer_rois[i], **roi_img_color_kw)
+            axs[i, 1].imshow(bkg_rois[i], **roi_img_color_kw)
+            axs[i, 2].imshow(tweezer_rois[i] - bkg_rois[i], **roi_img_color_kw)
+        for i in range(2):
+            axs[3 + i, 0].imshow(tweezer_rois[i] - tweezer_rois[2], **roi_img_color_kw)
+            axs[3 + i, 1].imshow(bkg_rois[i] - bkg_rois[2], **roi_img_color_kw)
+            axs[3 + i, 2].set_visible(False)
+        axs[0, 0].set_xlim([1000, 1500])
+
+        alternating_result1 = tweezer_rois[0] - bkg_rois[0]
+        alternating_result2 = tweezer_rois[1] - bkg_rois[1]
+        singleshot_result1 = tweezer_rois[0] - tweezer_rois[2]
+        singleshot_result2 = tweezer_rois[1] - tweezer_rois[2]
+
+        # Get the folder path from h5_path
+        folder_path = os.path.dirname(h5_path)
+        results_file = os.path.join(folder_path, 'single_shot_background_test_results.h5')
+
+        # Save current results to h5 file
+        with h5py.File(results_file, 'a') as f:
+            # Create datasets if they don't exist
+            if 'alternating_result1' not in f:
+                f.create_dataset('alternating_result1', data=[alternating_result1], maxshape=(None,) + alternating_result1.shape)
+                f.create_dataset('alternating_result2', data=[alternating_result2], maxshape=(None,) + alternating_result2.shape)
+                f.create_dataset('singleshot_result1', data=[singleshot_result1], maxshape=(None,) + singleshot_result1.shape)
+                f.create_dataset('singleshot_result2', data=[singleshot_result2], maxshape=(None,) + singleshot_result2.shape)
+            else:
+                # Append new results
+                for name, data in [('alternating_result1', alternating_result1),
+                                ('alternating_result2', alternating_result2),
+                                ('singleshot_result1', singleshot_result1),
+                                ('singleshot_result2', singleshot_result2)]:
+                    dset = f[name]
+                    current_size = dset.shape[0]
+                    dset.resize((current_size + 1,) + data.shape)
+                    dset[current_size] = data
+
+        # Create figure to plot mean of all results
+        fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6)) = plt.subplots(3, 2, figsize=(12, 15))
+        fig.suptitle('Background Subtraction Results Comparison')
+
+        roi_image_scale = 150
+        roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
+        # For difference plots, use a diverging colormap
+        diff_img_color_kw = dict(
+            cmap='RdBu_r',
+            vmin=-10,  # log10 scale: shows differences from -100 to +100
+            vmax=10
+        )
+
+        with h5py.File(results_file, 'r') as f:
+            # Calculate mean images
+            mean_alt1 = np.mean(f['alternating_result1'][:], axis=0)
+            mean_alt2 = np.mean(f['alternating_result2'][:], axis=0)
+            mean_single1 = np.mean(f['singleshot_result1'][:], axis=0)
+            mean_single2 = np.mean(f['singleshot_result2'][:], axis=0)
+
+            # Plot mean images
+            ax1.imshow(mean_alt1, **roi_img_color_kw)
+            ax1.set_title('Mean Alternating Result 1')
+            ax1.set_xlabel('x [px]')
+            ax1.set_ylabel('y [px]')
+
+            ax2.imshow(mean_alt2, **roi_img_color_kw)
+            ax2.set_title('Mean Alternating Result 2')
+            ax2.set_xlabel('x [px]')
+            ax2.set_ylabel('y [px]')
+
+            ax3.imshow(mean_single1, **roi_img_color_kw)
+            ax3.set_title('Mean Single-shot Result 1')
+            ax3.set_xlabel('x [px]')
+            ax3.set_ylabel('y [px]')
+
+            ax4.imshow(mean_single2, **roi_img_color_kw)
+            ax4.set_title('Mean Single-shot Result 2')
+            ax4.set_xlabel('x [px]')
+            ax4.set_ylabel('y [px]')
+
+            # Plot difference images with log transform
+            diff1 = mean_alt1 - mean_single1
+            diff2 = mean_alt2 - mean_single2
+
+            # Convert differences to log10, preserving signs
+            def signed_log10(x):
+                # Add small offset to avoid log(0), scale by 10 to better show small differences
+                return np.sign(x) * np.log10(np.abs(x) * 10 + 1)
+
+            log_diff1 = signed_log10(diff1)
+            log_diff2 = signed_log10(diff2)
+
+            im5 = ax5.imshow(diff1, **diff_img_color_kw)
+            ax5.set_title('Difference: Alt1 - Single1')
+            ax5.set_xlabel('x [px]')
+            ax5.set_ylabel('y [px]')
+
+            im6 = ax6.imshow(diff2, **diff_img_color_kw)
+            ax6.set_title('Difference: Alt2 - Single2')
+            ax6.set_xlabel('x [px]')
+            ax6.set_ylabel('y [px]')
+
+            # Add colorbars
+            for ax, im in [(ax1, ax1.images[-1]), (ax2, ax2.images[-1]),
+                          (ax3, ax3.images[-1]), (ax4, ax4.images[-1])]:
+                fig.colorbar(im, ax=ax).ax.tick_params(labelsize=12)
+
+            # Add separate colorbars for difference plots
+            for ax, im in [(ax5, im5), (ax6, im6)]:
+                cbar = fig.colorbar(im, ax=ax)
+                cbar.ax.tick_params(labelsize=12)
+                # Add labels showing actual values at specific log points
+                #cbar.set_ticks([-2, -1, 0, 1, 2])
+                #cbar.set_ticklabels(['-100', '-10', '0', '10', '100'])
+                cbar.set_label('Signal Difference', size=10)
+
+            # Set xlimits for all plots
+            for ax in (ax1, ax2, ax3, ax4, ax5, ax6):
+                ax.set_xlim([1000, 1500])
+
+        plt.subplots_adjust(hspace=0.3)
 
     @staticmethod
     def calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2, method='default') -> tuple[float, float]:
@@ -267,10 +402,11 @@ class TweezerImageAnalyzer:
             np.save(roi_number_lst_file_path, roi_number_lst_new)
 
     @staticmethod
-    def save_images(folder_path, first_image, second_image, run_number):
+    def save_images(folder_path, first_image, second_image, third_image, run_number):
         """Save image data to files."""
         np.save(os.path.join(folder_path, 'first'), first_image)
         np.save(os.path.join(folder_path, 'seconds'), second_image)
+        np.save(os.path.join(folder_path, 'thirds'), third_image)
 
         count_file_path = os.path.join(folder_path, 'data.csv')
         if run_number == 0:
@@ -377,12 +513,110 @@ class AverageBackgroundAnalyzer(TweezerImageAnalyzer):
             uncertainties=True,
         )
 
+class LastExposeBackgroundAnalyzer(TweezerImageAnalyzer):
+    """Analyzer for average background subtraction method."""
+
+    def __init__(self, roi_config, roi_paths, show_site_roi=True, load_roi=True):
+        super().__init__(roi_config, roi_paths, show_site_roi, load_roi)
+
+    def load_threshold(self, load_threshold=True, default_threshold=746.8):
+        """Load threshold value from file or use default."""
+        if load_threshold:
+            threshold_path = os.path.join(self.multishot_path, "th.npy")
+            try:
+                threshold = np.load(threshold_path)[0]
+                # print(f'threshold = {threshold} count')
+            except FileNotFoundError:
+                print(f'Warning: Threshold file not found at {threshold_path}, using default value')
+                threshold = default_threshold
+        else:
+            threshold = default_threshold
+        return threshold
+
+    @staticmethod
+    def save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number):
+        """Save analysis results to files."""
+        count_file_path = os.path.join(folder_path, 'data.csv')
+        roi_number_lst_file_path = os.path.join(folder_path, 'roi_number_lst.npy')
+
+        if run_number == 0:  # Initialize files for first run
+            with open(count_file_path, 'w') as f_object:
+                f_object.write(f'{survival_rate},{loop_var}\n')
+            np.save(roi_number_lst_file_path, roi_number_lst)
+        else:  # Append to existing files
+            with open(count_file_path, 'a') as f_object:
+                f_object.write(f'{survival_rate},{loop_var}\n')
+            roi_number_lst_old = np.load(roi_number_lst_file_path)
+            roi_number_lst_new = np.dstack((roi_number_lst_old, roi_number_lst))
+            np.save(roi_number_lst_file_path, roi_number_lst_new)
+
+    # @staticmethod
+    # def load_average_background(h5_path):
+    #     """Load pre-calculated average background images."""
+    #     avg_shot_bkg_file_path = Path(Path(h5_path).parent.parent, 'avg_shot_bkg.npy')
+    #     try:
+    #         avg_shot_bkg = np.load(avg_shot_bkg_file_path)
+    #         return avg_shot_bkg[0,:,:], avg_shot_bkg[1,:,:]
+    #     except FileNotFoundError:
+    #         raise FileNotFoundError('Make sure you already have the averaged background!')
+
+    def process_run(self, h5_path, load_threshold=True):
+        """Process a single run with average background method."""
+        folder_path = str(Path(h5_path).parent)
+
+        # Load data and configuration
+        images, _, loop_var, info_dict = self.load_h5_data(h5_path)
+        threshold = self.load_threshold(load_threshold)
+
+        # Process images
+        image_types = list(images.keys())
+        first_image = images[image_types[0]]
+        second_image = images[image_types[1]]
+        bkg_image = images[image_types[2]]
+
+        # Process images using loaded ROI values
+        tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2 = self.process_images(
+            first_image, second_image, bkg_image, bkg_image)
+
+        # Analyze signals at each site
+        rect_sig_1, atom_exist_lst_1, roi_number_lst_1 = self.analyze_site_signals(
+            tweezer_roi_1, threshold)
+        rect_sig_2, atom_exist_lst_2, roi_number_lst_2 = self.analyze_site_signals(
+            tweezer_roi_2, threshold)
+
+        # Plot results
+        rect_sig_1 = False
+        rect_sig_2 = False
+        self.plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2,
+                         rect_sig_1, rect_sig_2)
+
+        # Calculate and save results
+        survival_rate, survival_rate_uncert = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
+        roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
+        self.save_data(folder_path, survival_rate, loop_var, roi_number_lst,
+                      info_dict.get('run number'))
+
+        # Save values for MLOOP
+        # Save sequence analysis result in latest run
+        run = lyse.Run(h5_path=h5_path)
+        my_condition = True
+        run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
+
+        run.save_results_dict(
+            {
+                'survival_rate': self.calculate_survival_rate(
+                    atom_exist_lst_1, atom_exist_lst_2, method='laplace',
+                ) if my_condition else (np.nan, np.nan),
+            },
+            uncertainties=True,
+        )
 
 class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
     """Analyzer for alternating background subtraction method."""
 
     def __init__(self, roi_config, roi_paths, threshold=1185.5, show_site_roi=True, load_roi=True):
         super().__init__(roi_config, roi_paths, show_site_roi, load_roi)
+        self.load_roi = load_roi
         self.threshold = threshold
 
     def process_run(self, h5_path, images):
@@ -427,6 +661,7 @@ class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
         image_types = list(images.keys())
         first_image = images[image_types[0]]
         second_image = images[image_types[1]]
+        third_image = images[image_types[2]]
 
         # Get run information
         _, _, loop_var, info_dict = self.load_h5_data(h5_path)
@@ -434,32 +669,44 @@ class AlternatingBackgroundAnalyzer(TweezerImageAnalyzer):
 
         # Process even-numbered runs (save images for background subtraction)
         if run_number % 2 == 0:
-            self.save_images(folder_path, first_image, second_image, run_number)
+            self.save_images(folder_path, first_image, second_image, third_image, run_number)
             return
 
         # Process odd-numbered runs (perform background subtraction and analysis)
-        first_image_bkg = first_image
-        second_image_bkg = second_image
-        first_image = np.load(os.path.join(folder_path, 'first.npy'))
-        second_image = np.load(os.path.join(folder_path, 'seconds.npy'))
+        if run_number % 2 == 1:
+            first_image_bkg = first_image
+            second_image_bkg = second_image
+            third_image_bkg = third_image
+            first_image = np.load(os.path.join(folder_path, 'first.npy'))
+            second_image = np.load(os.path.join(folder_path, 'seconds.npy'))
+            third_image = np.load(os.path.join(folder_path, 'thirds.npy'))
 
         # Process and analyze images
-        tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2 = self.process_images(
-            first_image, second_image, first_image_bkg, second_image_bkg)
-
-        rect_sig_1, atom_exist_lst_1, roi_number_lst_1 = self.analyze_site_signals(
-            tweezer_roi_1, self.threshold)
-        rect_sig_2, atom_exist_lst_2, roi_number_lst_2 = self.analyze_site_signals(
-            tweezer_roi_2, self.threshold)
+        # tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2 = self.process_images(
+        #     first_image, second_image, first_image_bkg, second_image_bkg)
+        # if self.load_roi is True:
+        #     rect_sig_1, atom_exist_lst_1, roi_number_lst_1 = self.analyze_site_signals(
+        #         tweezer_roi_1, self.threshold)
+        #     rect_sig_2, atom_exist_lst_2, roi_number_lst_2 = self.analyze_site_signals(
+        #         tweezer_roi_2, self.threshold)
+        # else:
+        #     rect_sig_1 = None
+        #     rect_sig_2 = None
 
         # Plot results
-        self.plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2,
-                         rect_sig_1, rect_sig_2)
+        # self.plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2,
+        #                 #  rect_sig_1, rect_sig_2)
+            self.plot_third_exposure_test(
+                [first_image, second_image, third_image],
+                [first_image_bkg, second_image_bkg, third_image_bkg],
+                h5_path,
+            )
 
         # Calculate and save results
-        survival_rate, _ = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
-        roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
-        self.save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number)
+        # if self.load_roi is True:
+        #     survival_rate, _ = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
+        #     roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
+        #     self.save_data(folder_path, survival_rate, loop_var, roi_number_lst, run_number)
 
 class AverageBackground2DScanAnalyzer(AverageBackgroundAnalyzer):
     """Extended analyzer for 2D parameter scans."""
@@ -553,3 +800,98 @@ class AverageBackground2DScanAnalyzer(AverageBackgroundAnalyzer):
             roi_number_lst_new = np.dstack((roi_number_lst_old, roi_number_lst))
             print(roi_number_lst_new.shape)
             np.save(roi_number_lst_file_path, roi_number_lst_new)
+
+class LastBackground2DScanAnalyzer(AverageBackgroundAnalyzer):
+    """Extended analyzer for 2D parameter scans."""
+
+    @staticmethod
+
+    def load_h5_data(h5_path):
+        """Load data from H5 file."""
+        with h5py.File(h5_path, mode='r+') as f:
+            globals_dict = hz.attributesToDictionary(f['globals'])
+            images = hz.datasetsToDictionary(f['kinetix_images'], recursive=True)
+
+            # Extract looping globals
+            loop_globals = []
+            for group in globals_dict:
+                for glob in globals_dict[group]:
+                    if globals_dict[group][glob][0:2] == "np":
+                        loop_globals.append(float(hz.attributesToDictionary(f).get('globals').get(glob)))
+
+            if len(loop_globals) != 2:
+                raise ValueError("Expected exactly 2 looping globals")
+
+            loop_var_1 = float(loop_globals[0])
+            loop_var_2 = float(loop_globals[1])
+            info_dict = hz.getAttributeDict(f)
+            kinetix_roi_row= np.array(f['globals'].attrs.get('kinetix_roi_row'))
+
+            return images, kinetix_roi_row, loop_var_1, loop_var_2, info_dict
+
+    def process_run(self, h5_path, load_threshold=True):
+        """Process a single run with average background method."""
+        folder_path = str(Path(h5_path).parent)
+
+        # Load data and configuration
+        images, _, loop_var_1, loop_var_2, info_dict = self.load_h5_data(h5_path)
+        threshold = self.load_threshold(load_threshold)
+
+
+        # Process images
+        image_types = list(images.keys())
+        first_image = images[image_types[0]]
+        second_image = images[image_types[1]]
+        bkg_image = images[image_types[2]]
+
+        # Process images using loaded ROI values
+        tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2 = self.process_images(
+            first_image, second_image, bkg_image, bkg_image)
+
+        # Analyze signals at each site
+        rect_sig_1, atom_exist_lst_1, roi_number_lst_1 = self.analyze_site_signals(
+            tweezer_roi_1, threshold)
+        rect_sig_2, atom_exist_lst_2, roi_number_lst_2 = self.analyze_site_signals(
+            tweezer_roi_2, threshold)
+
+        # Plot results
+        self.plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2,
+                         rect_sig_1, rect_sig_2)
+
+        # Calculate and save results
+        survival_rate, survival_rate_uncert = self.calculate_survival_rate(atom_exist_lst_1, atom_exist_lst_2)
+        roi_number_lst = self.prepare_roi_data(roi_number_lst_1, roi_number_lst_2)
+        self.save_data(folder_path, survival_rate, roi_number_lst,
+                      info_dict.get('run number'),  loop_var_1, loop_var_2)
+
+        # Save values for MLOOP
+        # Save sequence analysis result in latest run
+        run = lyse.Run(h5_path=h5_path)
+        my_condition = True
+        # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
+        # run.save_result(name='u_survival_rate', value=survival_rate_uncert if my_condition else np.nan)
+        run.save_results_dict(
+            {
+                'survival_rate': self.calculate_survival_rate(
+                    atom_exist_lst_1, atom_exist_lst_2, method='laplace',
+                ) if my_condition else (np.nan, np.nan),
+            },
+            uncertainties=True,
+        )
+
+    def save_data(self, folder_path,survival_rate, roi_number_lst, run_number, param1, param2):
+        """Save analysis results to files."""
+        count_file_path = os.path.join(folder_path, 'data.csv')
+        roi_number_lst_file_path = os.path.join(folder_path, 'roi_number_lst.npy')
+        if run_number == 0: # or run_number == 1:  # Initialize files for first run
+            with open(count_file_path, 'w') as f_object:
+                f_object.write(f'{survival_rate},{param1},{param2}\n')
+            np.save(roi_number_lst_file_path, roi_number_lst)
+        else:  # Append to existing files
+            with open(count_file_path, 'a') as f_object:
+                f_object.write(f'{survival_rate},{param1},{param2}\n')
+            roi_number_lst_old = np.load(roi_number_lst_file_path)
+            roi_number_lst_new = np.dstack((roi_number_lst_old, roi_number_lst))
+            print(roi_number_lst_new.shape)
+            np.save(roi_number_lst_file_path, roi_number_lst_new)
+

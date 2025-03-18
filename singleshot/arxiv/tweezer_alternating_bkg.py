@@ -22,14 +22,14 @@ except NameError:
 from scripts.singleshot.tweezer_image_analysis import AlternatingBackgroundAnalyzer
 
 # Configuration Constants
-SHOW_SITE_ROI = True #False
-LOAD_ROI = True
-THRESHOLD = 1185.5  # Fixed threshold for alternating background method
+SHOW_SITE_ROI = False
+LOAD_ROI = False
+THRESHOLD = 744 #1185.5  # Fixed threshold for alternating background method
 
 # ROI Configuration
 ROI_CONFIG = {
-    'x': [1173, 1523],  # Region of interest for tweezer array
-    'y': [960, 1070],   # Vertical region of interest
+    'x': [1050,1500],#[900,1300],  # Region of interest for tweezer array
+    'y': [1200,1310],#[1100,1200],   # Vertical region of interest
     'background_x': [1900, 2400],
     'background_y': [1900, 2400]
 }

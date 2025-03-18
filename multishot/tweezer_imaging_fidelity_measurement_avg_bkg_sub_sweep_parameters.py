@@ -350,10 +350,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 2000
+    cpa = 1500
     sigma1 = 0.1*cpa
     sigma2 = 0.1*cpa
-    mu1 = 0
+    mu1 = 500
     mu2 = cpa
     c1 = max(y_hist)
     c2 = c1+2000
@@ -452,10 +452,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 2000
+    cpa = 1500
     sigma1 = 0.1*cpa
     sigma2 = 0.1*cpa
-    mu1 = 0
+    mu1 = 500
     mu2 = cpa
     c1 = max(y_hist)
     c2 = c1+2000
@@ -465,9 +465,9 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = Fal
     s0 = abs(s0)
     s1 = abs(s1)
     cpa = mu1
-    th = threshold(c0, mu0, s0, c1, mu1, s1, cpa)
-    ff = prob_of_one_atom(c0,s0, c1, s1) #filling fraction
-    f = image_fidelity(mu0, s0, mu1, s1, ff, th)
+    # th = threshold(c0, mu0, s0, c1, mu1, s1, cpa)
+    # ff = prob_of_one_atom(c0,s0, c1, s1) #filling fraction
+    # f = image_fidelity(mu0, s0, mu1, s1, ff, th)
 
     if plot_double_gaussian_fit == True:
         x_hist_2=np.linspace(np.min(x_hist),np.max(x_hist),500)
@@ -591,76 +591,78 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para):
     ax4.set_title(f'average fidelity: {np.mean(fidelity_each_para)}')
 
 
-while True:
-    try:
-        folder = askdirectory(title='Select Folder for averaging the tweezer images') # shows dialog box and return the path
-        print(folder)
+if __name__ == '__main__':
 
-    except:
-        continue
-    break
+    while True:
+        try:
+            folder = askdirectory(title='Select Folder for averaging the tweezer images') # shows dialog box and return the path
+            print(folder)
 
-
-
-folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
-site_roi_x_file_path = folder_path + "\\site_roi_x.npy"
-site_roi_y_file_path =  folder_path + "\\site_roi_y.npy"
-
-avg_shot_bkg_file_path =  Path(Path(folder).parent, 'avg_shot_bkg.npy')#folder_path + "\\avg_shot_bkg.npy"
-avg_shot_bkg = np.load(avg_shot_bkg_file_path)
-avg_bkg_img = np.load(avg_shot_bkg_file_path)
-site_roi_x = np.load(site_roi_x_file_path)
-site_roi_y = np.load(site_roi_y_file_path)
-
-# print(f'min site_roi_x={np.min(site_roi_x, axis = 0)}, min site_roi_y={np.min(site_roi_y, axis = 0)}')
-site_roi_x = np.concatenate([[np.min(site_roi_x, axis = 0)], site_roi_x])
-site_roi_y = np.concatenate([[np.min(site_roi_y, axis = 0) + 10], site_roi_y])
-
-print(f'site_roi_x={site_roi_x}, site_roi_y={site_roi_y}')
-
-(data, roi_number_lst, N) = avg_shots_multi_roi_avg_bkg_sub(folder, site_roi_y, site_roi_x, avg_bkg_img, loop=False)
-
-folder_path = folder
-roi_number_lst_file_path = folder_path + "\\roi_number_lst.npy"
-th_file_path = folder_path + "\\th.npy"
-avg_img_file_path = folder_path + "\\avg_img.npy"
-np.save(roi_number_lst_file_path, roi_number_lst)
-np.save(avg_img_file_path, data)
-
-plot_shots_avg(data, site_roi_x, site_roi_y, N)
-
-# print(f'roi_number_lst shape = {roi_number_lst.shape}')
-th, cpa, ff, f = histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = True, plot_double_gaussian_fit = True, print_value=True)
+        except:
+            continue
+        break
 
 
 
+    folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'
+    site_roi_x_file_path = folder_path + "\\site_roi_x.npy"
+    site_roi_y_file_path =  folder_path + "\\site_roi_y.npy"
+
+    avg_shot_bkg_file_path =  Path(Path(folder).parent, 'avg_shot_bkg.npy')#folder_path + "\\avg_shot_bkg.npy"
+    avg_shot_bkg = np.load(avg_shot_bkg_file_path)
+    avg_bkg_img = np.load(avg_shot_bkg_file_path)
+    site_roi_x = np.load(site_roi_x_file_path)
+    site_roi_y = np.load(site_roi_y_file_path)
+
+    # print(f'min site_roi_x={np.min(site_roi_x, axis = 0)}, min site_roi_y={np.min(site_roi_y, axis = 0)}')
+    site_roi_x = np.concatenate([[np.min(site_roi_x, axis = 0)], site_roi_x])
+    site_roi_y = np.concatenate([[np.min(site_roi_y, axis = 0) + 10], site_roi_y])
+
+    print(f'site_roi_x={site_roi_x}, site_roi_y={site_roi_y}')
+
+    (data, roi_number_lst, N) = avg_shots_multi_roi_avg_bkg_sub(folder, site_roi_y, site_roi_x, avg_bkg_img, loop=False)
+
+    folder_path = folder
+    roi_number_lst_file_path = folder_path + "\\roi_number_lst.npy"
+    th_file_path = folder_path + "\\th.npy"
+    avg_img_file_path = folder_path + "\\avg_img.npy"
+    np.save(roi_number_lst_file_path, roi_number_lst)
+    np.save(avg_img_file_path, data)
+
+    plot_shots_avg(data, site_roi_x, site_roi_y, N)
+
+    # print(f'roi_number_lst shape = {roi_number_lst.shape}')
+    th, cpa, ff, f = histagram_fit_and_threshold(roi_number_lst, site_roi_x, plot_histagram = True, plot_double_gaussian_fit = True, print_value=True)
 
 
-np.save(th_file_path, th)
 
-msg = "Enter the sweep parameters"
-title = "Input"
-fieldNames = ["numpy array"]
-fieldValues = []  # we start with blanks for the values
-fieldValues = easygui.multenterbox(msg,title, fieldNames)
 
-# make sure that none of the fields was left blank
-while 1:
-    if fieldValues == None: break
-    errmsg = ""
-    for i in range(len(fieldNames)):
-      if fieldValues[i].strip() == "":
-        errmsg = errmsg + ('"%s" is a required field.\n\n' % fieldNames[i])
-    if errmsg == "": break # no problems found
-    fieldValues = easygui.multenterbox(errmsg, title, fieldNames, fieldValues)
-#print("Reply was:", fieldValues)
 
-para = eval(fieldValues[0])
+    np.save(th_file_path, th)
 
-avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para)
+    msg = "Enter the sweep parameters"
+    title = "Input"
+    fieldNames = ["numpy array"]
+    fieldValues = []  # we start with blanks for the values
+    fieldValues = easygui.multenterbox(msg,title, fieldNames)
 
-root = Tk()
-root.destroy()
+    # make sure that none of the fields was left blank
+    while 1:
+        if fieldValues == None: break
+        errmsg = ""
+        for i in range(len(fieldNames)):
+            if fieldValues[i].strip() == "":
+                errmsg = errmsg + ('"%s" is a required field.\n\n' % fieldNames[i])
+        if errmsg == "": break # no problems found
+        fieldValues = easygui.multenterbox(errmsg, title, fieldNames, fieldValues)
+    #print("Reply was:", fieldValues)
+
+    para = eval(fieldValues[0])
+
+    avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para)
+
+    root = Tk()
+    root.destroy()
 
 
 

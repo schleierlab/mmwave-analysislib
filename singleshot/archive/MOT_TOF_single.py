@@ -89,9 +89,20 @@ else:
     h5_path = df.filepath.iloc[-1]
 
 with h5py.File(h5_path, mode='r+') as f:
+    globals_dict = hz.attributesToDictionary(f['globals'])
     g = hz.getGlobalsFromFile(h5_path)
     info_dict = hz.getAttributeDict(f)
     images = hz.datasetsToDictionary(f['manta419b_mot_images'], recursive=True)
+
+    # Find looping global variable
+    loop_glob = next((glob for group in globals_dict
+                    for glob in globals_dict[group]
+                    if globals_dict[group][glob][0:2] == "np"), None)
+
+    try:
+        loop_var = float(f['globals'].attrs.get(loop_glob))
+    except:
+        loop_var = info_dict.get('run number')
 
 
 image_types = list(images.keys())
@@ -149,8 +160,6 @@ sigma = np.sort(np.abs([popt[3], popt[4]]))  # gaussian waiast in pixel, [short 
 gaussian_waist = np.array(sigma)*px*1e-6/mag # convert from pixel to distance m
 
 tof = g['bm_tof_imaging_delay']
-if g['do_dipole_trap_tof_check'] == True:
-    tof = g['img_tof_imaging_delay']
 print(gaussian_waist)
 temperature = m / kB * (gaussian_waist/tof)**2
 
@@ -232,7 +241,7 @@ with open(count_file_path, 'a') as f_object:
 temp_file_path = folder_path+'\\temp.csv'
 
 with open(temp_file_path, 'a') as f_object:
-    f_object.write(f'{tof},{temperature[0]},{temperature[1]}\n')
+    f_object.write(f'{tof},{temperature[0]},{temperature[1]},{loop_var}\n')
 
 tof_fit_file_path = folder_path+'\\TOFdata.csv'
 
