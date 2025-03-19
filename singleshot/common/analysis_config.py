@@ -149,7 +149,7 @@ kinetix_system = ImagingSystem(
     camera=kinetix_camera,
 )
 
-
+# TODO: do we need this? We were able to eliminate TweezerAnalysisConfig
 @dataclass
 class BulkGasAnalysisConfig:
     """Configuration class for bulk gas analysis parameters.
@@ -160,88 +160,10 @@ class BulkGasAnalysisConfig:
         Configuration object for the imaging system setup
     exposure_time : float
         Imaging exposure time in seconds
-    atoms_roi : list[list[int]]
-        ROI for atoms in bulk gas analysis, in format:
-        [[x_min, x_max], [y_min, y_max]]
-    bkg_roi : list[list[int]]
-        ROI for background in bulk gas analysis, in format:
-        [[x_min, x_max], [y_min, y_max]]
+    atoms_roi, bkg_roi : ROI
+        ROIs for atoms and background in bulk gas analysis
     """
     imaging_system: ImagingSystem
     exposure_time: float
     atoms_roi: ROI
     bkg_roi: ROI
-
-
-@dataclass
-class TweezerAnalysisConfig:
-    """Configuration class for image analysis parameters.
-
-    This class consolidates all configuration parameters needed for analyzing
-    imaging data, including the imaging system setup, ROI definitions, and
-    analysis-specific parameters.
-
-    Parameters
-    ----------
-    imaging_system : ImagingSystem
-        Configuration object for the imaging system setup
-    method : str, default='average'
-        Method for background subtraction:
-        - 'average': Use average background subtraction
-        - 'alternating': Use alternating background subtraction
-    bkg_roi_x : Tuple[int, int]
-        X-coordinates [start, end] for background region
-    load_roi : bool, default=True
-        If True, load ROIs from standard .npy files:
-        - roi_x.npy: Main ROI x-coordinates
-        - site_roi_x.npy: Site ROI x-coordinates
-        - site_roi_y.npy: Site ROI y-coordinates
-        If False, load from YAML config
-    roi_config_path : Optional[str], default=None
-        Path to YAML configuration file for ROIs. Required when load_roi=False
-    roi_x : Optional[list[int]], default=None
-        X-coordinates [start, end] for atom imaging region.
-        Only required when load_roi=False
-    site_roi : Optional[Dict[str, list[list[int]]]], default=None
-        Dictionary containing site ROI coordinates. Only required when load_roi=False.
-        Must have:
-        - 'site_roi_x': List of [start, end] x-coordinates for each site
-        - 'site_roi_y': List of [start, end] y-coordinates for each site
-    load_threshold : bool, default=True
-        Whether to load threshold from file for tweezer analysis
-    threshold : Optional[float], default=None
-        Threshold value to use if not loading from file
-    """
-    imaging_system: ImagingSystem = kinetix_system
-    method: Literal['average', 'alternating'] = 'average'
-    bkg_roi_xlims: tuple[int, int] = (1900, 2400)
-    load_roi: bool = True
-    roi_config_path: Optional[str] = None
-    roi_x: Optional[tuple[int, int]] = None
-    site_roi: Optional[dict[str, ROI]] = None
-    load_threshold: bool = True
-    threshold: Optional[float] = None
-
-    # TODO: do we actually want to store defaults in a YAML file?
-    # If so, we can store here: 'X:\\userlib\\analysislib\\scripts\\multishot\\tweezer_roi.yaml'
-    # Or do we just want to hard code the in the class?
-    # YAML makes sense if we are in fact changing the defaults often and have a huge list of them
-    # If we don't have one of those conditions then we might as well just hard code it
-
-    @classmethod
-    def from_yaml(cls, path: str): # not being used for now
-        """Create an AnalysisConfig instance from a YAML file.
-
-        Parameters
-        ----------
-        path : str
-            Path to YAML configuration file
-
-        Returns
-        -------
-        AnalysisConfig
-            Analysis configuration object
-        """
-        with open(path, 'r') as f:
-            config_dict = yaml.safe_load(f)
-        return cls(**config_dict)

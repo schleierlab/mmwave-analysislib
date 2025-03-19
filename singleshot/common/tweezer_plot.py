@@ -158,6 +158,14 @@ class TweezerPlotter:
     #             fig.colorbar(pos, ax=ax_bkg).ax.tick_params(labelsize=self.plot_config.label_font_size)
 
     def plot_survival_rate(self, fig: Optional[Figure] = None):
+        """
+        Plots the total survival rate of atoms in the tweezers, summed over all sites.
+        
+        Parameters
+        ----------
+        fig : Optional[Figure]
+            The figure to plot on. If None, a new figure is created.
+        """
         if fig is None:
             fig, ax = plt.subplots(
                 figsize=self.plot_config.figure_size,
@@ -166,11 +174,12 @@ class TweezerPlotter:
         else:
             ax = fig.subplots()
 
-        initial_atoms = self.site_occupancies[:, 0].sum(axis=-1)
+        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1)
+        # site_occupancies is of shape (num_shots, num_images, num_atoms)
 
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.product(self.site_occupancies[:, :2], axis=1).sum(axis=-1)
+        surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
         survival_rates = surviving_atoms / initial_atoms
         ax.plot(
@@ -187,3 +196,45 @@ class TweezerPlotter:
         )
         ax.grid(color=self.plot_config.grid_color_major, which='major')
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+        ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+    def plot_survival_rate_by_site(self, fig: Optional[Figure] = None):
+        """
+        Plots the survival rate of atoms in the tweezers, site by site.
+        
+        Parameters
+        ----------
+        fig : Optional[Figure]
+            The figure to plot on. If None, a new figure is created.
+        """
+        if fig is None:
+            fig, ax = plt.subplots(
+                figsize=self.plot_config.figure_size,
+                constrained_layout=self.plot_config.constrained_layout,
+            )
+        else:
+            ax = fig.subplots()
+
+        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=0)
+        # site_occupancies is of shape (num_shots, num_images, num_atoms)
+
+        # axis=1 corresponds to the before/after tweezer images
+        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
+        surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=0)
+
+        survival_rates = surviving_atoms / initial_atoms
+        ax.plot(
+            np.arange(len(initial_atoms)),
+            survival_rates,
+            marker='.',
+        )
+        ax.set_xlabel('Site number', fontsize=self.plot_config.label_font_size)
+        ax.set_ylabel('Survival rate', fontsize=self.plot_config.label_font_size)
+        ax.tick_params(
+            axis='both',
+            which='major',
+            labelsize=self.plot_config.label_font_size,
+        )
+        ax.grid(color=self.plot_config.grid_color_major, which='major')
+        ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+        ax.set_title('Survival rate by site', fontsize=self.plot_config.title_font_size)

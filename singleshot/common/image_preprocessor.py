@@ -63,7 +63,7 @@ class ImagePreprocessor(ABC):
             self.n_runs = f.attrs['n_runs']
 
     # TODO migrate to using pathlib Paths instead
-    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path) -> tuple[str, str]:
+    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[str] = None) -> tuple[str, str]:
         """
         get h5_path based on load_type
         Parameters

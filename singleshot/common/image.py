@@ -87,7 +87,7 @@ class Image:
             roi.xmin:roi.xmax,
         ]
 
-    def imshow_view(self, roi: ROI, ax: Optional[Axes] = None, **kwargs):
+    def imshow_view(self, roi: ROI, scale_factor: float = 1.0, ax: Optional[Axes] = None, **kwargs):
         '''
         Parameters
         ----------
@@ -102,7 +102,7 @@ class Image:
             fig, ax = plt.subplots()
         im = ax.imshow(
             self.roi_view(roi),
-            extent=np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin]),
+            extent=(scale_factor * np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin])),
             **kwargs,
         )
         return im

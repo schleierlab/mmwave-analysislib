@@ -1,14 +1,18 @@
-from typing import Optional, cast
+from typing import Optional
+
 import h5py
-from matplotlib import colors, patches, pyplot as plt
-from matplotlib.axes import Axes
+from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
 import numpy as np
-from uncertainties import ufloat
+from scipy import optimize
+import uncertainties
 
-from .bulk_gas_analysis import BulkGasPreprocessor
-from .image import ROI, Image
 from .plot_config import PlotConfig
+
+
+globals_friendly_names = {
+    'mw_detuning': 'Microwave detuning',
+}
 
 
 class BulkGasPlotter:
@@ -20,65 +24,8 @@ class BulkGasPlotter:
         with h5py.File(h5_path, 'r') as f:
             self.atom_numbers = f['atom_numbers'][:]
             self.params_list = f['params'][:]
-            print(self.params_list)
+            self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
-            
-
-    # def plot_images(self):
-    #     """
-    #     plot the images of raw image/background image full frame and background subtracted images in rois
-    #     and also save the images in the folder path
-    #     """
-    #     atom_image = self.atom_image
-    #     background_image = self.background_image
-    #     roi_atoms = self.roi_atoms
-    #     roi_bkg = self.roi_bkg
-    #     [roi_x, roi_y] = self.atoms_roi
-    #     [roi_x_bkg, roi_y_bkg] = self.background_roi
-
-    #     fig, axs = plt.subplots(nrows=2, ncols=2,
-    #                            figsize=self.plot_config.figure_size,
-    #                            constrained_layout=self.plot_config.constrained_layout)
-    #     (ax_atom_raw, ax_bkg_raw), (ax_bkg_roi, ax_atom_roi) = axs
-    #     for ax in axs[0]:
-    #         ax.set_xlabel('x [px]')
-    #         ax.set_ylabel('y [px]')
-    #         ax.tick_params(axis='both', which='major', labelsize=self.plot_config.label_font_size)
-    #     for ax in axs[1]:
-    #         ax.set_xlabel('x [m]')
-    #         ax.set_ylabel('y [m]')
-    #         ax.tick_params(axis='both', which='major', labelsize=self.plot_config.label_font_size)
-
-    #     raw_img_color_kw = dict(cmap=self.plot_config.colormap, vmin=0, vmax=self.plot_config.raw_image_scale)
-    #     ax_atom_raw.set_title('Raw, with atom', fontsize=self.plot_config.title_font_size)
-    #     pos = ax_atom_raw.imshow(atom_image, **raw_img_color_kw)
-    #     fig.colorbar(pos, ax=ax_atom_raw).ax.tick_params(labelsize=self.plot_config.label_font_size)
-
-    #     ax_bkg_raw.set_title('Raw, no atom', fontsize=self.plot_config.title_font_size)
-    #     pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
-    #     fig.colorbar(pos, ax=ax_bkg_raw).ax.tick_params(labelsize=self.plot_config.label_font_size)
-
-    #     pixel_size_before_magnification = self.imaging_setup.pixel_size_before_magnification
-    #     ax_atom_roi.set_title('Atom ROI', fontsize=self.plot_config.title_font_size)
-    #     roi_img_color_kw = dict(cmap=self.plot_config.colormap, vmin=0, vmax=self.plot_config.roi_image_scale)
-    #     pos = ax_atom_roi.imshow(
-    #         roi_atoms,
-    #         extent=np.array([roi_x[0], roi_x[1], roi_y[0], roi_y[1]])*pixel_size_before_magnification,
-    #         **roi_img_color_kw,
-    #     )
-    #     fig.colorbar(pos, ax=ax_atom_roi).ax.tick_params(labelsize=self.plot_config.label_font_size)
-
-    #     ax_bkg_roi.set_title('Background ROI', fontsize=self.plot_config.title_font_size)
-    #     pos = ax_bkg_roi.imshow(
-    #         roi_bkg,
-    #         vmin=-10,
-    #         vmax=10,
-    #         extent=np.array([roi_x_bkg[0], roi_x_bkg[1], roi_y_bkg[0], roi_y_bkg[1]])*pixel_size_before_magnification,
-    #         cmap=self.plot_config.colormap
-    #     )
-    #     fig.colorbar(pos, ax=ax_bkg_roi).ax.tick_params(labelsize=self.plot_config.label_font_size)
-    #     fig.savefig(self.folder_path+'\\atom_cloud.png')
-    #     return
 
     def plot_atom_number(self, fig: Optional[Figure] = None):
         """Plot atom number vs the shot number and save the image in the folder path.
@@ -96,7 +43,8 @@ class BulkGasPlotter:
         
         loop_params = np.transpose(np.array(self.current_params))[0]
         ax.plot(
-            loop_params, self.atom_numbers,
+            loop_params,
+            self.atom_numbers,
             marker='.',
         )
         ax.set_xlabel(
@@ -115,6 +63,63 @@ class BulkGasPlotter:
 
         ax.grid(color=self.plot_config.grid_color_major, which='major')
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+
+        # doing the fit at the end of the run
+        if self.atom_numbers.shape[0] == self.n_runs:
+            popt, pcov = self.fit_lorentzian(loop_params, self.atom_numbers)
+            upopt = uncertainties.correlated_values(popt, pcov)
+
+            x_plot = np.linspace(
+                np.min(loop_params),
+                np.max(loop_params),
+                1000,
+            )
+
+            ax.plot(x_plot, self.lorentzian(x_plot, *popt))
+            fig.suptitle(
+                f'Center frequency: ${upopt[0]:SL}$ MHz; '
+                f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+            )
+
+    @staticmethod
+    def lorentzian(x, x0, width, a, offset):
+        """
+        Returns a Lorentzian function.
+        
+        Parameters
+        ----------
+        x : float or array
+            Input values
+        x0 : float
+            Central frequency
+        width : float
+            Width of the Lorentzian
+        a : float
+            Amplitude of the Lorentzian
+        offset : float
+            Offset of the Lorentzian
+        
+        Returns
+        -------
+        float or array
+            Lorentzian function values
+        """
+        detuning = x - x0
+        return a * width / ((width / 2)**2 + detuning**2) + offset
+
+    def fit_lorentzian(self, x_data, y_data):
+        """
+        Fits a Lorentzian function to the atom number data.
+        """
+        x0_guess = x_data[np.argmax(y_data)]
+        x_resolution = (x_data[1] - x_data[0])
+        width_guess = 2*x_resolution
+        y_data_range = np.max(y_data) - np.min(y_data)
+        a_guess = y_data_range / width_guess * (width_guess/2)**2
+
+        offset_guess = np.min(y_data)
+        p0 = [x0_guess, width_guess, a_guess, offset_guess]
+        return optimize.curve_fit(self.lorentzian, x_data, y_data, p0=p0)
 
     # def plot_atom_temperature(self):
     #     """Plot atom temperature vs shot number and fit temperature with time of flight.

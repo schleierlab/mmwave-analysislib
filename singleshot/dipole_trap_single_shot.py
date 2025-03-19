@@ -3,13 +3,13 @@ from common.bulk_gas_analysis import BulkGasPreprocessor
 from common.bulk_gas_plot import BulkGasPlotter
 from common.image import ROI
 from common.plot_config import PlotConfig
-from matplotlib import colors, patches, pyplot as plt
+from matplotlib import pyplot as plt
 
 
 analysis_config = BulkGasAnalysisConfig(
     imaging_system=kinetix_system,
     exposure_time=80e-3,
-    atoms_roi=ROI(xmin=1000, xmax=1800, ymin=1160, ymax=1350),
+    atoms_roi=ROI(xmin=1150, xmax=1950, ymin=1245, ymax=1295),
     bkg_roi=ROI(xmin=1900, xmax=2400, ymin=1900, ymax=2400),
 )
 
