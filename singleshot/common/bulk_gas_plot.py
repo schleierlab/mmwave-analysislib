@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 import numpy as np
 from scipy import optimize
 import uncertainties
+from pathlib import Path
 
 from .plot_config import PlotConfig
 
@@ -19,6 +20,8 @@ class BulkGasPlotter:
     def __init__(self, h5_path, plot_config: PlotConfig = None):
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(h5_path)
+        h5p = Path(h5_path)
+        self.folder_path = h5p.parent
 
     def _load_processed_quantities(self, h5_path):
         with h5py.File(h5_path, 'r') as f:
@@ -45,22 +48,24 @@ class BulkGasPlotter:
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
+            is_subfig = False
         else:
             ax = fig.subplots()
+            is_subfig = True
 
         loop_params = np.squeeze(self.current_params)
-        
+
         # Group data points by x-value and calculate statistics
         unique_params = np.unique(loop_params)
         means = np.array([
-            np.mean(self.atom_numbers[loop_params == x]) 
+            np.mean(self.atom_numbers[loop_params == x])
             for x in unique_params
         ])
         stds = np.array([
-            np.std(self.atom_numbers[loop_params == x]) 
+            np.std(self.atom_numbers[loop_params == x])
             for x in unique_params
         ])
-        
+
         ax.errorbar(
             unique_params,
             means,
@@ -103,6 +108,32 @@ class BulkGasPlotter:
                 f'Center frequency: ${upopt[0]:SL}$ MHz; '
                 f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
             )
+
+        figname = f"{self.folder_path}\count vs param.png"
+        if is_subfig:
+            self.save_subfig(fig, figname)
+        else:
+            fig.savefig(figname)
+
+    @staticmethod
+    def save_subfig(subfig, filename):
+        # Create a new figure with the same size as the subfigure
+        new_fig = plt.figure(figsize=subfig.get_figure().get_size_inches())
+
+        # Get the position and size of the subfigure
+        bbox = subfig.get_tightbbox(subfig.figure.canvas.get_renderer())
+        bbox = bbox.transformed(subfig.figure.transFigure.inverted())
+
+        # Create a new axes that fills the entire figure
+        new_axes = new_fig.add_axes([0, 0, 1, 1])
+
+        # Draw the subfigure content
+        new_axes.set_facecolor(subfig.get_facecolor())
+        subfig.figure.canvas.draw()
+
+        # Save the new figure
+        new_fig.savefig(filename, bbox_inches='tight', pad_inches=0)
+        plt.close(new_fig)
 
     @staticmethod
     def lorentzian(x, x0, width, a, offset):
