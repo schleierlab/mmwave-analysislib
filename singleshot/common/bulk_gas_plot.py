@@ -27,11 +27,18 @@ class BulkGasPlotter:
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
 
-    def plot_atom_number(self, fig: Optional[Figure] = None):
+    def plot_atom_number(self, fig: Optional[Figure] = None, plot_lorentz = True):
         """Plot atom number vs the shot number and save the image in the folder path.
 
         This function requires that get_atom_number has been run first to save the
         atom number to processed_quantities.h5.
+
+        Parameters
+        ----------
+        fig : Optional[Figure], default=None
+            Figure to plot on, if None a new figure is created
+        plot_lorentz : bool, default=True
+            Whether to plot a Lorentzian fit to the atom number data
         """
         if fig is None:
             fig, ax = plt.subplots(
@@ -40,7 +47,7 @@ class BulkGasPlotter:
             )
         else:
             ax = fig.subplots()
-        
+
         loop_params = np.transpose(np.array(self.current_params))[0]
         ax.plot(
             loop_params,
@@ -65,7 +72,7 @@ class BulkGasPlotter:
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
 
         # doing the fit at the end of the run
-        if self.atom_numbers.shape[0] == self.n_runs:
+        if self.atom_numbers.shape[0] == self.n_runs and plot_lorentz:
             popt, pcov = self.fit_lorentzian(loop_params, self.atom_numbers)
             upopt = uncertainties.correlated_values(popt, pcov)
 
@@ -85,7 +92,7 @@ class BulkGasPlotter:
     def lorentzian(x, x0, width, a, offset):
         """
         Returns a Lorentzian function.
-        
+
         Parameters
         ----------
         x : float or array
@@ -98,7 +105,7 @@ class BulkGasPlotter:
             Amplitude of the Lorentzian
         offset : float
             Offset of the Lorentzian
-        
+
         Returns
         -------
         float or array

@@ -211,6 +211,10 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         Process a single shot of bulk gas.
 
+        param_list: List
+            List of parameters to be saved.
+            Elements of the list have structure [parameter_name, parameter_unit, list of parameter values].
+
         Returns
         -------
         str
@@ -230,7 +234,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                     chunks = True,
                 )
                 param_list = []
-                for key in self.params.keys():
+                for key in self.params.keys(): 
                     param_list.append([key, self.params[key][1], self.params[key][0]])
                 f.create_dataset('params', data=param_list)
         else:

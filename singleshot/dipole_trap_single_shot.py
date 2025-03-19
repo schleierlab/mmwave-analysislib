@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 analysis_config = BulkGasAnalysisConfig(
     imaging_system=kinetix_system,
     exposure_time=80e-3,
-    atoms_roi=ROI(xmin=1150, xmax=1950, ymin=1245, ymax=1295),
+    atoms_roi=ROI(xmin=1000, xmax=1950, ymin=1200, ymax=1340),
     bkg_roi=ROI(xmin=1900, xmax=2400, ymin=1900, ymax=2400),
 )
 
@@ -27,8 +27,8 @@ subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 bulk_gas_analyzer.show_images(fig = subfigs[0], raw_img_scale = 800)
 
 plotter = BulkGasPlotter(
-    processed_results_fname, 
+    processed_results_fname,
     plot_config=PlotConfig(),
 )
 
-plotter.plot_atom_number(fig = subfigs[1])
+plotter.plot_atom_number(fig = subfigs[1], plot_lorentz = True)
