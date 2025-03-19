@@ -261,7 +261,10 @@ class BulkGasPreprocessor(ImagePreprocessor):
         else:
             axs = fig.subplots(nrows=2, ncols=2)
 
-        fig.suptitle(self.h5_path)
+        fig.suptitle(
+            self.h5_path, 
+            fontsize=8,
+        )
         fig.supxlabel('Length (mm)')
         fig.supylabel('Length (mm)')
         plot_unit = 1e-3
@@ -282,7 +285,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         atoms_roi = self.atoms_roi
         print(img_obj.array.shape)
         axs[0, 0].add_patch(atoms_roi.patch(scale_factor=plot_units_per_pixel))
-        axs[1, 0].set_title('Cloud Region (background subtracted)')
+        axs[1, 0].set_title('Cloud Region \n(background subtracted)')
 
         img_obj.imshow_view(
             atoms_roi,
@@ -295,7 +298,9 @@ class BulkGasPreprocessor(ImagePreprocessor):
         bkg_roi = self.background_roi
         # print(img_obj.roi_view(bkg_roi))
         axs[0, 1].add_patch(bkg_roi.patch(scale_factor=plot_units_per_pixel))
-        axs[1, 1].set_title(f'Background region (background subtracted), mean {img_obj.roi_mean(bkg_roi):.2f}')
+        axs[1, 1].set_title(
+            f'Background region \n(background subtracted)\nmean {img_obj.roi_mean(bkg_roi):.2f}, stddev {img_obj.roi_stddev(bkg_roi):.2f}',
+        )
         
         img_obj.imshow_view(
             bkg_roi,

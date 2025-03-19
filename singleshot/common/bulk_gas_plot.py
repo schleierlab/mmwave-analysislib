@@ -48,11 +48,27 @@ class BulkGasPlotter:
         else:
             ax = fig.subplots()
 
-        loop_params = np.transpose(np.array(self.current_params))[0]
-        ax.plot(
-            loop_params,
-            self.atom_numbers,
+        loop_params = np.squeeze(self.current_params)
+        
+        # Group data points by x-value and calculate statistics
+        unique_params = np.unique(loop_params)
+        means = np.array([
+            np.mean(self.atom_numbers[loop_params == x]) 
+            for x in unique_params
+        ])
+        stds = np.array([
+            np.std(self.atom_numbers[loop_params == x]) 
+            for x in unique_params
+        ])
+        
+        ax.errorbar(
+            unique_params,
+            means,
+            yerr=stds,
             marker='.',
+            linestyle='-',
+            alpha=0.5,
+            capsize=3,
         )
         ax.set_xlabel(
             f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
@@ -73,12 +89,12 @@ class BulkGasPlotter:
 
         # doing the fit at the end of the run
         if self.atom_numbers.shape[0] == self.n_runs and plot_lorentz:
-            popt, pcov = self.fit_lorentzian(loop_params, self.atom_numbers)
+            popt, pcov = self.fit_lorentzian(unique_params, means)
             upopt = uncertainties.correlated_values(popt, pcov)
 
             x_plot = np.linspace(
-                np.min(loop_params),
-                np.max(loop_params),
+                np.min(unique_params),
+                np.max(unique_params),
                 1000,
             )
 

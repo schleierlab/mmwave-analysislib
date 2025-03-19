@@ -111,6 +111,9 @@ class Image:
     def roi_mean(self, roi: ROI):
         return np.mean(self.roi_view(roi))
 
+    def roi_stddev(self, roi: ROI):
+        return np.std(self.roi_view(roi))
+
     def roi_sum(self, roi: ROI):
         return np.sum(self.roi_view(roi))
 
