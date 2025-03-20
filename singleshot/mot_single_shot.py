@@ -27,7 +27,8 @@ subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 bulk_gas_analyzer.show_images(fig = subfigs[0])
 
 plotter = BulkGasStatistician(
-    processed_results_fname,
+    preproc_h5_path=processed_results_fname,
+    shot_h5_path=bulk_gas_analyzer.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
 )
 plotter.plot_atom_number(fig = subfigs[1], plot_lorentz=False)

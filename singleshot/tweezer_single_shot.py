@@ -19,7 +19,7 @@ tweezer_analyzer.show_image(roi_patches=True, fig=subfigs[0], vmax=70)
 # Initialize statistician with consistent styling
 tweezer_statistician = TweezerStatistician(
     preproc_h5_path=processed_results_fname,
-    shot_h5_path=tweezer_analyzer.h5_path,
+    shot_h5_path=tweezer_analyzer.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
 )
 #tweezer_statistician.plot_survival_rate(fig=subfigs[1])

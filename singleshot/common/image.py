@@ -119,3 +119,45 @@ class Image:
 
     def roi_sums(self, rois: Sequence[ROI]):
         return np.array([self.roi_sum(roi) for roi in rois])
+
+    def roi_fit_gaussian2d(self, roi: ROI):
+        """
+        Fits a 2D Gaussian function to the image data.
+        Mainly intended to fit images of the MOT.
+        """
+        image = self.roi_view(roi)
+        x0_guess, y0_guess = np.unravel_index(np.argmax(image), image.shape)
+        width_guess = roi.width*10
+        height_guess = roi.height*10
+        z_data_range = np.max(image) - np.min(image)
+        a_guess = z_data_range / (width_guess * height_guess)
+
+        offset_guess = np.min(image)
+        p0 = [x0_guess, y0_guess, width_guess, height_guess, a_guess, offset_guess]
+        return optimize.curve_fit(self.gaussian2d, (np.arange(roi.width), np.arange(roi.height)), image, p0=p0)
+
+    @staticmethod
+    def gaussian2d(inputs, x0, y0, width, height, a, offset):
+        """
+        Returns a 2D Gaussian function.
+
+        Parameters
+        ----------
+        inputs : tuple of float or array
+            Input values (x, y)
+        x0 : float
+            Central frequency
+        width : float
+            Width of the Gaussian
+        a : float
+            Amplitude of the Gaussian
+        offset : float
+            Offset of the Gaussian
+
+        Returns
+        -------
+        float or array
+            Gaussian function values
+        """
+        x, y = inputs
+        return a * np.exp(-((x - x0) / width)**2 - ((y - y0) / height)**2) + offset
