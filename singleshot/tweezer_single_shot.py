@@ -1,6 +1,6 @@
 from matplotlib import pyplot as plt
 from common.tweezer_analysis import TweezerPreprocessor
-from common.tweezer_plot import TweezerPlotter
+from common.tweezer_plot import TweezerStatistician
 from common.plot_config import PlotConfig
 
 
@@ -16,10 +16,11 @@ subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 processed_results_fname = tweezer_analyzer.process_shot()
 tweezer_analyzer.show_image(roi_patches=True, fig=subfigs[0], vmax=70)
 
-# Initialize plotter with consistent styling
-tweezer_plotter = TweezerPlotter(
-    processed_results_fname,
+# Initialize statistician with consistent styling
+tweezer_statistician = TweezerStatistician(
+    preproc_h5_path=processed_results_fname,
+    shot_h5_path=tweezer_analyzer.h5_path,
     plot_config=PlotConfig(),
 )
-#tweezer_plotter.plot_survival_rate(fig=subfigs[1])
-tweezer_plotter.plot_survival_rate_by_site(fig=subfigs[1])
+#tweezer_statistician.plot_survival_rate(fig=subfigs[1])
+tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])
