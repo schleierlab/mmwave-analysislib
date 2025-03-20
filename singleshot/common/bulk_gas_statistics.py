@@ -7,6 +7,7 @@ import numpy as np
 from scipy import optimize
 import uncertainties
 from pathlib import Path
+import lyse # needed for MLOOP
 
 from .plot_config import PlotConfig
 
@@ -16,11 +17,31 @@ globals_friendly_names = {
 }
 
 
-class BulkGasPlotter:
-    def __init__(self, h5_path, plot_config: PlotConfig = None):
+class BulkGasStatistician:
+    """Class for statistical analysis of tweezer imaging data.
+
+    This class provides methods for statistical analysis of tweezer imaging data.
+    It also generates several different types of plots for visualizing the data and
+    manages input to MLOOP for online optimization.
+
+    Parameters
+    ----------
+    preproc_h5_path : str
+        Path to the processed quantities h5 file
+    shot_h5_path : str
+        Path to the shot h5 file, we only need this for MLOOP to save results for optimization
+    plot_config : PlotConfig, optional
+        Configuration object for plot styling
+    """
+    def __init__(self, 
+                 preproc_h5_path: str, 
+                 shot_h5_path: str, 
+                 plot_config: PlotConfig = None
+                 ):
         self.plot_config = plot_config or PlotConfig()
-        self._load_processed_quantities(h5_path)
-        h5p = Path(h5_path)
+        self._load_processed_quantities(preproc_h5_path)
+        self._save_mloop_params(shot_h5_path)
+        h5p = Path(preproc_h5_path)
         self.folder_path = h5p.parent
 
     def _load_processed_quantities(self, h5_path):
@@ -29,6 +50,32 @@ class BulkGasPlotter:
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
+
+    def _save_mloop_params(self, shot_h5_path: str) -> None:
+        """Save values and uncertainties to be used by MLOOP for optimization.
+
+        MLOOP reads the results of any experiment from the latest shot h5 file, 
+        updates the loss landscape, and triggers run manager for the next batch
+        of experiments.
+        
+        Parameters
+        ----------
+        shot_h5_path : str
+            Path to the shot h5 file
+        """
+        # Save values for MLOOP
+        # Save sequence analysis result in latest run
+        run = lyse.Run(h5_path=shot_h5_path)
+        my_condition = True
+        # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
+        survival_rate = 0; survival_uncertainty = 0.1
+        mloop_result = (survival_rate, survival_uncertainty)
+        run.save_results_dict(
+            {
+                'survival_rate': mloop_result if my_condition else (np.nan, np.nan),
+            },
+            uncertainties=True,
+        )
 
     def plot_atom_number(self, fig: Optional[Figure] = None, plot_lorentz = True):
         """Plot atom number vs the shot number and save the image in the folder path.

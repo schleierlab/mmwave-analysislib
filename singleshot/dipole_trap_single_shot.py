@@ -1,6 +1,6 @@
 from common.analysis_config import kinetix_system, BulkGasAnalysisConfig
 from common.bulk_gas_analysis import BulkGasPreprocessor
-from common.bulk_gas_plot import BulkGasPlotter
+from common.bulk_gas_statistics import BulkGasStatistician
 from common.image import ROI
 from common.plot_config import PlotConfig
 from matplotlib import pyplot as plt
@@ -26,7 +26,7 @@ subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 
 bulk_gas_analyzer.show_images(fig = subfigs[0], raw_img_scale = 800)
 
-plotter = BulkGasPlotter(
+plotter = BulkGasStatistician(
     processed_results_fname,
     plot_config=PlotConfig(),
 )

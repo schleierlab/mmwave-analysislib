@@ -25,7 +25,8 @@ class TweezerStatistician:
     plot_config : PlotConfig, optional
         Configuration object for plot styling
     """
-    def __init__(self, preproc_h5_path: str, 
+    def __init__(self, 
+    preproc_h5_path: str, 
                  shot_h5_path: str, 
                  plot_config: PlotConfig = None,
                  ):

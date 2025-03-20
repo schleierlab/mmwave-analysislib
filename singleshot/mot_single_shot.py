@@ -1,6 +1,6 @@
 from common.analysis_config import manta_system, BulkGasAnalysisConfig
 from common.bulk_gas_analysis import BulkGasPreprocessor
-from common.bulk_gas_plot import BulkGasPlotter
+from common.bulk_gas_statistics import BulkGasStatistician
 from common.image import ROI
 from common.plot_config import PlotConfig
 
@@ -26,8 +26,8 @@ subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 
 bulk_gas_analyzer.show_images(fig = subfigs[0])
 
-plotter = BulkGasPlotter(
-    processed_results_fname, 
+plotter = BulkGasStatistician(
+    processed_results_fname,
     plot_config=PlotConfig(),
 )
-plotter.plot_atom_number(fig = subfigs[1])
+plotter.plot_atom_number(fig = subfigs[1], plot_lorentz=False)
