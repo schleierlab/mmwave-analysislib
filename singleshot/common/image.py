@@ -8,6 +8,7 @@ from matplotlib import patches, pyplot as plt
 from matplotlib.axes import Axes
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from scipy import optimize
 
 MaybeInt = Optional[int]
 
@@ -126,29 +127,35 @@ class Image:
         Mainly intended to fit images of the MOT.
         """
         image = self.roi_view(roi)
+        y, x = np.mgrid[:image.shape[0], :image.shape[1]]
         x0_guess, y0_guess = np.unravel_index(np.argmax(image), image.shape)
-        width_guess = roi.width*10
-        height_guess = roi.height*10
+        width_guess = roi.width/4
+        height_guess = roi.height/4
         z_data_range = np.max(image) - np.min(image)
-        a_guess = z_data_range / (width_guess * height_guess)
-
+        a_guess = z_data_range
         offset_guess = np.min(image)
+        
         p0 = [x0_guess, y0_guess, width_guess, height_guess, a_guess, offset_guess]
-        return optimize.curve_fit(self.gaussian2d, (np.arange(roi.width), np.arange(roi.height)), image, p0=p0)
+        return optimize.curve_fit(
+            self.gaussian2d, 
+            (x.ravel(), y.ravel()), 
+            image.ravel(), 
+            p0=p0
+        )
 
     @staticmethod
-    def gaussian2d(inputs, x0, y0, width, height, a, offset):
+    def gaussian2d(xy, x0, y0, width, height, a, offset):
         """
         Returns a 2D Gaussian function.
 
         Parameters
         ----------
-        inputs : tuple of float or array
-            Input values (x, y)
-        x0 : float
-            Central frequency
-        width : float
-            Width of the Gaussian
+        xy : tuple of arrays
+            Input coordinates as (x, y) arrays
+        x0, y0 : float
+            Center position of the Gaussian
+        width, height : float
+            Width parameters of the Gaussian in x and y directions
         a : float
             Amplitude of the Gaussian
         offset : float
@@ -156,8 +163,8 @@ class Image:
 
         Returns
         -------
-        float or array
-            Gaussian function values
+        array
+            Flattened array of Gaussian function values
         """
-        x, y = inputs
+        x, y = xy
         return a * np.exp(-((x - x0) / width)**2 - ((y - y0) / height)**2) + offset

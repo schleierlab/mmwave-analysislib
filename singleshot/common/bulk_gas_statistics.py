@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 import numpy as np
 from scipy import optimize
 import uncertainties
+import uncertainties.unumpy as unumpy
 from pathlib import Path
 import lyse # needed for MLOOP
 from analysislib.analysis.data import h5lyze as hz # needed for testing MLOOP
@@ -51,8 +52,9 @@ class BulkGasStatistician:
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
-            if 'gaussian_cloud_params' in f:
-                self.gaussian_cloud_params = f['gaussian_cloud_params'][:]
+            if 'gaussian_cloud_params_nom' in f:
+                self.gaussian_cloud_params_nom = f['gaussian_cloud_params_nom'][:]
+                self.gaussian_cloud_params_std = f['gaussian_cloud_params_std'][:]
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -109,7 +111,8 @@ class BulkGasStatistician:
             ax = fig.subplots()
             is_subfig = True
 
-        loop_params = np.squeeze(self.current_params)
+        # loop_params = np.squeeze(self.current_params)
+        loop_params = self.current_params[:, 0]
 
         # Group data points by x-value and calculate statistics
         unique_params = np.unique(loop_params)
@@ -181,82 +184,99 @@ class BulkGasStatistician:
         ----------
         fig : Optional[Figure], default=None
             Figure to plot on, if None a new figure is created
-        plot_lorentz : bool, default=True
-            Whether to plot a Lorentzian fit to the atom number data
+        show_means : bool, default=True
+            Whether to show the means of the mot params vs loop params as a horizontal line on
+            on the plot.
         """
+        loop_params = self.current_params[:, 0]
+        unique_params = np.unique(loop_params)
+        
+        # Create subplots
         if fig is None:
-            fig, ax = plt.subplots(
-                figsize=self.plot_config.figure_size,
-                constrained_layout=self.plot_config.constrained_layout,
+            fig = plt.figure(
+                figsize=(12, 8),
+                constrained_layout=True
             )
             is_subfig = False
         else:
-            ax = fig.subplots()
+            axs = fig.subplots(2, 3)
+            axs = axs.flatten()
             is_subfig = True
-
-        loop_params = np.squeeze(self.current_params)
-
-        # Group data points by x-value and calculate statistics
-        unique_params = np.unique(loop_params)
         
-        means = np.array([
-            np.mean(self.gaussian_cloud_params[loop_params == x])
-            for x in unique_params
-        ])
-        stds = np.array([
-            np.std(self.gaussian_cloud_params[loop_params == x])
-            for x in unique_params
-        ])
-
-        ax.errorbar(
-            unique_params,
-            means,
-            yerr=stds,
-            marker='.',
-            linestyle='-',
-            alpha=0.5,
-            capsize=3,
+        param_names = ['x₀', 'y₀', 'width', 'height', 'amplitude', 'offset']
+        
+        # Convert nominal values and uncertainties to ufloat arrays
+        gaussian_cloud_params = unumpy.uarray(
+            self.gaussian_cloud_params_nom,
+            self.gaussian_cloud_params_std
         )
-        ax.set_xlabel(
-            f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
-            fontsize=self.plot_config.label_font_size,
-        )
-        ax.set_ylabel(
-            'atom count',
-            fontsize=self.plot_config.label_font_size,
-        )
-        ax.tick_params(
-            axis='both',
-            which='major',
-            labelsize=self.plot_config.label_font_size,
-        )
+        #TODO: replace saving the diag(cov) in the h5 with storing the full covariance matrix
+        #gaussian_cloud_params = uncertainties.correlated_values(mean_vals, covariance_matrix)
 
-        ax.grid(color=self.plot_config.grid_color_major, which='major')
-        ax.grid(color=self.plot_config.grid_color_minor, which='minor')
 
-        # doing the fit at the end of the run
-        if self.atom_numbers.shape[0] == self.n_runs and plot_lorentz:
-            popt, pcov = self.fit_lorentzian(unique_params, means)
-            upopt = uncertainties.correlated_values(popt, pcov)
-
-            x_plot = np.linspace(
-                np.min(unique_params),
-                np.max(unique_params),
-                1000,
+        # For each parameter
+        for param_idx, (ax, param_name) in enumerate(zip(axs, param_names)):
+            # For each unique x value, compute mean and combined uncertainty
+            means = []
+            uncertainties = []
+            for x in unique_params:
+                # Get all measurements for this x value
+                mask = (loop_params == x)
+                # Get all values for this parameter at the matching x positions
+                param_values = gaussian_cloud_params[mask][:, param_idx]
+                
+                if len(param_values) > 1:
+                    # Multiple measurements: combine fit uncertainties with shot-to-shot variance
+                    mean_value = np.mean(unumpy.nominal_values(param_values))
+                    shot_to_shot_var = np.var(unumpy.nominal_values(param_values))
+                    # Average the individual fit variances
+                    fit_var = np.mean(unumpy.std_devs(param_values)**2)
+                    # Total uncertainty is sqrt of sum of variances
+                    total_uncertainty = np.sqrt(shot_to_shot_var + fit_var)
+                else:
+                    # Single measurement: just use the fit uncertainty
+                    mean_value = unumpy.nominal_values(param_values[0])
+                    total_uncertainty = unumpy.std_devs(param_values[0])
+                
+                means.append(mean_value)
+                uncertainties.append(total_uncertainty)
+            
+            means = np.array(means)
+            uncertainties = np.array(uncertainties)
+            
+            # Plot with error bars
+            ax.errorbar(
+                unique_params,
+                means,  # No need for indexing, means is already for this param
+                yerr=uncertainties,  # No need for indexing, uncertainties is already for this param
+                marker='.',
+                linestyle='-',
+                alpha=0.5,
+                capsize=3,
             )
-
-            ax.plot(x_plot, self.lorentzian(x_plot, *popt))
-            fig.suptitle(
-                f'Center frequency: ${upopt[0]:SL}$ MHz; '
-                f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+            
+            ax.set_xlabel(
+                f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
+                fontsize=self.plot_config.label_font_size,
             )
-
-        figname = f"{self.folder_path}\count vs param.png"
+            ax.set_ylabel(
+                param_name,
+                fontsize=self.plot_config.label_font_size,
+            )
+            ax.tick_params(
+                axis='both',
+                which='major',
+                labelsize=self.plot_config.label_font_size,
+            )
+            ax.grid(True, alpha=0.3)
+            
+        fig.suptitle('MOT Cloud Parameters', fontsize=self.plot_config.title_font_size)
+        
+        figname = f"{self.folder_path}\mot_params.png"
         if is_subfig:
             self.save_subfig(fig, figname)
         else:
             fig.savefig(figname)
-
 
     @staticmethod
     def save_subfig(subfig, filename):

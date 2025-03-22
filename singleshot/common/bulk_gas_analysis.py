@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 import numpy as np
+import uncertainties.unumpy as unumpy
 
 try:
     lyse
@@ -139,20 +140,28 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         popt, pcov = self.image.roi_fit_gaussian2d(self.atoms_roi)
         upopt = uncertainties.correlated_values(popt, pcov)
-        return upopt
+        return np.array(upopt)
 
     def process_shot(self, cloud_fit=None) -> str:
         """
         Process a single shot of bulk gas.
+
+        Parameters
+        ----------
+        cloud_fit : {'gaussian', None}, default=None
+            If 'gaussian', fit the atom cloud to a 2D Gaussian and store the parameters.
+            If None, do not fit the atom cloud. No parameters are stored.
 
         Returns
         -------
         str
             Path to the processed results file
         """
-        if cloud_fit is 'gaussian':
+        if cloud_fit == 'gaussian':
             gauss_params = self.get_gaussian_cloud_params()
             # gauss_x0, gauss_y0, gauss_width, gauss_height, gauss_amplitude, gauss_offset = gauss_params
+            gauss_nom = unumpy.nominal_values(gauss_params)
+            gauss_std = unumpy.std_devs(gauss_params)
         atom_number = self.get_atom_number(method='sum', subtraction='double')
         run_number = self.run_number
         fname = Path(self.folder_path) / 'bulkgas_preprocess.h5'
@@ -160,8 +169,9 @@ class BulkGasPreprocessor(ImagePreprocessor):
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
                 f.create_dataset('atom_numbers', data=[atom_number], maxshape=(self.n_runs,))
-                if cloud_fit is 'gaussian':
-                    f.create_dataset('gaussian_cloud_params', data=[gauss_params], maxshape=(self.n_runs,))
+                if cloud_fit == 'gaussian':
+                    f.create_dataset('gaussian_cloud_params_nom', data=[gauss_nom], maxshape=(self.n_runs, 6))
+                    f.create_dataset('gaussian_cloud_params_std', data=[gauss_std], maxshape=(self.n_runs, 6))
                 
                 # save parameters from runmanager globals
                 f.create_dataset(
@@ -180,9 +190,11 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 f['atom_numbers'][run_number] = atom_number
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
-                if cloud_fit is 'gaussian':
-                    f['gaussian_cloud_params'].resize(run_number + 1, axis=0)
-                    f['gaussian_cloud_params'][run_number] = gauss_params
+                if cloud_fit == 'gaussian':
+                    f['gaussian_cloud_params_nom'].resize(run_number + 1, axis=0)
+                    f['gaussian_cloud_params_nom'][run_number] = gauss_nom
+                    f['gaussian_cloud_params_std'].resize(run_number + 1, axis=0)
+                    f['gaussian_cloud_params_std'][run_number] = gauss_std
 
         return fname
 
@@ -223,7 +235,6 @@ class BulkGasPreprocessor(ImagePreprocessor):
             )
 
         atoms_roi = self.atoms_roi
-        print(img_obj.array.shape)
         axs[0, 0].add_patch(atoms_roi.patch(scale_factor=plot_units_per_pixel))
         axs[1, 0].set_title('Cloud Region \n(background subtracted)')
 
@@ -236,7 +247,6 @@ class BulkGasPreprocessor(ImagePreprocessor):
         )
 
         bkg_roi = self.background_roi
-        # print(img_obj.roi_view(bkg_roi))
         axs[0, 1].add_patch(bkg_roi.patch(scale_factor=plot_units_per_pixel))
         axs[1, 1].set_title(
             f'Background region \n(background subtracted)\nmean {img_obj.roi_mean(bkg_roi):.2f}, stddev {img_obj.roi_stddev(bkg_roi):.2f}',
