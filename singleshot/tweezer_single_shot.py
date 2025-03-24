@@ -1,6 +1,6 @@
 from matplotlib import pyplot as plt
 from common.tweezer_analysis import TweezerPreprocessor
-from common.tweezer_plot import TweezerStatistician
+from common.tweezer_statistics import TweezerStatistician
 from common.plot_config import PlotConfig
 
 

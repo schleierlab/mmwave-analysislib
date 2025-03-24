@@ -158,6 +158,8 @@ class BulkGasStatistician:
             labelsize=self.plot_config.label_font_size,
         )
 
+        ax.set_ylim(bottom=0)
+
         ax.grid(color=self.plot_config.grid_color_major, which='major')
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
 
