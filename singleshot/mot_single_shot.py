@@ -31,6 +31,6 @@ plotter = BulkGasStatistician(
     shot_h5_path=bulk_gas_analyzer.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
 )
-#plotter.plot_atom_number(fig = subfigs[1], plot_lorentz=False)
+# plotter.plot_atom_number(fig = subfigs[1], plot_lorentz=False)
 plotter.plot_mot_params(fig = subfigs[1])
 
