@@ -32,4 +32,4 @@ plotter = BulkGasStatistician(
     plot_config=PlotConfig(),
 )
 
-plotter.plot_atom_number(fig = subfigs[1], plot_lorentz = False)
+plotter.plot_atom_number(fig = subfigs[1], plot_lorentz = True)
