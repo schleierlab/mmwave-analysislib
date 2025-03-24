@@ -4,11 +4,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple, Optional, Union
 
+import numpy as np
 from matplotlib import patches, pyplot as plt
 from matplotlib.axes import Axes
-import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy import optimize
+from scipy.constants import pi
 
 MaybeInt = Optional[int]
 
@@ -126,45 +127,68 @@ class Image:
         Fits a 2D Gaussian function to the image data.
         Mainly intended to fit images of the MOT.
         """
-        image = self.roi_view(roi)
-        y, x = np.mgrid[:image.shape[0], :image.shape[1]]
-        x0_guess, y0_guess = np.unravel_index(np.argmax(image), image.shape)
+        roiview = self.roi_view(roi)
+        y, x = np.mgrid[:roiview.shape[0], :roiview.shape[1]]
+        xys = np.vstack([x.ravel(), y.ravel()]).T
+
+        x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
         width_guess = roi.width/4
         height_guess = roi.height/4
-        z_data_range = np.max(image) - np.min(image)
+        rotation_guess = 0
+        z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
-        offset_guess = np.min(image)
-        
-        p0 = [x0_guess, y0_guess, width_guess, height_guess, a_guess, offset_guess]
+        offset_guess = np.min(roiview)
+
+        p0 = [x0_guess, y0_guess, width_guess, height_guess, rotation_guess, a_guess, offset_guess]
         return optimize.curve_fit(
-            self.gaussian2d, 
-            (x.ravel(), y.ravel()), 
-            image.ravel(), 
-            p0=p0
+            self.gaussian2d,
+            xys,
+            roiview.ravel(),
+            p0=p0,
+            bounds=np.array([
+                (0, roi.width),
+                (0, roi.height),
+                (0, roi.width),
+                (0, roi.height),
+                (-pi/4, pi/4),
+                (0, np.inf),
+                (-np.inf, np.inf),
+            ]).T,
         )
 
     @staticmethod
-    def gaussian2d(xy, x0, y0, width, height, a, offset):
+    def gaussian2d(xy, x0, y0, width, height, rotation, peak_height, offset):
         """
-        Returns a 2D Gaussian function.
+        Returns an axis-parallel 2D Gaussian function with constant offset.
 
         Parameters
         ----------
-        xy : tuple of arrays
+        xy : array_like, shape (..., 2)
             Input coordinates as (x, y) arrays
         x0, y0 : float
             Center position of the Gaussian
         width, height : float
             Width parameters of the Gaussian in x and y directions
+        rotation : float
+            Rotation angle of the first principal axes of the Gaussian, in radians,
+            relative to the x-axis.
         a : float
-            Amplitude of the Gaussian
+            Peak height of the Gaussian, without the offset
         offset : float
             Offset of the Gaussian
 
         Returns
         -------
-        array
-            Flattened array of Gaussian function values
+        array, shape (...,)
+            Gaussian function values
         """
-        x, y = xy
-        return a * np.exp(-((x - x0) / width)**2 - ((y - y0) / height)**2) + offset
+        inverse_rotation_matrix = np.array([[np.cos(rotation), np.sin(rotation)], [-np.sin(rotation), np.cos(rotation)]])
+        centered_xy = np.asarray(xy) - np.asarray([x0, y0])  # shape (..., 2)
+
+        # shape (..., 2)
+        z_score_vector = np.dot(centered_xy, inverse_rotation_matrix.T) / [width, height]
+
+        # shape (...)
+        mahalanobis_dist_sq = np.sum(z_score_vector**2, axis=-1)
+
+        return offset + peak_height * np.exp(-mahalanobis_dist_sq / 2)
