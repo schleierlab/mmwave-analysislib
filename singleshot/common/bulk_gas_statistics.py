@@ -35,9 +35,9 @@ class BulkGasStatistician:
     plot_config : PlotConfig, optional
         Configuration object for plot styling
     """
-    def __init__(self, 
-                 preproc_h5_path: str, 
-                 shot_h5_path: str, 
+    def __init__(self,
+                 preproc_h5_path: str,
+                 shot_h5_path: str,
                  plot_config: PlotConfig = None
                  ):
         self.plot_config = plot_config or PlotConfig()
@@ -59,10 +59,10 @@ class BulkGasStatistician:
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
-        MLOOP reads the results of any experiment from the latest shot h5 file, 
+        MLOOP reads the results of any experiment from the latest shot h5 file,
         updates the loss landscape, and triggers run manager for the next batch
         of experiments.
-        
+
         Parameters
         ----------
         shot_h5_path : str
@@ -148,6 +148,8 @@ class BulkGasStatistician:
             labelsize=self.plot_config.label_font_size,
         )
 
+        ax.set_ylim(bottom=0)
+
         ax.grid(color=self.plot_config.grid_color_major, which='major')
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
 
@@ -190,7 +192,7 @@ class BulkGasStatistician:
         """
         loop_params = self.current_params[:, 0]
         unique_params = np.unique(loop_params)
-        
+
         # Create subplots
         if fig is None:
             fig = plt.figure(
@@ -202,9 +204,9 @@ class BulkGasStatistician:
             axs = fig.subplots(2, 3)
             axs = axs.flatten()
             is_subfig = True
-        
+
         param_names = ['x₀', 'y₀', 'width', 'height', 'amplitude', 'offset']
-        
+
         # Convert nominal values and uncertainties to ufloat arrays
         gaussian_cloud_params = unumpy.uarray(
             self.gaussian_cloud_params_nom,
@@ -224,7 +226,7 @@ class BulkGasStatistician:
                 mask = (loop_params == x)
                 # Get all values for this parameter at the matching x positions
                 param_values = gaussian_cloud_params[mask][:, param_idx]
-                
+
                 if len(param_values) > 1:
                     # Multiple measurements: combine fit uncertainties with shot-to-shot variance
                     mean_value = np.mean(unumpy.nominal_values(param_values))
@@ -237,13 +239,13 @@ class BulkGasStatistician:
                     # Single measurement: just use the fit uncertainty
                     mean_value = unumpy.nominal_values(param_values[0])
                     total_uncertainty = unumpy.std_devs(param_values[0])
-                
+
                 means.append(mean_value)
                 uncertainties.append(total_uncertainty)
-            
+
             means = np.array(means)
             uncertainties = np.array(uncertainties)
-            
+
             # Plot with error bars
             ax.errorbar(
                 unique_params,
@@ -254,7 +256,7 @@ class BulkGasStatistician:
                 alpha=0.5,
                 capsize=3,
             )
-            
+
             ax.set_xlabel(
                 f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
                 fontsize=self.plot_config.label_font_size,
@@ -269,9 +271,9 @@ class BulkGasStatistician:
                 labelsize=self.plot_config.label_font_size,
             )
             ax.grid(True, alpha=0.3)
-            
+
         fig.suptitle('MOT Cloud Parameters', fontsize=self.plot_config.title_font_size)
-        
+
         figname = f"{self.folder_path}\mot_params.png"
         if is_subfig:
             self.save_subfig(fig, figname)
