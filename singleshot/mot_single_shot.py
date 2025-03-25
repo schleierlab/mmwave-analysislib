@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
 
-from common.analysis_config import manta_system, BulkGasAnalysisConfig
-from common.bulk_gas_analysis import BulkGasPreprocessor
-from common.bulk_gas_statistics import BulkGasStatistician
-from common.image import ROI
-from common.plot_config import PlotConfig
+from analysislib.common.analysis_config import manta_system, BulkGasAnalysisConfig
+from analysislib.common.bulk_gas_analysis import BulkGasPreprocessor
+from analysislib.common.bulk_gas_statistics import BulkGasStatistician
+from analysislib.common.image import ROI
+from analysislib.common.plot_config import PlotConfig
 
 
 analysis_config = BulkGasAnalysisConfig(
