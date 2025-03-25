@@ -1,10 +1,10 @@
-from common.analysis_config import manta_system, BulkGasAnalysisConfig
-from common.bulk_gas_analysis import BulkGasPreprocessor
-from common.bulk_gas_statistics import BulkGasStatistician
-from common.image import ROI
-from common.plot_config import PlotConfig
+import matplotlib.pyplot as plt
 
-from matplotlib import colors, patches, pyplot as plt
+from analysislib.common.analysis_config import manta_system, BulkGasAnalysisConfig
+from analysislib.common.bulk_gas_analysis import BulkGasPreprocessor
+from analysislib.common.bulk_gas_statistics import BulkGasStatistician
+from analysislib.common.image import ROI
+from analysislib.common.plot_config import PlotConfig
 
 
 analysis_config = BulkGasAnalysisConfig(
@@ -21,7 +21,7 @@ bulk_gas_analyzer = BulkGasPreprocessor(
 )
 processed_results_fname = bulk_gas_analyzer.process_shot()#cloud_fit='gaussian')
 
-fig = plt.figure(layout = "constrained", figsize = [10,4])
+fig = plt.figure(layout = "constrained", figsize = [10, 4])
 subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 
 bulk_gas_analyzer.show_images(fig = subfigs[0])
