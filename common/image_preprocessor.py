@@ -34,7 +34,7 @@ class ImagePreprocessor(ABC):
     run_number: int
     h5_path: str
     folder_path: str
-    exposures_list: tuple[np.ndarray, ...]
+    exposures: tuple[np.ndarray, ...]
 
     n_runs: int
     '''Total number of runs for this runmanager expansion.'''
@@ -57,7 +57,7 @@ class ImagePreprocessor(ABC):
         """
         self.imaging_setup = imaging_setup
         self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
-        self.exposures_list, self.run_number, self.globals = self.load_images()
+        self.exposures, self.run_number, self.globals = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
         with h5py.File(self.h5_path, mode='r') as f:

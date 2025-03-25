@@ -99,10 +99,10 @@ class TweezerPreprocessor(ImagePreprocessor):
         images = [
             Image(
                 exposure,
-                background=self.exposures_list[-1],
+                background=self.exposures[-1],
                 yshift=self.atom_roi.ymin,
             )
-            for exposure in self.exposures_list[:-1]
+            for exposure in self.exposures[:-1]
         ]
         self.images = images
 

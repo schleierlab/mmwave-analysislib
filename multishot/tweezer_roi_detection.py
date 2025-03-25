@@ -200,7 +200,7 @@ shots_h5s = sequence_dir.glob('20*.h5')
 images: list[Image] = []
 for shot in shots_h5s:
     processor = TweezerPreprocessor(load_type='h5', h5_path=shot)
-    image = Image(processor.exposures_list[0], background=processor.exposures_list[-1])
+    image = Image(processor.exposures[0], background=processor.exposures[-1])
     images.append(image)
 
 
