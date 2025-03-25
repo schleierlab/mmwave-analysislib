@@ -19,7 +19,7 @@ bulk_gas_analyzer = BulkGasPreprocessor(
     load_type='lyse',
     h5_path=None,
 )
-processed_results_fname = bulk_gas_analyzer.process_shot(cloud_fit='gaussian')
+processed_results_fname = bulk_gas_analyzer.process_shot()#cloud_fit='gaussian')
 
 fig = plt.figure(layout = "constrained", figsize = [10, 4])
 subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
@@ -31,5 +31,6 @@ plotter = BulkGasStatistician(
     shot_h5_path=bulk_gas_analyzer.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
 )
-# plotter.plot_atom_number(fig = subfigs[1], plot_lorentz=False)
-plotter.plot_mot_params(fig = subfigs[1])
+plotter.plot_atom_number(fig = subfigs[1], plot_lorentz=False)
+# plotter.plot_mot_params(fig = subfigs[1])
+

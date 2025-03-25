@@ -10,7 +10,7 @@ from analysislib.common.plot_config import PlotConfig
 analysis_config = BulkGasAnalysisConfig(
     imaging_system=kinetix_system,
     exposure_time=80e-3,
-    atoms_roi=ROI(xmin=1000, xmax=1950, ymin=1125, ymax=1275),
+    atoms_roi=ROI(xmin=1100, xmax=1550, ymin=1125, ymax=1275),#atoms_roi=ROI(xmin=1000, xmax=1950, ymin=1125, ymax=1275),
     bkg_roi=ROI(xmin=1900, xmax=2400, ymin=1900, ymax=2400),
 )
 
@@ -33,4 +33,4 @@ plotter = BulkGasStatistician(
     plot_config=PlotConfig(),
 )
 
-plotter.plot_atom_number(fig = subfigs[1], plot_lorentz = True)
+plotter.plot_atom_number(fig = subfigs[1], plot_lorentz = False)

@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 
-from analysislib.common.tweezer_analysis import TweezerPreprocessor
-from analysislib.common.tweezer_statistics import TweezerStatistician
-from analysislib.common.plot_config import PlotConfig
+from analysislib.scripts.common.tweezer_analysis import TweezerPreprocessor
+from analysislib.scripts.common.tweezer_statistics import TweezerStatistician
+from analysislib.scripts.common.plot_config import PlotConfig
 
 
 # Initialize analysis with background ROI and standard ROI loading
