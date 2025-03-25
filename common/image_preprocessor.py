@@ -207,7 +207,10 @@ class ImagePreprocessor(ABC):
             images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
             run_number = f.attrs['run number']
 
-        images_list = tuple(images[self.imaging_setup.camera.image_group_name + str(i)] for i in range(len(images)))
+        images_list = tuple(
+            images[self.imaging_setup.camera.image_name_stem + str(i)]
+            for i in range(len(images))
+        )
         return images_list, run_number, globals
 
     # def load_processed_quantities(self, *quantities):

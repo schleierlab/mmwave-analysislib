@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, NamedTuple, Optional, Union
+from typing import Literal, NamedTuple, Optional, Union, cast
 
 import numpy as np
 from matplotlib import patches, pyplot as plt
@@ -43,6 +43,14 @@ class ROI(NamedTuple):
             **(default_kw | kwargs),
         )
 
+    def bounding_box(rois: Sequence[ROI]):
+        return ROI(
+            min(roi.xmin for roi in rois),
+            max(roi.xmax for roi in rois),
+            min(roi.ymin for roi in rois),
+            max(roi.ymax for roi in rois),
+        )
+
     @classmethod
     def from_roi_xy(cls, roi_x: tuple[MaybeInt, MaybeInt], roi_y: tuple[MaybeInt, MaybeInt]):
         return cls(roi_x[0], roi_x[1], roi_y[0], roi_y[1])
@@ -80,12 +88,31 @@ class Image:
     def subtracted_array(self):
         return self.array - self.bkg_array
 
+    @staticmethod
+    def mean(images: Sequence[Image]) -> Image:
+        # computed manually to allow for broadcasted backgrounds
+        background = sum(image.background for image in images) / len(images)
+
+        yshift = images[0].yshift
+        if any(image.yshift != yshift for image in images[1:]):
+            raise ValueError('All images must have the same yshift.')
+
+        return Image(
+            np.mean([image.array for image in images], axis=0),
+            background,
+            yshift,
+        )
+
     def roi_view(self, roi: ROI):
         '''
         Returns a view of the full image cropped to the specified ROI.
         '''
+        yslice = slice(
+            None if roi.ymin is None else roi.ymin - self.yshift,
+            None if roi.ymax is None else roi.ymax - self.yshift
+        )
         return self.subtracted_array[
-            roi.ymin - self.yshift : roi.ymax - self.yshift,
+            yslice,
             roi.xmin:roi.xmax,
         ]
 
@@ -121,30 +148,33 @@ class Image:
     def roi_sums(self, rois: Sequence[ROI]):
         return np.array([self.roi_sum(roi) for roi in rois])
 
-    def detect_site_rois(self, neighborhood_size: int, detection_threshold):
+    def detect_site_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
         from scipy import ndimage
 
         data = self.subtracted_array
         data_maxfilt = ndimage.maximum_filter(data, neighborhood_size)
         data_minfilt = ndimage.minimum_filter(data, neighborhood_size)
-        maxima = (data == data_maxfilt)
 
         contrast_filt = ((data_maxfilt - data_minfilt) > detection_threshold)
 
         labeled, _ = ndimage.label(contrast_filt)
-        slices = ndimage.find_objects(labeled)
+        slices = cast(
+            list[tuple[slice, slice]],
+            ndimage.find_objects(labeled),
+        )
 
-        rois = [
-            ROI(dx.start, dx.stop, dy.start, dy.stop)
-            for dy, dx in slices
-        ]
-        print(max(roi.width for roi in rois))
-        print(max(roi.height for roi in rois))
+        rois: list[ROI] = []
+        halfsize = roi_size / 2
+        for dy, dx in slices:
+            center_x = (dx.start + dx.stop) / 2
+            center_y = self.yshift + (dy.start + dy.stop) / 2
 
-        # roi_x = [
-        #     min(roi.xmin for roi in rois) - 50,
-        #     max(roi.xmax for roi in rois) + 50,
-        # ]
+            rois.append(ROI(
+                int(center_x - halfsize),
+                int(center_x + halfsize),
+                int(center_y - halfsize),
+                int(center_y + halfsize),
+            ))
 
         return rois
 

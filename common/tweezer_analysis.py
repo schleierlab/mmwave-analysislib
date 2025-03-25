@@ -1,19 +1,22 @@
+import importlib.resources
 from collections.abc import Sequence
 from pathlib import Path
 from typing import ClassVar, Optional, cast
-from matplotlib import pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
-from matplotlib.figure import Figure
 
 import h5py
 import numpy as np
 import yaml
+from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.cm import ScalarMappable
+from matplotlib.collections import PatchCollection
+from matplotlib.colors import Normalize
+from matplotlib.figure import Figure
 
 from .image_preprocessor import ImagePreprocessor
 from .analysis_config import kinetix_system
 from .image import Image, ROI
+from analysislib import multishot
 
 
 class TweezerPreprocessor(ImagePreprocessor):
@@ -33,9 +36,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         Path to H5 file for data loading
     """
 
-    MULTISHOT_PATH: ClassVar[Path] = Path(R'X:\userlib\analysislib\scripts\multishot')
-
-    ROI_CONFIG_PATH: ClassVar[Path] = MULTISHOT_PATH / 'roi_config.yml'
+    ROI_CONFIG_PATH: ClassVar[Path] = importlib.resources.files(multishot) / 'roi_config.yml'
 
     atom_roi: ROI
     background_roi: ROI
@@ -66,6 +67,14 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         self.atom_roi, self.site_rois = self._load_rois_from_yaml()
         self.threshold = self._load_threshold_from_yaml()
+        self.images = [
+            Image(
+                exposure,
+                background=self.exposures[-1],
+                yshift=self.atom_roi.ymin,
+            )
+            for exposure in self.exposures[:-1]
+        ]
 
     @property
     def n_sites(self):
@@ -79,7 +88,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         except KeyError:
             raise KeyError('tw_kinetix_roi_row not found in globals')
 
-        with open(self.ROI_CONFIG_PATH) as stream:
+        with self.ROI_CONFIG_PATH.open('rt') as stream:
             loaded_yaml = yaml.safe_load(stream)
 
         site_roi_arr = loaded_yaml['site_rois']
@@ -92,21 +101,11 @@ class TweezerPreprocessor(ImagePreprocessor):
 
     def _load_threshold_from_yaml(self):
         """Load threshold value from file or use default."""
-        with open(self.ROI_CONFIG_PATH) as stream:
+        with self.ROI_CONFIG_PATH.open('rt') as stream:
             return yaml.safe_load(stream)['threshold']
 
     def process_shot(self):
-        images = [
-            Image(
-                exposure,
-                background=self.exposures[-1],
-                yshift=self.atom_roi.ymin,
-            )
-            for exposure in self.exposures[:-1]
-        ]
-        self.images = images
-
-        camera_counts = np.array([image.roi_sums(self.site_rois) for image in images])
+        camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
         self.site_occupancies = camera_counts > self.threshold
 
         run_number = self.run_number
@@ -128,7 +127,12 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         return fname
 
-    def show_image(self, roi_patches: bool = True, fig: Optional[Figure] = None, vmax: Optional[int] = 70):
+    def show_image(
+            self,
+            roi_patches: bool = True,
+            fig: Optional[Figure] = None,
+            vmax: Optional[int] = 70,
+    ):
         if fig is None:
             fig, axs = plt.subplots(
                 nrows=len(self.images),
@@ -149,9 +153,11 @@ class TweezerPreprocessor(ImagePreprocessor):
             )
             ax.set_title(f'Image {i}')
             if roi_patches:
-                for j, roi in enumerate(self.site_rois):
-                    ax.add_patch(roi.patch(
-                        edgecolor=('yellow' if self.site_occupancies[i, j] else 'red'),
-                    ))
+                patches = tuple(
+                    roi.patch(edgecolor=('yellow' if self.site_occupancies[i, j] else 'red'))
+                    for j, roi in enumerate(self.site_rois)
+                )
+                collection = PatchCollection(patches, match_original=True)
+                ax.add_collection(collection)
 
         fig.colorbar(ScalarMappable(norm, cmap='bone'), ax=axs, label='Counts')
