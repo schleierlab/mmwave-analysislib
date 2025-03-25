@@ -34,6 +34,7 @@ class ImagePreprocessor(ABC):
     run_number: int
     h5_path: str
     folder_path: str
+    exposures_list: tuple[np.ndarray, ...]
 
     n_runs: int
     '''Total number of runs for this runmanager expansion.'''
@@ -56,7 +57,7 @@ class ImagePreprocessor(ABC):
         """
         self.imaging_setup = imaging_setup
         self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
-        self.exposures, self.run_number, self.globals = self.load_images()
+        self.exposures_list, self.run_number, self.globals = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
         with h5py.File(self.h5_path, mode='r') as f:
@@ -187,7 +188,7 @@ class ImagePreprocessor(ABC):
 
         return params, n_rep
 
-    def load_images(self,) -> tuple[dict[str, np.ndarray], int, dict[str, Any]]:
+    def load_images(self,) -> tuple[tuple[np.ndarray, ...], int, dict[str, Any]]:
         """
         load image inside the h5 file, return current run number and globals
 
@@ -205,7 +206,9 @@ class ImagePreprocessor(ABC):
             globals = hz.getGlobalsFromFile(self.h5_path)
             images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
             run_number = f.attrs['run number']
-        return images, run_number, globals
+
+        images_list = tuple(images[self.imaging_setup.camera.image_group_name + str(i)] for i in range(len(images)))
+        return images_list, run_number, globals
 
     # def load_processed_quantities(self, *quantities):
     #     """Load processed quantities from the HDF5 file.

@@ -5,15 +5,15 @@ from pathlib import Path
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
 
-from analysislib.common.image_preprocessor import ImagePreprocessor
-from common.image import Image
-from common.analysis_config import kinetix_system
-
 import h5py
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import PatchCollection
+
+from analysislib.common.analysis_config import kinetix_system
+from analysislib.common.image import Image
+from analysislib.common.tweezer_analysis import TweezerPreprocessor
 
 
 
@@ -199,11 +199,9 @@ shots_h5s = sequence_dir.glob('20*.h5')
 
 images: list[Image] = []
 for shot in shots_h5s:
-    processor = ImagePreprocessor(kinetix_system, h5_path=shot)
-    exposures, _, _ = processor.load_images()
-    image = Image(exposures[0], background=exposures[-1])
+    processor = TweezerPreprocessor(load_type='h5', h5_path=shot)
+    image = Image(processor.exposures_list[0], background=processor.exposures_list[-1])
     images.append(image)
-
 
 
 # avg_shot_bkg_sub, avg_shot_bkg, N = avg_all_shots(folder, loop = False)

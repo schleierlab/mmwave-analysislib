@@ -96,16 +96,13 @@ class TweezerPreprocessor(ImagePreprocessor):
             return yaml.safe_load(stream)['threshold']
 
     def process_shot(self):
-        n_images = len(self.exposures) - 1
-
-        name_stem = self.imaging_setup.camera.image_name_stem
         images = [
             Image(
-                self.exposures[f'{name_stem}{i}'],
-                background=self.exposures[f'{name_stem}{n_images}'],
+                exposure,
+                background=self.exposures_list[-1],
                 yshift=self.atom_roi.ymin,
             )
-            for i in range(n_images)
+            for exposure in self.exposures_list[:-1]
         ]
         self.images = images
 

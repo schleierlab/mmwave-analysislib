@@ -84,10 +84,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             config.exposure_time,
         )
 
-        images = self.exposures
-        image_types = list(images.keys())
-        atom_image = images[image_types[0]]
-        background_image = images[image_types[1]]
+        atom_image, background_image = self.exposures_list
         self.image = Image(atom_image, background_image)
 
     def get_atom_number(
