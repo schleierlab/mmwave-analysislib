@@ -109,7 +109,6 @@ class Image:
         )
         return im
 
-
     def roi_mean(self, roi: ROI):
         return np.mean(self.roi_view(roi))
 
@@ -121,6 +120,33 @@ class Image:
 
     def roi_sums(self, rois: Sequence[ROI]):
         return np.array([self.roi_sum(roi) for roi in rois])
+
+    def detect_site_rois(self, neighborhood_size: int, detection_threshold):
+        from scipy import ndimage
+
+        data = self.subtracted_array
+        data_maxfilt = ndimage.maximum_filter(data, neighborhood_size)
+        data_minfilt = ndimage.minimum_filter(data, neighborhood_size)
+        maxima = (data == data_maxfilt)
+
+        contrast_filt = ((data_maxfilt - data_minfilt) > detection_threshold)
+
+        labeled, _ = ndimage.label(contrast_filt)
+        slices = ndimage.find_objects(labeled)
+
+        rois = [
+            ROI(dx.start, dx.stop, dy.start, dy.stop)
+            for dy, dx in slices
+        ]
+        print(max(roi.width for roi in rois))
+        print(max(roi.height for roi in rois))
+
+        # roi_x = [
+        #     min(roi.xmin for roi in rois) - 50,
+        #     max(roi.xmax for roi in rois) + 50,
+        # ]
+
+        return rois
 
     def roi_fit_gaussian2d(self, roi: ROI):
         """
