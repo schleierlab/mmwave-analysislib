@@ -101,10 +101,13 @@ class TweezerStatistician(BaseStatistician):
 
         # loop_params = np.squeeze(self.current_params)
         loop_params = self.current_params[:, 0]
+        print("current_params", self.current_params)
+        print("loop_params", loop_params)
 
         # Group data points by x-value and calculate statistics
         unique_params = np.unique(loop_params)
-
+        
+        # Calculate survival rates
         initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1)
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
@@ -112,18 +115,42 @@ class TweezerStatistician(BaseStatistician):
         surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
         survival_rates = surviving_atoms / initial_atoms
-        ax.plot(
-            np.arange(len(self.site_occupancies)),
-            survival_rates,
+        print("unique_params", unique_params)
+        print(survival_rates.shape)
+
+        # Calculate means and stds for the unique parameters
+        means = np.array([
+            np.mean(survival_rates[loop_params == x])
+            for x in unique_params
+        ])
+        stds = np.array([
+            np.std(survival_rates[loop_params == x])
+            for x in unique_params
+        ])
+
+        ax.errorbar(
+            unique_params,
+            means,
+            yerr=stds,
             marker='.',
+            linestyle='-',
+            alpha=0.5,
+            capsize=3,
         )
-        #ax.set_xlabel('Shot number', fontsize=self.plot_config.label_font_size)
-        ax.set_ylabel('Survival rate', fontsize=self.plot_config.label_font_size)
+        ax.set_xlabel(
+            f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
+            fontsize=self.plot_config.label_font_size,
+        )
+        ax.set_ylabel(
+            'Survival rate',
+            fontsize=self.plot_config.label_font_size,
+        )
         ax.tick_params(
             axis='both',
             which='major',
             labelsize=self.plot_config.label_font_size,
         )
+        ax.set_ylim(bottom=0)
         ax.grid(color=self.plot_config.grid_color_major, which='major')
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
         ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)

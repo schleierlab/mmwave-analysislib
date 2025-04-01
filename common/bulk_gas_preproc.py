@@ -188,8 +188,11 @@ class BulkGasPreprocessor(ImagePreprocessor):
             with h5py.File(fname, 'a') as f:
                 f['atom_numbers'].resize(run_number + 1, axis=0)
                 f['atom_numbers'][run_number] = atom_number
+
+                # save parameters from runmanager globals
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
+                
                 if cloud_fit == 'gaussian':
                     f['gaussian_cloud_params_nom'].resize(run_number + 1, axis=0)
                     f['gaussian_cloud_params_nom'][run_number] = gauss_nom

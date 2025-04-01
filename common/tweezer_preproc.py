@@ -142,6 +142,10 @@ class TweezerPreprocessor(ImagePreprocessor):
                 f['site_occupancies'].resize(run_number + 1, axis=0)
                 f['site_occupancies'][run_number] = self.site_occupancies
 
+                # save parameters from runmanager globals
+                f['current_params'].resize(run_number + 1, axis=0)
+                f['current_params'][run_number] = self.current_params
+
         return fname
 
     def show_image(
