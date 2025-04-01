@@ -3,6 +3,9 @@ from matplotlib.figure import Figure
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+import uncertainties
+import uncertainties.unumpy as unumpy
+from pathlib import Path
 
 try:
     lyse
@@ -39,6 +42,7 @@ class TweezerStatistician(BaseStatistician):
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
         self._save_mloop_params(shot_h5_path)
+        self.folder_path = Path(preproc_h5_path).parent
 
     def _load_processed_quantities(self, preproc_h5_path):
         """Load processed quantities from an h5 file.
@@ -82,7 +86,15 @@ class TweezerStatistician(BaseStatistician):
             uncertainties=True,
         )
 
-    def plot_survival_rate(self, fig: Optional[Figure] = None):
+    @property
+    def shots_processed(self) -> int:
+        return self.site_occupancies.shape[0]
+
+    @property
+    def is_final_shot(self) -> bool:
+        return self.shots_processed == self.n_runs
+
+    def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
 
@@ -96,13 +108,13 @@ class TweezerStatistician(BaseStatistician):
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
+            is_subfig = False
         else:
             ax = fig.subplots()
+            is_subfig = True
 
         # loop_params = np.squeeze(self.current_params)
         loop_params = self.current_params[:, 0]
-        print("current_params", self.current_params)
-        print("loop_params", loop_params)
 
         # Group data points by x-value and calculate statistics
         unique_params = np.unique(loop_params)
@@ -115,8 +127,6 @@ class TweezerStatistician(BaseStatistician):
         surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
         survival_rates = surviving_atoms / initial_atoms
-        print("unique_params", unique_params)
-        print(survival_rates.shape)
 
         # Calculate means and stds for the unique parameters
         means = np.array([
@@ -154,6 +164,29 @@ class TweezerStatistician(BaseStatistician):
         ax.grid(color=self.plot_config.grid_color_major, which='major')
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
         ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+        # doing the fit at the end of the run
+        if self.is_final_shot and plot_lorentz:
+            popt, pcov = self.fit_lorentzian(unique_params, means)
+            upopt = uncertainties.correlated_values(popt, pcov)
+
+            x_plot = np.linspace(
+                np.min(unique_params),
+                np.max(unique_params),
+                1000,
+            )
+
+            ax.plot(x_plot, self.lorentzian(x_plot, *popt))
+            fig.suptitle(
+                f'Center frequency: ${upopt[0]:SL}$ MHz; '
+                f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+            )
+
+        figname = f"{self.folder_path}\survival_rate vs param.png"
+        if is_subfig:
+            self.save_subfig(fig, figname)
+        else:
+            fig.savefig(figname)
 
     def plot_survival_rate_by_site(self, fig: Optional[Figure] = None):
         """
