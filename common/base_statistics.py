@@ -28,3 +28,6 @@ class BaseStatistician(ABC):
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization."""
         raise NotImplementedError("Subclasses must implement this method.")
+
+    # TODO: maybe we can keep all of our fitting functions here, so that both child classes
+    # have access to them and we keep fitting functionality in one place.

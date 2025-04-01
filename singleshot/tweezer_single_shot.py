@@ -1,12 +1,12 @@
 import matplotlib.pyplot as plt
 
-from analysislib.common.tweezer_analysis import TweezerPreprocessor
+from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
 
 
 # Initialize analysis with background ROI and standard ROI loading
-tweezer_analyzer = TweezerPreprocessor(
+tweezer_preproc = TweezerPreprocessor(
     load_type='lyse',
     h5_path=None,
 )
@@ -14,13 +14,13 @@ tweezer_analyzer = TweezerPreprocessor(
 fig = plt.figure(layout='constrained', figsize=(10, 4))
 subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 
-processed_results_fname = tweezer_analyzer.process_shot()
-tweezer_analyzer.show_image(roi_patches=True, fig=subfigs[0], vmax=70)
+processed_results_fname = tweezer_preproc.process_shot()
+tweezer_preproc.show_image(roi_patches=True, fig=subfigs[0], vmax=70)
 
 # Initialize statistician with consistent styling
 tweezer_statistician = TweezerStatistician(
     preproc_h5_path=processed_results_fname,
-    shot_h5_path=tweezer_analyzer.h5_path, # Used only for MLOOP
+    shot_h5_path=tweezer_preproc.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
 )
 tweezer_statistician.plot_survival_rate(fig=subfigs[1])
