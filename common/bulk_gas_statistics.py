@@ -17,6 +17,7 @@ except NameError:
 
 from .constants import cesium_atomic_mass
 from .plot_config import PlotConfig
+from .base_statistics import BaseStatistician
 
 
 globals_friendly_names = {
@@ -25,10 +26,10 @@ globals_friendly_names = {
 }
 
 
-class BulkGasStatistician:
-    """Class for statistical analysis of tweezer imaging data.
+class BulkGasStatistician(BaseStatistician):
+    """Class for statistical analysis of bulk gas imaging data.
 
-    This class provides methods for statistical analysis of tweezer imaging data.
+    This class provides methods for statistical analysis of bulk gas imaging data.
     It also generates several different types of plots for visualizing the data and
     manages input to MLOOP for online optimization.
 
@@ -46,6 +47,7 @@ class BulkGasStatistician:
                  shot_h5_path: str,
                  plot_config: PlotConfig = None
                  ):
+        super().__init__()
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
         self._save_mloop_params(shot_h5_path)

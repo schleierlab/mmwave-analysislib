@@ -11,9 +11,10 @@ except NameError:
 
 from .plot_config import PlotConfig
 from .image import ROI
+from .base_statistics import BaseStatistician
 
 
-class TweezerStatistician:
+class TweezerStatistician(BaseStatistician):
     """Class for statistical analysis of tweezer imaging data.
 
     This class provides methods for statistical analysis of tweezer imaging data.
@@ -34,6 +35,7 @@ class TweezerStatistician:
                  shot_h5_path: str,
                  plot_config: PlotConfig = None,
                  ):
+        super().__init__()
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
         self._save_mloop_params(shot_h5_path)
