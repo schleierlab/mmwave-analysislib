@@ -1,14 +1,9 @@
-from pathlib import Path
-from tkinter import Tk
 from tkinter.filedialog import askdirectory
 
 import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.collections import PatchCollection
 
-from analysislib.common.analysis_config import kinetix_system
-from analysislib.common.image import ROI, Image
-from analysislib.common.tweezer_analysis import TweezerPreprocessor
+from analysislib.common.tweezer_finding import TweezerFinder
+from analysislib.common.tweezer_histograms import TweezerThresholder
 
 
 # show dialog box and return the path
@@ -19,41 +14,28 @@ while True:
         raise e
     break
 
-sequence_dir = Path(folder)
-shots_h5s = sequence_dir.glob('20*.h5')
-
-print('Loading images ...')
-images: list[Image] = []
-for shot in shots_h5s:
-    print(shot)
-    processor = TweezerPreprocessor(load_type='h5', h5_path=shot)
-    images.append(processor.images[0])
-
-averaged_image = Image.mean(images)
-full_ylims = [processor.atom_roi.ymin, processor.atom_roi.ymax]
-site_rois = averaged_image.detect_site_rois(neighborhood_size=5, detection_threshold=25, roi_size=7)
-
-rois_bbox = ROI.bounding_box(site_rois)
-padding = 50
-atom_roi_xlims = [rois_bbox.xmin - padding, rois_bbox.xmax + padding]
-
-fig, ax = plt.subplots(layout='constrained')
-fig.suptitle(f'Tweezer site detection ({len(images)} shots averaged)')
-raw_img_color_kw = dict(
-    cmap='viridis',
-    vmin=0,
-    vmax=np.max(averaged_image.subtracted_array),
+finder = TweezerFinder.load_from_h5(folder)
+site_rois = finder.detect_rois(
+    neighborhood_size=5,
+    detection_threshold=25,
+    roi_size=5,
 )
-im = averaged_image.imshow_view(
-    ROI.from_roi_xy(atom_roi_xlims, full_ylims),
-    ax=ax,
-    **raw_img_color_kw,
+finder.plot_sites(site_rois)
+
+background_subtract = False
+thresholder = TweezerThresholder(
+    finder.images,
+    site_rois,
+    background_subtract=background_subtract,
+    weights=finder.weight_functions(site_rois, background_subtract=background_subtract),
 )
-fig.colorbar(im, ax=ax)
+thresholder.fit_gmms()
 
-patchs = tuple(roi.patch(edgecolor='yellow') for roi in site_rois)
-collection = PatchCollection(patchs, match_original=True)
-ax.add_collection(collection)
-
-root = Tk()
-root.destroy()
+fig, axs = plt.subplots(nrows=3, ncols=1, sharex=True, layout='constrained')
+thresholder.plot_spreads(ax=axs[0])
+thresholder.plot_loading_rate(ax=axs[1])
+thresholder.plot_infidelity(ax=axs[2])
+axs[0].set_ylabel('Counts')
+axs[1].set_ylabel('Loading rate')
+axs[2].set_ylabel('Infidelity')
+axs[-1].set_xlabel('Tweezer index')

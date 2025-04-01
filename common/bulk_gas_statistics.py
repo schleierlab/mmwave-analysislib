@@ -10,7 +10,11 @@ from pathlib import Path
 from scipy import optimize
 from scipy.constants import k as k_B, pi
 
-import lyse # needed for MLOOP
+try:
+    lyse
+except NameError:
+    import lyse # needed for MLOOP
+
 from .constants import cesium_atomic_mass
 from .plot_config import PlotConfig
 
@@ -48,8 +52,15 @@ class BulkGasStatistician:
         h5p = Path(preproc_h5_path)
         self.folder_path = h5p.parent
 
-    def _load_processed_quantities(self, h5_path):
-        with h5py.File(h5_path, 'r') as f:
+    def _load_processed_quantities(self, preproc_h5_path):
+        """Load processed quantities from an h5 file.
+
+        Parameters
+        ----------
+        preproc_h5_path : str
+            Path to the processed quantities h5 file
+        """
+        with h5py.File(preproc_h5_path, 'r') as f:
             self.atom_numbers = f['atom_numbers'][:]
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
@@ -281,6 +292,7 @@ class BulkGasStatistician:
         )
         fig.suptitle('MOT Cloud Parameters', fontsize=self.plot_config.title_font_size)
 
+        # time of flight temperature measurement
         if self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay':
             times = self.current_params[:, 0]
 
@@ -386,6 +398,8 @@ class BulkGasStatistician:
     @classmethod
     def time_of_flight_fit(cls, times, widths_u, method: Literal['curve_fit', 'polyfit'] = 'polyfit'):
         '''
+        See e.g. Tomasz M Brzozowski et al 2002 J. Opt. B: Quantum Semiclass. Opt. 4 62
+
         Parameters
         ----------
         times : np.ndarray

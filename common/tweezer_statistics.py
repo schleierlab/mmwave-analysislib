@@ -3,7 +3,11 @@ from matplotlib.figure import Figure
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-import lyse # needed for MLOOP
+
+try:
+    lyse
+except NameError:
+    import lyse # needed for MLOOP
 
 from .plot_config import PlotConfig
 from .image import ROI
@@ -25,9 +29,9 @@ class TweezerStatistician:
     plot_config : PlotConfig, optional
         Configuration object for plot styling
     """
-    def __init__(self, 
-    preproc_h5_path: str, 
-                 shot_h5_path: str, 
+    def __init__(self,
+                 preproc_h5_path: str,
+                 shot_h5_path: str,
                  plot_config: PlotConfig = None,
                  ):
         self.plot_config = plot_config or PlotConfig()
@@ -46,14 +50,17 @@ class TweezerStatistician:
             self.camera_counts = f['camera_counts'][:]
             self.site_occupancies = f['site_occupancies'][:]
             self.site_rois = ROI.fromarray(f['site_rois'])
+            self.params_list = f['params'][:]
+            self.n_runs = f.attrs['n_runs']
+            self.current_params = f['current_params'][:]
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
-        MLOOP reads the results of any experiment from the latest shot h5 file, 
+        MLOOP reads the results of any experiment from the latest shot h5 file,
         updates the loss landscape, and triggers run manager for the next batch
         of experiments.
-        
+
         Parameters
         ----------
         shot_h5_path : str
@@ -76,7 +83,7 @@ class TweezerStatistician:
     def plot_survival_rate(self, fig: Optional[Figure] = None):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
-        
+
         Parameters
         ----------
         fig : Optional[Figure]
@@ -90,9 +97,14 @@ class TweezerStatistician:
         else:
             ax = fig.subplots()
 
+        # loop_params = np.squeeze(self.current_params)
+        loop_params = self.current_params[:, 0]
+
+        # Group data points by x-value and calculate statistics
+        unique_params = np.unique(loop_params)
+
         initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1)
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
-
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
@@ -117,7 +129,7 @@ class TweezerStatistician:
     def plot_survival_rate_by_site(self, fig: Optional[Figure] = None):
         """
         Plots the survival rate of atoms in the tweezers, site by site.
-        
+
         Parameters
         ----------
         fig : Optional[Figure]
@@ -133,7 +145,6 @@ class TweezerStatistician:
 
         initial_atoms = self.site_occupancies[:, 0, :].sum(axis=0)
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
-
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=0)

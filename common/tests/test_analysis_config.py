@@ -1,6 +1,8 @@
+import pytest
 import numpy as np
 
-from analysislib.scripts.singleshot.common.analysis_config import ImagingCamera, ImagingSystem
+from analysislib.common.analysis_config import ImagingCamera, ImagingSystem
+
 
 class ImagingSystemTest:
     def test_solid_angle_lens_choice(self):

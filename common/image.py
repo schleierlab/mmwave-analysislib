@@ -81,6 +81,14 @@ class Image:
     '''
 
     @property
+    def height(self):
+        return self.array.shape[0]
+
+    @property
+    def width(self):
+        return self.array.shape[1]
+
+    @property
     def bkg_array(self):
         return np.broadcast_to(self.background, self.array.shape)
 
@@ -88,10 +96,17 @@ class Image:
     def subtracted_array(self):
         return self.array - self.bkg_array
 
+    def raw_image(self) -> Image:
+        return Image(self.array, background=0, yshift=self.yshift)
+
+    def background_image(self) -> Image:
+        return Image(self.bkg_array, background=0, yshift=self.yshift)
+
     @staticmethod
     def mean(images: Sequence[Image]) -> Image:
         # computed manually to allow for broadcasted backgrounds
-        background = sum(image.background for image in images) / len(images)
+        # use larger ints to avoid overflow
+        background = sum(image.background.astype(np.int32) for image in images) / len(images)
 
         yshift = images[0].yshift
         if any(image.yshift != yshift for image in images[1:]):

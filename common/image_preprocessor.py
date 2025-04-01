@@ -6,10 +6,10 @@ import numpy as np
 
 import h5py
 
-try:
-    lyse
-except:
-    import lyse
+# try:
+#     lyse
+# except NameError:
+#     import lyse
 
 from .analysis_config import ImagingSystem
 from analysislib.analysis.data import h5lyze as hz
@@ -80,6 +80,7 @@ class ImagePreprocessor(ABC):
         The actual h5 file path used based on the selected load_type
         """
         if load_type == 'lyse':
+            import lyse
             # Is this script being run from within an interactive lyse session?
             if lyse.spinning_top:
                 # If so, use the filepath of the current h5_path
@@ -212,62 +213,6 @@ class ImagePreprocessor(ABC):
             for i in range(len(images))
         )
         return images_list, run_number, globals
-
-    # def load_processed_quantities(self, *quantities):
-    #     """Load processed quantities from the HDF5 file.
-
-    #     Parameters
-    #     ----------
-    #     *quantities : str
-    #         Names of quantities to load. If none specified, loads all available quantities.
-
-    #     Returns
-    #     -------
-    #     dict
-    #         Dictionary of loaded quantities, with quantity names as keys
-    #     """
-    #     h5_path = os.path.join(self.folder_path, 'processed_quantities.h5')
-
-    #     if not os.path.exists(h5_path):
-    #         raise FileNotFoundError(f"No processed quantities file found at {h5_path}")
-
-    #     results = {}
-    #     with h5py.File(h5_path, 'r') as f:
-    #         # If no specific quantities requested, load all available
-    #         if not quantities:
-    #             quantities = f.keys()
-
-    #         # Load each requested quantity
-    #         for quantity in quantities:
-    #             if quantity in f:
-    #                 results[quantity] = f[quantity][()]
-
-    #     return results
-
-    # def save_processed_quantities(self, **quantities):
-    #     """Save processed quantities to an HDF5 file.
-
-    #     Parameters
-    #     ----------
-    #     **quantities : dict
-    #         Dictionary of quantities to save. Each key-value pair will be saved
-    #         as a dataset in the HDF5 file. Values must be numpy arrays or scalars.
-    #         Common quantities include:
-    #         - atom_number : number of atoms in the cloud
-    #         - time_of_flight : time of flight in seconds
-    #         - gaussian_waist : tuple of (x, y) waist sizes
-    #         - temperature : tuple of (x, y) temperatures
-    #     """
-    #     h5_path = os.path.join(self.folder_path, 'processed_quantities.h5')
-
-    #     # Always write mode since each folder represents a single run
-    #     with h5py.File(h5_path, 'w') as f:
-    #         # Save each quantity
-    #         for name, value in quantities.items():
-    #             if isinstance(value, (tuple, list)):
-    #                 # Convert tuples/lists to numpy arrays
-    #                 value = np.array(value)
-    #             f.create_dataset(name, data=value)
 
     @abstractmethod
     def process_shot(self,) -> None:

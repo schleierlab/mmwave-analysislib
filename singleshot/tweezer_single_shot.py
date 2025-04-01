@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 
-from analysislib.scripts.common.tweezer_analysis import TweezerPreprocessor
-from analysislib.scripts.common.tweezer_statistics import TweezerStatistician
-from analysislib.scripts.common.plot_config import PlotConfig
+from analysislib.common.tweezer_analysis import TweezerPreprocessor
+from analysislib.common.tweezer_statistics import TweezerStatistician
+from analysislib.common.plot_config import PlotConfig
 
 
 # Initialize analysis with background ROI and standard ROI loading
@@ -23,5 +23,5 @@ tweezer_statistician = TweezerStatistician(
     shot_h5_path=tweezer_analyzer.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
 )
-#tweezer_statistician.plot_survival_rate(fig=subfigs[1])
-tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])
+tweezer_statistician.plot_survival_rate(fig=subfigs[1])
+#tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])

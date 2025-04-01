@@ -108,15 +108,32 @@ class TweezerPreprocessor(ImagePreprocessor):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
         self.site_occupancies = camera_counts > self.threshold
 
+        # Get the scanning params to plot over
+        params, n_rep, current_params = self.get_scanning_params()
+        print(params)
+
         run_number = self.run_number
         fname = Path(self.folder_path) / 'tweezer_preprocess.h5'
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
+                f.attrs['n_runs'] = self.n_runs
                 f.create_dataset('camera_counts', data=camera_counts[np.newaxis, ...], maxshape=(None, 10, 100))  # shape: (n_shots, n_images, n_sites)
                 f.create_dataset('site_occupancies', data=self.site_occupancies[np.newaxis, ...], maxshape=(None, 10, 100))
                 f['site_occupancies'].attrs['threshold'] = self.threshold
                 f.create_dataset('site_rois', data=ROI.toarray(self.site_rois))
                 f['site_rois'].attrs['fields'] = ['xmin', 'xmax', 'ymin', 'ymax']
+
+                # save parameters from runmanager globals
+                f.create_dataset(
+                    'current_params',
+                    data=self.current_params[np.newaxis, ...],
+                    maxshape=(self.n_runs, len(self.current_params)),
+                    chunks = True,
+                )
+                param_list = []
+                for key in self.params.keys():
+                    param_list.append([key, self.params[key][1], self.params[key][0]])
+                f.create_dataset('params', data=param_list)
         else:
             with h5py.File(fname, 'a') as f:
                 f['camera_counts'].resize(run_number + 1, axis=0)
@@ -154,7 +171,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             ax.set_title(f'Image {i}')
             if roi_patches:
                 patches = tuple(
-                    roi.patch(edgecolor=('yellow' if self.site_occupancies[i, j] else 'red'))
+                    roi.patch(edgecolor=('yellow' if self.site_occupancies[i, j] else 'red'), alpha=0.6)
                     for j, roi in enumerate(self.site_rois)
                 )
                 collection = PatchCollection(patches, match_original=True)
