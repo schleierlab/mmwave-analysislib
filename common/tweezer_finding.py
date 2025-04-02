@@ -44,14 +44,16 @@ class TweezerFinder:
         Parameters
         ----------
         new_site_rois : list[ROI]
-            List of ROI objects for each site
+            List of ROI objects for each site, to override the existing site ROIs in roi_config.yml
+        folder : str
+            Folder containing the sequence of h5 files of the current multishot analysis
         """
         sequence_dir = Path(folder)
         shots_h5s = sequence_dir.glob('20*.h5')
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
         atom_roi = processor.atom_roi
         threshold = processor.threshold
-        output_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_test.yml'
+        output_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
         output_path = TweezerPreprocessor.dump_to_yaml(new_site_rois, atom_roi, threshold, output_path)
         print(f'Site ROIs dumped to {output_path}')
 

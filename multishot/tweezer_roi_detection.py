@@ -21,8 +21,6 @@ new_site_rois = finder.detect_rois(
     detection_threshold=25,
     roi_size=5,
 )
-print(new_site_rois)
-print(folder)
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
 finder.plot_sites(new_site_rois)
 
