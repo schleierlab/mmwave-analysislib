@@ -65,8 +65,8 @@ class TweezerPreprocessor(ImagePreprocessor):
             h5_path=h5_path
         )
 
-        self.atom_roi, self.site_rois = self._load_rois_from_yaml()
-        self.threshold = self._load_threshold_from_yaml()
+        self.atom_roi, self.site_rois = self._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
+        self.threshold = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
         self.images = [
             Image(
                 exposure,
@@ -80,15 +80,42 @@ class TweezerPreprocessor(ImagePreprocessor):
     def n_sites(self):
         return len(self.site_rois)
 
-    def _load_rois_from_yaml(self):
-        # Get y-coordinates from globals
+    def _load_ylims_from_globals(self):
+        """Load the atom ROI y-coordinates from globals. Sometimes they change...
+        # TODO: further explanation
+        
+        Returns
+        -------
+        atom_roi_ylims : list
+            List of y-coordinates for the atom ROI.
+        """
         try:
             atom_roi_ymin, atom_roi_height = self.globals["tw_kinetix_roi_row"]
             atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
         except KeyError:
             raise KeyError('tw_kinetix_roi_row not found in globals')
+        return atom_roi_ylims
 
-        with self.ROI_CONFIG_PATH.open('rt') as stream:
+    @staticmethod
+    def _load_rois_from_yaml(roi_config_path: Path, atom_roi_ylims):
+        """Load site ROIs from YAML file.
+        Want this to be static so that it can be used by TweezerFinder.
+        
+        Parameters
+        ----------
+        roi_config_path : Path
+            Path to the YAML file containing the ROIs.
+        atom_roi_ylims : list
+            List of y-coordinates for the atom ROI.
+        
+        Returns
+        -------
+        atom_roi : ROI
+            ROI object for the atom region.
+        site_rois : list
+            List of ROI objects for each site.
+        """
+        with roi_config_path.open('rt') as stream:
             loaded_yaml = yaml.safe_load(stream)
 
         site_roi_arr = loaded_yaml['site_rois']
@@ -99,10 +126,85 @@ class TweezerPreprocessor(ImagePreprocessor):
             [ROI.from_roi_xy(*pairpair) for pairpair in site_roi_arr]
         )
 
-    def _load_threshold_from_yaml(self):
-        """Load threshold value from file or use default."""
-        with self.ROI_CONFIG_PATH.open('rt') as stream:
+    @staticmethod
+    def _load_threshold_from_yaml(roi_config_path: Path):
+        """Load threshold value from file or use default.
+
+        Want this to be static so that it can be used by TweezerFinder.
+        
+        Parameters
+        ----------
+        roi_config_path : Path
+            Path to the YAML file containing the ROIs.
+        
+        Returns
+        -------
+        threshold : float
+            Threshold value for atom detection.
+        """
+        with roi_config_path.open('rt') as stream:
             return yaml.safe_load(stream)['threshold']
+
+    @staticmethod
+    def dump_to_yaml(
+        site_rois: Sequence[ROI],
+        atom_roi: ROI,
+        threshold: float,
+        output_path: str,
+    ) -> str:
+        """
+        Dump site ROIs to a YAML file in the same format as roi_config.yml.
+
+        Want this to be static so that it can be used by TweezerFinder.
+        
+        Parameters
+        ----------
+        site_rois : Sequence[ROI]
+            List of ROI objects for each site
+        atom_roi : Optional[ROI], default=None
+            ROI object for the atom region.
+        threshold : Optional[float], default=None
+            Threshold value for atom detection.
+        output_path : str, optional
+            Path to save the YAML file. If None, will save to 'roi_test.yml' 
+            in the same directory as the original roi_config.yml
+            
+        Returns
+        -------
+        str
+            Path to the created YAML file
+        """
+            
+        # Convert ROI objects to the format used in the YAML file
+        site_rois_formatted = []
+        for roi in site_rois:
+            # Each site ROI is represented as [[xmin, xmax], [ymin, ymax]]
+            site_rois_formatted.append([[roi.xmin, roi.xmax], [roi.ymin, roi.ymax]])
+        
+        # Get atom_roi_xlims from the atom_roi object
+        atom_roi_xlims = [atom_roi.xmin, atom_roi.xmax]
+        
+        # Determine the output path
+        output_path = Path(output_path)
+        
+        # Format the YAML content manually to match the exact format of roi_config.yml
+        yaml_content = "---\n"
+        yaml_content += f"threshold: {threshold}\n"
+        yaml_content += f"atom_roi_xlims: [{atom_roi_xlims[0]}, {atom_roi_xlims[1]}]\n"
+        
+        # Format the site ROIs
+        yaml_lines = ["site_rois:"]
+        for site in site_rois_formatted:
+            yaml_lines.append(f"  - [[{site[0][0]}, {site[0][1]}],")
+            yaml_lines.append(f"     [{site[1][0]}, {site[1][1]}]]")
+        
+        yaml_content += "\n".join(yaml_lines)
+        
+        # Write the YAML file
+        with output_path.open('w') as stream:
+            stream.write(yaml_content)
+        
+        return str(output_path)
 
     def process_shot(self):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])

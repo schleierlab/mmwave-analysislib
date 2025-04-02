@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 from analysislib.common.tweezer_finding import TweezerFinder
 from analysislib.common.tweezer_histograms import TweezerThresholder
+from analysislib.common.tweezer_preproc import TweezerPreprocessor
 
 
 # show dialog box and return the path
@@ -15,19 +16,22 @@ while True:
     break
 
 finder = TweezerFinder.load_from_h5(folder)
-site_rois = finder.detect_rois(
+new_site_rois = finder.detect_rois(
     neighborhood_size=5,
     detection_threshold=25,
     roi_size=5,
 )
-finder.plot_sites(site_rois)
+print(new_site_rois)
+print(folder)
+finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
+finder.plot_sites(new_site_rois)
 
 background_subtract = False
 thresholder = TweezerThresholder(
     finder.images,
-    site_rois,
+    new_site_rois,
     background_subtract=background_subtract,
-    weights=finder.weight_functions(site_rois, background_subtract=background_subtract),
+    weights=finder.weight_functions(new_site_rois, background_subtract=background_subtract),
 )
 thresholder.fit_gmms()
 

@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from analysislib.common.image import ROI, Image
-from analysislib.common.tweezer_analysis import TweezerPreprocessor
+from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from matplotlib import pyplot as plt
 from matplotlib.collections import PatchCollection
 import numpy as np
@@ -28,7 +28,7 @@ class TweezerFinder:
         sequence_dir = Path(h5_path)
         shots_h5s = sequence_dir.glob('20*.h5')
 
-        print('Loading images ...')
+        print('Loading imagess...')
         images: list[Image] = []
         for shot in shots_h5s:
             print(shot)
@@ -36,6 +36,24 @@ class TweezerFinder:
             images.append(processor.images[0])
 
         return cls(images)
+
+    def overwrite_site_rois_to_yaml(self, new_site_rois: list[ROI], folder: str):
+        """Overwrite the site ROIs in the roi_config.yml file, to be used by all subsequent
+        TweezerPreprocessor instances.
+        
+        Parameters
+        ----------
+        new_site_rois : list[ROI]
+            List of ROI objects for each site
+        """
+        sequence_dir = Path(folder)
+        shots_h5s = sequence_dir.glob('20*.h5')
+        processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
+        atom_roi = processor.atom_roi
+        threshold = processor.threshold
+        output_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_test.yml'
+        output_path = TweezerPreprocessor.dump_to_yaml(new_site_rois, atom_roi, threshold, output_path)
+        print(f'Site ROIs dumped to {output_path}')
 
     def plot_sites(self, rois: Sequence[ROI]):
         fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
