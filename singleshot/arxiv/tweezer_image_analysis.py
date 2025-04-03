@@ -585,8 +585,8 @@ class LastExposeBackgroundAnalyzer(TweezerImageAnalyzer):
             tweezer_roi_2, threshold)
 
         # Plot results
-        rect_sig_1 = False
-        rect_sig_2 = False
+        # rect_sig_1 = False
+        # rect_sig_2 = False
         self.plot_results(tweezer_roi_1, bkg_roi_1, tweezer_roi_2, bkg_roi_2,
                          rect_sig_1, rect_sig_2)
 

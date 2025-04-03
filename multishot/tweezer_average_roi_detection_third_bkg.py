@@ -209,12 +209,16 @@ while True:
 
 avg_shot_bkg_sub, avg_shot_bkg, N = avg_all_shots(folder, loop = False)
 neighborhood_size = 5 #6
-threshold = 18 #np.max(avg_shot_bkg_sub[0])/3.8 #40 #48 #83 #60
+threshold = 17 #np.max(avg_shot_bkg_sub[0])/3.8 #40 #48 #83 #60
 site_roi_x, site_roi_y, roi_x = auto_roi_detection(avg_shot_bkg_sub[0], neighborhood_size, threshold)
+
+# site_roi_x = site_roi_x[1:]
+# site_roi_y = site_roi_y[1:]
 
 print(f'site_roi_x={repr(site_roi_x)}, site_roi_y={repr(site_roi_y)}')
 
 print(f'size of site roi = {site_roi_x.shape[0]} ')
+
 plot_shots_avg(avg_shot_bkg_sub, site_roi_x,site_roi_y, N, show_roi=True)
 
 folder_path = 'X:\\userlib\\analysislib\\scripts\\multishot\\'

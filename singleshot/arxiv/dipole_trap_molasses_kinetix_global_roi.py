@@ -35,7 +35,7 @@ counts_per_atom = 1 # Counts per atom 16.6 counts per atom per ms
 #roi_y = [800, 1500] #roi_y = [800, 1000] #[750, 1150] # Region of interest of Y direction, MOT beam imaging
 
 #for dipole trap:(20240109)
-roi_x = [1200, 1450]
+roi_x = [1000, 1650]
 # roi_x = [1400,1800]#[750, 1200]#roi_x = [850, 1250] # Region of interest of X direction, Img beam imaging
 # roi_y = [1150,1300]#[1500, 2000] #[750, 1150] # Region of interest of Y direction, Img beam imaging
 
@@ -50,7 +50,7 @@ roi_x = [1200, 1450]
 # roi_x = [1100, 1550]
 # roi_x = [1100, 1500]
 
-roi_y = [1080, 1100]
+roi_y = [1050, 1350]
 # roi_x = [0, 2400]
 roi_x_bkg = [1900, 2400] # Region of interest of X direction
 roi_y_bkg= [1900, 2400] # Region of interest of Y direction
@@ -79,7 +79,7 @@ with h5py.File(h5_path, mode='r+') as f:
     try:
         uwave_detuning = float(hz.attributesToDictionary(f).get('globals').get(loop_glob))
     except:
-        uwave_detuning = float(hz.attributesToDictionary(f).get('globals').get('n_shot'))
+        uwave_detuning = float(hz.attributesToDictionary(f).get('globals').get('n_shots'))
 
     run_number = info_dict.get('run number')
 
@@ -161,7 +161,7 @@ ax_bkg_raw.set_title('Raw, no MOT')
 pos = ax_bkg_raw.imshow(background_image, **raw_img_color_kw)
 fig.colorbar(pos, ax=ax_bkg_raw)
 
-roi_image_scale = 1000 #1000 #180 #150 #2000 #4096 #150
+roi_image_scale = 100 #1000 #180 #150 #2000 #4096 #150
 roi_img_color_kw = dict(cmap='viridis', vmin=0, vmax=roi_image_scale)
 
 ax_mot_roi.set_title('MOT ROI')

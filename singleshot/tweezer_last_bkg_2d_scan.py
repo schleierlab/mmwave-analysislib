@@ -25,7 +25,7 @@ try:
 except NameError:
     import lyse
 
-from tweezer_image_analysis import TweezerImageAnalyzer, AverageBackgroundAnalyzer, LastBackground2DScanAnalyzer
+from analysislib.scripts.singleshot.arxiv.tweezer_image_analysis import TweezerImageAnalyzer, AverageBackgroundAnalyzer, LastBackground2DScanAnalyzer
 
 # Configuration Constants
 SHOW_SITE_ROI = True

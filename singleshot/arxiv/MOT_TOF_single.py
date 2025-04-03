@@ -149,9 +149,9 @@ sigma = np.sort(np.abs([popt[3], popt[4]]))  # gaussian waiast in pixel, [short 
 gaussian_waist = np.array(sigma)*px*1e-6/mag # convert from pixel to distance m
 
 tof = g['bm_tof_imaging_delay']
-if g['do_dipole_trap_tof_check'] == True:
-    tof = g['img_tof_imaging_delay']
-print(gaussian_waist)
+# if g['do_dipole_trap_tof_check'] == True:
+#     tof = g['img_tof_imaging_delay']
+# print(gaussian_waist)
 temperature = m / kB * (gaussian_waist/tof)**2
 
 # Sum the counts from the (background subtracted) MOT in the ROI, and scale by the counts per atom (see Wiki)

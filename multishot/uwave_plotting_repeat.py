@@ -40,8 +40,10 @@ h5_path = df.filepath.iloc[-1]
 # print( lyse.data().filepath.iloc[-1])
 folder_path = '\\'.join(h5_path.split('\\')[0:-1])
 count_file_path = folder_path+'\\data.csv'
+avg_file_path = folder_path+'\\avg_data.txt'
 print(count_file_path, h5_path)
 
+rep = h5_path[-5:-3]
 
 try:
     with h5py.File(h5_path, mode='r+') as f:
@@ -115,6 +117,9 @@ try:
     ax.tick_params(axis='both', which='minor', labelsize=10)
 
     fig.savefig(folder_path + '\data.png')
+
+    print(avg_file_path)
+    np.savetxt(avg_file_path, np.c_[avg_vars, avg_counts, std_counts])
 
 except:
     print("no data.csv found")

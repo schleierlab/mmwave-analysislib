@@ -209,7 +209,7 @@ while True:
 
 avg_shot_bkg_sub, avg_shot_bkg, N = avg_all_shots(folder, loop = False)
 neighborhood_size = 5 #6
-threshold = 30 #np.max(avg_shot_bkg_sub[0])/3.8 #40 #48 #83 #60
+threshold = 23 #np.max(avg_shot_bkg_sub[0])/3.8 #40 #48 #83 #60
 site_roi_x, site_roi_y, roi_x = auto_roi_detection(avg_shot_bkg_sub[0], neighborhood_size, threshold)
 
 print(f'site_roi_x={repr(site_roi_x)}, site_roi_y={repr(site_roi_y)}')

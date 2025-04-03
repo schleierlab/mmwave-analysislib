@@ -1,4 +1,4 @@
-from analysis_lib import BulkGasAnalysis, kinetix_setup
+from analysislib.scripts.singleshot.common.bulk_gas_analysis import BulkGasAnalysis, kinetix_setup
 import matplotlib.pyplot as plt
 
 roi_x =  [1100, 1700]# Region of interest of X direction

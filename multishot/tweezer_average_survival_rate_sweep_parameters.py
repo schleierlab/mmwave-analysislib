@@ -33,7 +33,7 @@ from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
 import scipy.optimize as optimize
 
-DO_LORENTZIAN = False
+DO_LORENTZIAN = True
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
     n_shots = np.size([i for i in os.listdir(folder) if i.endswith('.h5')])
@@ -347,10 +347,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 1500 #np.max(first_shot_roi_number)/2#2000
+    cpa = 500 #np.max(first_shot_roi_number)/2#2000
     sigma1 = 0.1*cpa
     sigma2 = 0.1*cpa
-    mu1 = 500
+    mu1 = 0
     mu2 = cpa
     c1 = max(y_hist)
     c2 = c1+1000
@@ -450,10 +450,10 @@ def histagram_fit_and_threshold(roi_number_lst, site_roi_x, folder_path, plot_hi
         print('[C, mu, sigma, CPA] =', param_optimised)
 
     #double_gaussian_fit
-    cpa = 1500 #np.max(first_shot_roi_number)/2
+    cpa = 500 #np.max(first_shot_roi_number)/2
     sigma1 = 0.1*cpa
     sigma2 = 0.1*cpa
-    mu1 = 500
+    mu1 = 0
     mu2 = cpa
     c1 = max(y_hist)
     c2 = c1+cpa
@@ -587,6 +587,7 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para, folder_path, d
 
     first_shot_atom = first_shot_atom_number>th
     first_shot_no_atom = first_shot_atom_number<=th
+    print("first_shot_atom_number>th", (first_shot_atom_number>th).shape,"second_shot_atom_number>th",(second_shot_atom_number>th).shape )
     survival_points = (first_shot_atom_number>th) & (second_shot_atom_number>th)
     appear_points = (first_shot_atom_number<=th) & (second_shot_atom_number>th)
     lost_points = (first_shot_atom_number>th) & (second_shot_atom_number<=th)
@@ -594,6 +595,7 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para, folder_path, d
 
 
     survival_sum_each_para = np.array([np.sum(survival_points[:,i::para.shape[0]]) for i in range(para.shape[0])])
+    print("para shape = ", para.shape[0], "survival points", print(survival_points.shape))
     survival_std_each_para = np.std([np.sum(survival_points[:,i::para.shape[0]],axis = 0) for i in range(para.shape[0])], axis = 1)
     appear_sum_each_para = np.array([np.sum(appear_points[:,i::para.shape[0]]) for i in range(para.shape[0])])
     appear_std_each_para =  np.std([np.sum(appear_points[:,i::para.shape[0]],axis = 0) for i in range(para.shape[0])], axis = 1)
@@ -648,16 +650,18 @@ def avg_survival_rate_sweep(roi_number_lst, th, site_roi_x, para, folder_path, d
     fig.suptitle(f'n average = {n_average:.3f}')
     (ax1, ax2), (ax3, ax4), (ax5, ax6) = axs
     # print(f"survival sum std = {survival_std_each_para }")
-    # ebar = ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o', linestyle='')
-    ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o')
     if DO_LORENTZIAN is True:
+        ebar = ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o', linestyle = '')
         popt, perr = fit_lorentzian(para,survival_rate_each_para)
         x_plot = np.linspace(np.min(para), np.max(para), 1000)
         ax1.plot(x_plot, lorentzian(x_plot, *popt), color = ebar[0].get_color())
         fig.suptitle(
-            f'center freq = {popt[0]:.3f} +/- {perr[0]:.3f} MHz, '
+            f'center freq = {popt[0]:.3f} +/- {perr[0]:.3f} MHz, width = {popt[1]:.3f} +/- {perr[1]:.3f} MHz'
         )
         print(f"fitting lorentzian, popt = {popt}, perr = {perr}")
+        print(f'center freq = {popt[0]:.3f} +/- {perr[0]:.3f} MHz, width = {popt[1]:.3f} +/- {perr[1]:.3f} MHz')
+    else:
+        ebar = ax1.errorbar(para, survival_rate_each_para, yerr = survival_rate_std_each_para, marker='o', linestyle = '-')
 
     ax1.grid()
     # ax1.set_xlabel('x [px]')
@@ -709,9 +713,14 @@ def lorentzian(x, x0, w, a, offset):
 
 def fit_lorentzian(x_data, y_data):
     # Fit the data to a Lorentzian function
-    a_guess = max(y_data) - min(y_data)
-    offset_guess = max(y_data)
-    x0_guess = x_data[np.argmin(y_data)]
+    # a_guess = max(y_data) - min(y_data)
+    # offset_guess = max(y_data)
+    # x0_guess = x_data[np.argmin(y_data)]
+
+    a_guess = min(y_data) - max(y_data)
+    offset_guess = min(y_data)
+    x0_guess = x_data[np.argmax(y_data)]
+
     w_guess = 5 #2 * np.abs(x_data[np.argmin(np.abs(y_data - a_guess / 2))])
     p0 = [x0_guess, w_guess, a_guess, offset_guess]
 

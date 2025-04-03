@@ -18,10 +18,10 @@ try:
 except NameError:
     import lyse
 
-from scripts.singleshot.tweezer_image_analysis import LastExposeBackgroundAnalyzer
+from analysislib.scripts.singleshot.arxiv.tweezer_image_analysis import LastExposeBackgroundAnalyzer
 
 # Configuration Constants
-SHOW_SITE_ROI = False
+SHOW_SITE_ROI = True
 LOAD_ROI = True
 LOAD_THRESHOLD = True
 
