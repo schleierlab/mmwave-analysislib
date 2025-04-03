@@ -80,7 +80,7 @@ class BaseStatistician(ABC):
         detuning = x - x0
         return a * width / ((width / 2)**2 + detuning**2) + offset
 
-    def fit_lorentzian(self, x_data, y_data):
+    def fit_lorentzian(self, x_data, y_data, sigma=None):
         """
         Fits a Lorentzian function to the atom number data.
         """
@@ -92,4 +92,4 @@ class BaseStatistician(ABC):
 
         offset_guess = np.min(y_data)
         p0 = [x0_guess, width_guess, a_guess, offset_guess]
-        return optimize.curve_fit(self.lorentzian, x_data, y_data, p0=p0)
+        return optimize.curve_fit(self.lorentzian, x_data, y_data, p0=p0, sigma=sigma)

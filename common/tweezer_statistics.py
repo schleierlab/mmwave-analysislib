@@ -126,22 +126,36 @@ class TweezerStatistician(BaseStatistician):
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
-        survival_rates = surviving_atoms / initial_atoms
+        initial_atoms_sum = np.array([
+            np.sum(initial_atoms[loop_params == x])
+            for x in unique_params
+        ])
+
+        surviving_atoms_sum = np.array([
+            np.sum(surviving_atoms[loop_params == x])
+            for x in unique_params
+        ])
+
+        #survival_rates = surviving_atoms / initial_atoms
+        # survival rate using laplace rule of succession
+        survival_rates = (surviving_atoms_sum + 1) / (initial_atoms_sum + 2)
+        # sqrt of variance of the posterior beta distribution
+        sigma_beta = np.sqrt((surviving_atoms_sum + 1) * (initial_atoms_sum - surviving_atoms_sum + 1) / ((initial_atoms_sum + 3) * (initial_atoms_sum + 2) ** 2))
 
         # Calculate means and stds for the unique parameters
-        means = np.array([
-            np.mean(survival_rates[loop_params == x])
-            for x in unique_params
-        ])
-        stds = np.array([
-            np.std(survival_rates[loop_params == x])
-            for x in unique_params
-        ])
+        # means = np.array([
+        #     np.mean(survival_rates[loop_params == x])
+        #     for x in unique_params
+        # ])
+        # stds = np.array([
+        #     np.std(survival_rates[loop_params == x])
+        #     for x in unique_params
+        # ])
 
         ax.errorbar(
             unique_params,
-            means,
-            yerr=stds,
+            survival_rates,
+            yerr=sigma_beta,
             marker='.',
             linestyle='-',
             alpha=0.5,
@@ -167,7 +181,7 @@ class TweezerStatistician(BaseStatistician):
 
         # doing the fit at the end of the run
         if self.is_final_shot and plot_lorentz:
-            popt, pcov = self.fit_lorentzian(unique_params, means)
+            popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta)
             upopt = uncertainties.correlated_values(popt, pcov)
 
             x_plot = np.linspace(
