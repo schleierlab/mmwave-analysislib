@@ -202,6 +202,8 @@ class TweezerStatistician(BaseStatistician):
         else:
             fig.savefig(figname)
 
+    # TODO: this method needs updates that have already been applied to plot_survival_rate
+    # Can redundant code here be consolidated with plot_survival_rate?
     def plot_survival_rate_by_site(self, fig: Optional[Figure] = None):
         """
         Plots the survival rate of atoms in the tweezers, site by site.

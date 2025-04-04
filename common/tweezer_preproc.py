@@ -47,7 +47,8 @@ class TweezerPreprocessor(ImagePreprocessor):
     def __init__(
             self,
             load_type: str = 'lyse',
-            h5_path: str = None):
+            h5_path: str = None,
+        ):
         """Initialize TweezerAnalysis with analysis configuration.
 
         Parameters
@@ -64,9 +65,8 @@ class TweezerPreprocessor(ImagePreprocessor):
             load_type=load_type,
             h5_path=h5_path
         )
-
         self.atom_roi, self.site_rois = self._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
-        self.threshold = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
+        self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
         self.images = [
             Image(
                 exposure,
@@ -131,7 +131,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         """Load threshold value from file or use default.
 
         Want this to be static so that it can be used by TweezerFinder.
-        
+
         Parameters
         ----------
         roi_config_path : Path
@@ -143,13 +143,18 @@ class TweezerPreprocessor(ImagePreprocessor):
             Threshold value for atom detection.
         """
         with roi_config_path.open('rt') as stream:
-            return yaml.safe_load(stream)['threshold']
+            global_threshold = yaml.safe_load(stream)['threshold']
+        with roi_config_path.open('rt') as stream:
+            site_thresholds = yaml.safe_load(stream)['site_thresholds']
 
+        return global_threshold, site_thresholds
+    
     @staticmethod
     def dump_to_yaml(
         site_rois: Sequence[ROI],
         atom_roi: ROI,
-        threshold: float,
+        global_threshold: float,
+        site_thresholds: list[float],
         output_path: str,
     ) -> str:
         """
@@ -163,8 +168,10 @@ class TweezerPreprocessor(ImagePreprocessor):
             List of ROI objects for each site
         atom_roi : Optional[ROI], default=None
             ROI object for the atom region.
-        threshold : Optional[float], default=None
-            Threshold value for atom detection.
+        global_threshold : float
+            Global threshold value for atom detection.
+        site_thresholds : list[float]
+            List of site-specific threshold values for atom detection.
         output_path : str, optional
             Path to save the YAML file. If None, will save to 'roi_test.yml' 
             in the same directory as the original roi_config.yml
@@ -189,7 +196,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         
         # Format the YAML content manually to match the exact format of roi_config.yml
         yaml_content = "---\n"
-        yaml_content += f"threshold: {threshold}\n"
+        yaml_content += f"threshold: {global_threshold}\n"
         yaml_content += f"atom_roi_xlims: [{atom_roi_xlims[0]}, {atom_roi_xlims[1]}]\n"
         
         # Format the site ROIs
@@ -199,6 +206,14 @@ class TweezerPreprocessor(ImagePreprocessor):
             yaml_lines.append(f"     [{site[1][0]}, {site[1][1]}]]")
         
         yaml_content += "\n".join(yaml_lines)
+        yaml_content += "\n"
+
+        # Format the site thresholds
+        yaml_lines = ["site_thresholds:"]
+        for threshold in site_thresholds:
+            yaml_lines.append(f"  - {threshold}")
+        
+        yaml_content += "\n".join(yaml_lines)
         
         # Write the YAML file
         with output_path.open('w') as stream:
@@ -206,14 +221,17 @@ class TweezerPreprocessor(ImagePreprocessor):
         
         return str(output_path)
 
-    def process_shot(self):
+    def process_shot(self, use_global_threshold: bool = False):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
-        self.site_occupancies = camera_counts > self.threshold
-
-        # Get the scanning params to plot over
-        params, n_rep, current_params = self.get_scanning_params()
-        print(params)
-
+        
+        # Implement the thresholding to determine site occupancy
+        if use_global_threshold:
+            print("Using global threshold =", self.threshold)
+            self.site_occupancies = camera_counts > self.threshold
+        else:
+            print("Using site-specific thresholds...")
+            self.site_occupancies = camera_counts > self.site_thresholds
+        
         run_number = self.run_number
         fname = Path(self.folder_path) / 'tweezer_preprocess.h5'
         if run_number == 0:

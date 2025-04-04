@@ -35,6 +35,8 @@ class TweezerFinder:
             processor = TweezerPreprocessor(load_type='h5', h5_path=shot)
             images.append(processor.images[0])
 
+        print("Done loading images")
+
         return cls(images)
 
     def overwrite_site_rois_to_yaml(self, new_site_rois: list[ROI], folder: str):
@@ -52,9 +54,19 @@ class TweezerFinder:
         shots_h5s = sequence_dir.glob('20*.h5')
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
         atom_roi = processor.atom_roi
-        threshold = processor.threshold
-        output_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
-        output_path = TweezerPreprocessor.dump_to_yaml(new_site_rois, atom_roi, threshold, output_path)
+        # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
+        # from the globals stored in the shot.h5 as tw_kinetix_roi_row. 
+        # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
+        # we could load the atom_roi to be copied in the same way that the threshold is copied below.
+        
+        roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
+        global_threshold, site_thresholds = TweezerPreprocessor._load_threshold_from_yaml(roi_config_path)
+        output_path = TweezerPreprocessor.dump_to_yaml(new_site_rois, 
+                                                        atom_roi, 
+                                                        global_threshold, 
+                                                        site_thresholds,
+                                                        roi_config_path
+                                                        )
         print(f'Site ROIs dumped to {output_path}')
 
     def plot_sites(self, rois: Sequence[ROI]):

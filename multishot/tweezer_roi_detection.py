@@ -24,7 +24,7 @@ new_site_rois = finder.detect_rois(
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
 finder.plot_sites(new_site_rois)
 
-background_subtract = False
+background_subtract = True
 thresholder = TweezerThresholder(
     finder.images,
     new_site_rois,
@@ -32,6 +32,7 @@ thresholder = TweezerThresholder(
     weights=finder.weight_functions(new_site_rois, background_subtract=background_subtract),
 )
 thresholder.fit_gmms()
+thresholder.overwrite_thresholds_to_yaml(folder)
 
 fig, axs = plt.subplots(nrows=3, ncols=1, sharex=True, layout='constrained')
 thresholder.plot_spreads(ax=axs[0])

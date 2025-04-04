@@ -14,7 +14,7 @@ tweezer_preproc = TweezerPreprocessor(
 fig = plt.figure(layout='constrained', figsize=(10, 4))
 subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 
-processed_results_fname = tweezer_preproc.process_shot()
+processed_results_fname = tweezer_preproc.process_shot(use_global_threshold=True)
 tweezer_preproc.show_image(roi_patches=True, fig=subfigs[0], vmax=70)
 
 # Initialize statistician with consistent styling
