@@ -33,7 +33,7 @@ from analysis.data import h5lyze as hz
 from matplotlib.collections import PatchCollection
 import scipy.optimize as optimize
 
-DO_LORENTZIAN = True
+DO_LORENTZIAN = False
 
 def avg_all_shots(folder, shots = 'defult', loop = True):
     n_shots = np.size([i for i in os.listdir(folder) if i.endswith('.h5')])
