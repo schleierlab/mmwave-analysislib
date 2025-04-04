@@ -124,7 +124,7 @@ class TweezerStatistician(BaseStatistician):
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
+        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
         initial_atoms_sum = np.array([
             np.sum(initial_atoms[loop_params == x])
@@ -225,7 +225,7 @@ class TweezerStatistician(BaseStatistician):
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=0)
+        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=0)
 
         survival_rates = surviving_atoms / initial_atoms
         ax.plot(

@@ -90,10 +90,10 @@ class TweezerPreprocessor(ImagePreprocessor):
             List of y-coordinates for the atom ROI.
         """
         try:
-            atom_roi_ymin, atom_roi_height = self.globals["tw_kinetix_roi_row"]
+            atom_roi_ymin, atom_roi_height = self.globals["kinetix_roi_row"]
             atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
         except KeyError:
-            raise KeyError('tw_kinetix_roi_row not found in globals')
+            raise KeyError('kinetix_roi_row not found in globals')
         return atom_roi_ylims
 
     @staticmethod
