@@ -25,6 +25,7 @@ finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
 finder.plot_sites(new_site_rois)
 
 background_subtract = True
+# TODO: evaluate whether or not we actually should be subtracting the background for tweezers
 thresholder = TweezerThresholder(
     finder.images,
     new_site_rois,

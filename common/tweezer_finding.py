@@ -35,8 +35,6 @@ class TweezerFinder:
             processor = TweezerPreprocessor(load_type='h5', h5_path=shot)
             images.append(processor.images[0])
 
-        print("Done loading images")
-
         return cls(images)
 
     def overwrite_site_rois_to_yaml(self, new_site_rois: list[ROI], folder: str):
