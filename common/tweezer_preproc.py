@@ -67,7 +67,8 @@ class TweezerPreprocessor(ImagePreprocessor):
             load_type=load_type,
             h5_path=h5_path
         )
-        self.atom_roi, self.site_rois = self._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
+
+        self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
         self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
         self.images = [
             Image(

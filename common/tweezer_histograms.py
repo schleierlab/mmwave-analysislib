@@ -140,7 +140,8 @@ class TweezerThresholder:
         ax.plot(np.arange(self.n_sites), self.loading_rates, **plot_kw)
         ax.axhline(0.5, color='0.5', linestyle='dashed', label='50%')
         ax.axhline(np.mean(self.loading_rates), color='red', linestyle='dashed', label='mean')
-        ax.set_title(f'Loading rate = {np.mean(self.loading_rates):e}')
+        ax.set_title(f'Loading rate = {np.mean(self.loading_rates*100):.1f}%')
+        ax.legend()
 
     def plot_infidelity(self, ax: Optional[Axes] = None, **kwargs):
         if ax is None:
@@ -149,6 +150,13 @@ class TweezerThresholder:
         plot_kw = dict(marker='.') | kwargs
         ax.plot(np.arange(self.n_sites), self.infidelities, **plot_kw)
         ax.set_yscale('log')
+
+    def plot_survival_rate(self, ax: Optional[Axes] = None, **kwargs):
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        plot_kw = dict(marker='.') | kwargs
+        ax.plot(np.arange(self.n_sites), self.survival_rates, **plot_kw)
 
 
 class TweezerCountGMM:
