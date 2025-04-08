@@ -24,6 +24,7 @@ class TweezerThresholder:
     df: pd.DataFrame
     rois = list[ROI]
     gmms: list[TweezerCountGMM]
+    '''gaussian mixture models of the counts for each site'''
 
     def __init__(
             self,
@@ -73,6 +74,7 @@ class TweezerThresholder:
         self.stds = np.array([gmm.stds for gmm in self.gmms])
         self.thresholds = np.array([gmm.balanced_threshold() for gmm in self.gmms])
         self.loading_rates = np.array([gmm.weights[1] for gmm in self.gmms])
+        self.survival_rates =
         self.infidelities = np.array([gmm.infidelity_at_threshold() for gmm in self.gmms])
 
     def overwrite_thresholds_to_yaml(self, folder: str):
@@ -138,7 +140,6 @@ class TweezerThresholder:
 
         plot_kw = dict(marker='.') | kwargs
         ax.plot(np.arange(self.n_sites), self.loading_rates, **plot_kw)
-        ax.axhline(0.5, color='0.5', linestyle='dashed', label='50%')
         ax.axhline(np.mean(self.loading_rates), color='red', linestyle='dashed', label='mean')
         ax.set_title(f'Loading rate = {np.mean(self.loading_rates*100):.1f}%')
         ax.legend()
@@ -151,12 +152,6 @@ class TweezerThresholder:
         ax.plot(np.arange(self.n_sites), self.infidelities, **plot_kw)
         ax.set_yscale('log')
 
-    def plot_survival_rate(self, ax: Optional[Axes] = None, **kwargs):
-        if ax is None:
-            fig, ax = plt.subplots()
-
-        plot_kw = dict(marker='.') | kwargs
-        ax.plot(np.arange(self.n_sites), self.survival_rates, **plot_kw)
 
 
 class TweezerCountGMM:
