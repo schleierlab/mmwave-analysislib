@@ -74,7 +74,6 @@ class TweezerThresholder:
         self.stds = np.array([gmm.stds for gmm in self.gmms])
         self.thresholds = np.array([gmm.balanced_threshold() for gmm in self.gmms])
         self.loading_rates = np.array([gmm.weights[1] for gmm in self.gmms])
-        self.survival_rates =
         self.infidelities = np.array([gmm.infidelity_at_threshold() for gmm in self.gmms])
 
     def overwrite_thresholds_to_yaml(self, folder: str):

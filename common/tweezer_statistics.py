@@ -2,6 +2,7 @@ from typing import Literal, Optional
 from typing_extensions import assert_never
 
 from matplotlib.figure import Figure
+from matplotlib.axes import Axes
 from scipy.stats import beta, norm
 import h5py
 import matplotlib.pyplot as plt
@@ -512,7 +513,7 @@ class TweezerStatistician(BaseStatistician):
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
-    def plot_survival_rate_by_site(self, fig: Optional[Figure] = None):
+    def plot_survival_rate_by_site(self, ax: Optional[Axes] = None):
         """
         Plots the survival rate of atoms in the tweezers, site by site.
 
@@ -521,13 +522,13 @@ class TweezerStatistician(BaseStatistician):
         fig : Optional[Figure]
             The figure to plot on. If None, a new figure is created.
         """
-        if fig is None:
+        if ax is None:
             fig, ax = plt.subplots(
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
         else:
-            ax = fig.subplots()
+            ax = ax
 
         initial_atoms = self.site_occupancies[:, 0, :].sum(axis=0)
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
@@ -550,7 +551,10 @@ class TweezerStatistician(BaseStatistician):
         )
         ax.grid(color=self.plot_config.grid_color_major, which='major')
         ax.grid(color=self.plot_config.grid_color_minor, which='minor')
-        ax.set_title('Survival rate by site', fontsize=self.plot_config.title_font_size)
+        mean_survival_rate = np.sum(surviving_atoms)/np.sum(initial_atoms)
+        ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label='total')
+        ax.legend()
+        ax.set_title(f'Survival rate = {mean_survival_rate*100:.1f}%')
 
     # TODO: merge this into plot_survival_rate_by_site
     def plot_survival_rate_by_site_2d(self, fig: Optional[Figure] = None):

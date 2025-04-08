@@ -5,6 +5,7 @@ from analysislib.common.tweezer_finding import TweezerFinder
 from analysislib.common.tweezer_histograms import TweezerThresholder
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
+from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
 
 
 folder = select_data_directory()
@@ -28,10 +29,14 @@ thresholder = TweezerThresholder(
 thresholder.fit_gmms()
 thresholder.overwrite_thresholds_to_yaml(folder)
 
-fig, axs = plt.subplots(nrows=3, ncols=1, sharex=True, layout='constrained')
+multishot_analysis = TweezerMultishotAnalysis(folder)
+
+
+fig, axs = plt.subplots(nrows=4, ncols=1, sharex=True, layout='constrained')
 thresholder.plot_spreads(ax=axs[0])
 thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
+multishot_analysis.tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
 axs[0].set_ylabel('Counts')
 axs[1].set_ylabel('Loading rate')
 axs[2].set_ylabel('Infidelity')
