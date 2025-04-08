@@ -230,6 +230,118 @@ class TweezerStatistician(BaseStatistician):
     #     else:
     #         assert_never(method)
 
+    def get_sum_of_unique_params(self, data, loop_params, unique_params):
+        """
+        Returns the sum of the data for each unique parameter combination.
+
+        Parameters
+        ----------
+        data : array_like
+            The data to sum.
+        loop_params : array_like
+            The parameters to loop over.
+        unique_params : array_like
+            The unique parameter combinations.
+
+        Returns
+        -------
+        data_sum : array_like
+            The sum of the data for each unique parameter combination.
+        """
+
+        data_sum = np.array([
+            np.sum(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
+            for x in unique_params
+        ])
+
+        return data_sum
+
+    def get_params_order(self, unique_params):
+        """
+        Function to find which parameters are the first to scan,
+        only works for 2 parameters for now
+
+        Parameters
+        ----------
+        unique_params : array_like
+            The unique parameter combinations.
+
+        Returns
+        -------
+        x_params_index : int
+            The index of the first parameter.
+        y_params_index : int
+            The index of the second parameter.
+
+        """
+
+        if unique_params.shape[0] >= 2: # find difference when more than 2 shots in presence
+            params_dif = unique_params[1]- unique_params[0]
+            x_params_index = np.where(params_dif != 0)[0][0] # find index of difference
+            y_params_index = np.delete(np.arange(2), x_params_index).item() # find the other index
+        else: # default value with only 1 shot
+            x_params_index = 0
+            y_params_index = 1
+
+        return x_params_index, y_params_index
+
+    def get_unique_params_along_axis(self, unique_params, index):
+        """
+        find unique values along different axis
+
+        Parameters
+        ----------
+        unique_params : array_like
+            The unique parameter combinations.
+        index : int
+            The axis to find unique values along.
+
+        Returns
+        -------
+        params : array_like
+            The unique values along the specified axis.
+        """
+        params = np.unique(unique_params[:, index]).ravel()
+
+        return params
+
+    def reshape_to_unique_params_dim(self, data, x_params, y_params):
+        """
+        Reshape the data to have the same shape as the unique parameter combinations.
+
+        Parameters
+        ----------
+        data : array_like
+            The data to reshape.
+        x_params : array_like
+            The unique values along the x-axis.
+        y_params : array_like
+            The unique values along the y-axis.
+
+        Returns
+        -------
+        data_new : array_like
+            The reshaped data with x dime as column and y dimension as row.
+        """
+
+        data_new = np.pad(
+            data,
+            (0, x_params.shape[0]*y_params.shape[0] - data.shape[0]),
+            'constant',
+            constant_values=np.nan,
+            ) # pad with nan if not enough data
+
+        data_new = data_new.reshape([
+            y_params.shape[0],
+            x_params.shape[0]]
+            ) # reshape
+
+        return data_new
+
+
+
+
+
     def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -239,29 +351,28 @@ class TweezerStatistician(BaseStatistician):
         fig : Optional[Figure]
             The figure to plot on. If None, a new figure is created.
         """
+        # Group data points by x-value and calculate statistics
+        loop_params = self.current_params
+        unique_params = np.unique(loop_params, axis = 0)
+        # Calculate survival rates
+        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1)
 
+        # site_occupancies is of shape (num_shots, num_images, num_atoms)
+        # axis=1 corresponds to the before/after tweezer images
+        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
+        surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
-        if self.current_params.ndim == 1:
-            if fig is None:
-                fig, ax = plt.subplots(
-                    figsize=self.plot_config.figure_size,
-                    constrained_layout=self.plot_config.constrained_layout,
-                )
-                is_subfig = False
-            else:
+        if fig is None:
+            fig, ax = plt.subplots(
+                figsize=self.plot_config.figure_size,
+                constrained_layout=self.plot_config.constrained_layout,
+            )
+            is_subfig = False
+
+        if loop_params.ndim == 1:
+            if fig is not None:
                 ax = fig.subplots()
                 is_subfig = True
-            # Group data points by x-value and calculate statistics
-            loop_params = self.current_params[:, 0]
-            unique_params = np.unique(loop_params)
-
-            # Calculate survival rates
-            initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1)
-
-            # site_occupancies is of shape (num_shots, num_images, num_atoms)
-            # axis=1 corresponds to the before/after tweezer images
-            # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-            surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
             initial_atoms_sum = np.array([
                 np.sum(initial_atoms[loop_params == x])
@@ -331,62 +442,33 @@ class TweezerStatistician(BaseStatistician):
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
                 )
 
-        elif self.current_params.ndim == 2:
-            if fig is None:
-                fig, ax = plt.subplots(
-                    figsize=self.plot_config.figure_size,
-                    constrained_layout=self.plot_config.constrained_layout,
-                )
-                is_subfig = False
-            else:
+        elif loop_params.ndim == 2:
+            if fig is not None:
                 ax1, ax2 = fig.subplots(2, 1)
                 is_subfig = True
-            # Group data points by x-value and calculate statistics
-            loop_params = self.current_params
-            unique_params = np.unique(loop_params, axis = 0)
-            # Calculate survival rates
-            initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1)
 
-            # site_occupancies is of shape (num_shots, num_images, num_atoms)
-            # axis=1 corresponds to the before/after tweezer images
-            # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-            surviving_atoms = np.product(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
+            initial_atoms_sum =self.get_sum_of_unique_params(initial_atoms, loop_params, unique_params)
+            surviving_atoms_sum = self.get_sum_of_unique_params(surviving_atoms, loop_params, unique_params)
 
 
-            initial_atoms_sum = np.array([
-                np.sum(initial_atoms[np.where((loop_params == tuple(x)).all(axis=1))[0]])
-                for x in unique_params
-            ])
-
-            surviving_atoms_sum = np.array([
-                np.sum(surviving_atoms[np.where((loop_params == tuple(x)).all(axis=1))[0]])
-                for x in unique_params
-            ])
-
-            survival_rates = surviving_atoms_sum / initial_atoms_sum
+            survival_rates = surviving_atoms_sum / initial_atoms_sum # simple survival rate
             # sqrt of variance of the posterior beta distribution
-            sigma_beta = np.sqrt(survival_rates * (1 - survival_rates) )/ initial_atoms_sum
+            sigma_beta = np.sqrt(survival_rates * (1 - survival_rates) )/ initial_atoms_sum # simple survival rate std
 
-            # find which parameters are the first to scan
-            x_params_index = 0
-            y_params_index = 1
-            if unique_params.shape[0] == 2:
-                params_dif = unique_params[1]- unique_params[0]
-                x_params_index = np.where(params_dif == 0)[0][0]
-                y_params_index = np.delete(np.arange(2), x_params_index)
+            x_params_index, y_params_index = self.get_params_order(unique_params)
 
-            x_params = np.unique(unique_params[:, x_params_index]).ravel()
-            y_params = np.unique(unique_params[:, y_params_index]).ravel()
-            survival_rates = np.pad(survival_rates, (0,x_params.shape[0]*y_params.shape[0] - survival_rates.shape[0]),'constant', constant_values=np.nan)
-            survival_rates = survival_rates.reshape([x_params.shape[0], y_params.shape[0]])
-            sigma_beta = np.pad(sigma_beta, (0,x_params.shape[0]*y_params.shape[0] - sigma_beta.shape[0]),'constant', constant_values=np.nan)
-            sigma_beta = sigma_beta.reshape([x_params.shape[0], y_params.shape[0]])
+            x_params = self.get_unique_params_along_axis(unique_params, x_params_index)
+            y_params = self.get_unique_params_along_axis(unique_params, y_params_index)
+
+            survival_rates = self.reshape_to_unique_params_dim(survival_rates, x_params, y_params)
+            sigma_beta = self.reshape_to_unique_params_dim(sigma_beta, x_params, y_params)
 
             x_params, y_params = np.meshgrid(x_params, y_params)
+
             pcolor_survival_rate = ax1.pcolormesh(
                 x_params,
                 y_params,
-                survival_rates.T,
+                survival_rates,
             )
 
             fig.colorbar(pcolor_survival_rate, ax=ax1)
@@ -394,18 +476,18 @@ class TweezerStatistician(BaseStatistician):
             pcolor_std =ax2.pcolormesh(
                 x_params,
                 y_params,
-                sigma_beta.T,
+                sigma_beta,
             )
 
             fig.colorbar(pcolor_std, ax=ax2)
 
             for ax in [ax1, ax2]:
                 ax.set_xlabel(
-                    f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
+                    f"{self.params_list[x_params_index][0].decode('utf-8')} [{self.params_list[x_params_index][1].decode('utf-8')}]",
                     fontsize=self.plot_config.label_font_size,
                 )
                 ax.set_ylabel(
-                    f"{self.params_list[1][0].decode('utf-8')} [{self.params_list[1][1].decode('utf-8')}]",
+                    f"{self.params_list[y_params_index][0].decode('utf-8')} [{self.params_list[y_params_index][1].decode('utf-8')}]",
                     fontsize=self.plot_config.label_font_size,
                 )
                 ax.tick_params(
@@ -417,23 +499,6 @@ class TweezerStatistician(BaseStatistician):
                 ax.grid(color=self.plot_config.grid_color_minor, which='minor')
             ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
             ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
-
-            # doing the fit at the end of the run
-            if self.is_final_shot and plot_lorentz:
-                popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta)
-                upopt = uncertainties.correlated_values(popt, pcov)
-
-                x_plot = np.linspace(
-                    np.min(unique_params),
-                    np.max(unique_params),
-                    1000,
-                )
-
-                ax.plot(x_plot, self.lorentzian(x_plot, *popt))
-                fig.suptitle(
-                    f'Center frequency: ${upopt[0]:SL}$ MHz; '
-                    f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
-                )
 
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
