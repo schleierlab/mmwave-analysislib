@@ -16,6 +16,29 @@ class TweezerFinder:
         self.images = images
         self.averaged_image = Image.mean(images)
 
+    def detect_rois_by_roi_number(self,
+                                  roi_number: int,
+                                  neighborhood_size = 5,
+                                  detection_threshold = 25,
+                                  roi_size = 5,
+                                  search_step = 0.5):
+
+        new_site_rois = []
+        while len(new_site_rois) != roi_number:
+            if len(new_site_rois) > roi_number:
+                detection_threshold += search_step
+            else:
+                detection_threshold -= search_step
+            new_site_rois = self.detect_rois(
+                neighborhood_size=neighborhood_size,
+                detection_threshold=detection_threshold,
+                roi_size=roi_size,
+                )
+
+        print("Exactly {} sites found".format(len(new_site_rois)))
+
+        return new_site_rois
+
     def detect_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
         return self.averaged_image.detect_site_rois(neighborhood_size, detection_threshold, roi_size)
 

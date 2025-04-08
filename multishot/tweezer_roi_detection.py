@@ -10,11 +10,8 @@ from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
 
 folder = select_data_directory()
 finder = TweezerFinder.load_from_h5(folder)
-new_site_rois = finder.detect_rois(
-    neighborhood_size=5,
-    detection_threshold=25,
-    roi_size=5,
-)
+
+new_site_rois = finder.detect_rois_by_roi_number(roi_number=40)
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
 finder.plot_sites(new_site_rois)
 
