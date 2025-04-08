@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from os import PathLike
 from pathlib import Path
 
 from analysislib.common.image import ROI, Image
@@ -6,6 +7,7 @@ from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from matplotlib import pyplot as plt
 from matplotlib.collections import PatchCollection
 import numpy as np
+
 
 
 class TweezerFinder:
@@ -24,7 +26,7 @@ class TweezerFinder:
         ]
 
     @classmethod
-    def load_from_h5(cls, h5_path: str):
+    def load_from_h5(cls, h5_path: str | PathLike):
         sequence_dir = Path(h5_path)
         shots_h5s = sequence_dir.glob('20*.h5')
 

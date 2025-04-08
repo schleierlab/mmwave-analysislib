@@ -1,4 +1,5 @@
 from abc import abstractmethod, ABC
+from os import PathLike
 from typing import Optional
 from matplotlib.figure import Figure
 import h5py
@@ -6,13 +7,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import optimize
 
-try:
-    lyse
-except NameError:
-    import lyse # needed for MLOOP
+# try:
+#     lyse
+# except NameError:
+#     import lyse # needed for MLOOP
 
 from .plot_config import PlotConfig
 from .image import ROI
+from typing import Union
 
 class BaseStatistician(ABC):
     """Base class for statistical analysis of tweezer or bulk gas imaging data."""
@@ -31,7 +33,7 @@ class BaseStatistician(ABC):
         raise NotImplementedError("Subclasses must implement this method.")
 
     @staticmethod
-    def save_subfig(subfig, filename):
+    def save_subfig(subfig, filename: Union[str, PathLike]):
         # Create a new figure with the same size as the subfigure
         new_fig = plt.figure(figsize=subfig.get_figure().get_size_inches())
 

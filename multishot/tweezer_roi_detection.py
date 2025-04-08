@@ -1,20 +1,13 @@
-from tkinter.filedialog import askdirectory
 
 import matplotlib.pyplot as plt
 
 from analysislib.common.tweezer_finding import TweezerFinder
 from analysislib.common.tweezer_histograms import TweezerThresholder
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
+from analysislib.multishot.util import select_data_directory
 
 
-# show dialog box and return the path
-while True:
-    try:
-        folder = askdirectory(title='Select data directory for tweezer site detection')
-    except Exception as e:
-        raise e
-    break
-
+folder = select_data_directory()
 finder = TweezerFinder.load_from_h5(folder)
 new_site_rois = finder.detect_rois(
     neighborhood_size=5,
