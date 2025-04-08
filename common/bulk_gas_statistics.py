@@ -193,9 +193,7 @@ class BulkGasStatistician(BaseStatistician):
             )
 
         figname = f"{self.folder_path}\count vs param.png"
-        if is_subfig:
-            self.save_subfig(fig, figname)
-        else:
+        if not is_subfig:
             fig.savefig(figname)
 
     def plot_mot_params(self, fig: Optional[Figure] = None, show_means=True):

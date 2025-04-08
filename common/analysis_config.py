@@ -121,7 +121,7 @@ manta_camera = ImagingCamera(
     quantum_efficiency=0.4,
     gain=1,
     image_group_name='manta419b_mot_images',
-    image_name_stem='manta419b_mot',
+    image_name_stem='manta',
 )
 
 manta_system = ImagingSystem(

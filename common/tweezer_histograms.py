@@ -139,8 +139,7 @@ class TweezerThresholder:
 
         plot_kw = dict(marker='.') | kwargs
         ax.plot(np.arange(self.n_sites), self.loading_rates, **plot_kw)
-        ax.axhline(np.mean(self.loading_rates), color='red', linestyle='dashed', label='mean')
-        ax.set_title(f'Loading rate = {np.mean(self.loading_rates*100):.1f}%')
+        ax.axhline(np.mean(self.loading_rates), color='red', linestyle='dashed', label=f'mean = {np.mean(self.loading_rates*100):.1f}%')
         ax.legend()
 
     def plot_infidelity(self, ax: Optional[Axes] = None, **kwargs):

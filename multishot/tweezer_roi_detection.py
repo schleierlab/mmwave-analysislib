@@ -38,3 +38,5 @@ axs[0].set_ylabel('Counts')
 axs[1].set_ylabel('Loading rate')
 axs[2].set_ylabel('Infidelity')
 axs[-1].set_xlabel('Tweezer index')
+
+fig.savefig(f'{folder}/tweezers_roi_detection.pdf')

@@ -52,8 +52,8 @@ class TweezerFinder:
     @classmethod
     def load_from_h5(cls, h5_path: Union[str, PathLike]):
         sequence_dir = Path(h5_path)
+        cls.folder = sequence_dir
         shots_h5s = sequence_dir.glob('20*.h5')
-
         print('Loading imagess...')
         images: list[Image] = []
         for shot in shots_h5s:
@@ -122,5 +122,7 @@ class TweezerFinder:
         patchs = tuple(roi.patch(edgecolor='yellow') for roi in rois)
         collection = PatchCollection(patchs, match_original=True)
         ax.add_collection(collection)
+
+        fig.savefig(f'{self.folder}/tweezers_roi_detection_sites.pdf')
 
 

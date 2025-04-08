@@ -506,9 +506,7 @@ class TweezerStatistician(BaseStatistician):
 
 
         figname = self.folder_path / 'survival_rate_vs_param.pdf'
-        if is_subfig:
-            self.save_subfig(fig, figname)
-        else:
+        if not is_subfig:
             fig.savefig(figname)
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
@@ -549,12 +547,9 @@ class TweezerStatistician(BaseStatistician):
             which='major',
             labelsize=self.plot_config.label_font_size,
         )
-        ax.grid(color=self.plot_config.grid_color_major, which='major')
-        ax.grid(color=self.plot_config.grid_color_minor, which='minor')
         mean_survival_rate = np.sum(surviving_atoms)/np.sum(initial_atoms)
-        ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label='total')
+        ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
         ax.legend()
-        ax.set_title(f'Survival rate = {mean_survival_rate*100:.1f}%')
 
     # TODO: merge this into plot_survival_rate_by_site
     def plot_survival_rate_by_site_2d(self, fig: Optional[Figure] = None):
@@ -608,3 +603,5 @@ class TweezerStatistician(BaseStatistician):
             np.arange(n_sites),
             survival_rates.T,
         )
+
+        fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
