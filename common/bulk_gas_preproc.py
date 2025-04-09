@@ -192,7 +192,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 # save parameters from runmanager globals
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
-                
+
                 if cloud_fit == 'gaussian':
                     f['gaussian_cloud_params_nom'].resize(run_number + 1, axis=0)
                     f['gaussian_cloud_params_nom'][run_number] = gauss_nom

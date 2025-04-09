@@ -18,7 +18,7 @@ while True:
 finder = TweezerFinder.load_from_h5(folder)
 new_site_rois = finder.detect_rois(
     neighborhood_size=5,
-    detection_threshold=25,
+    detection_threshold=23,
     roi_size=5,
 )
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
@@ -26,6 +26,7 @@ finder.plot_sites(new_site_rois)
 
 background_subtract = True
 # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
+# TODO: Include survival rate if taking two shots
 thresholder = TweezerThresholder(
     finder.images,
     new_site_rois,

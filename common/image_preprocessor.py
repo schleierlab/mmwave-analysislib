@@ -57,7 +57,7 @@ class ImagePreprocessor(ABC):
         """
         self.imaging_setup = imaging_setup
         self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
-        self.exposures, self.run_number, self.globals = self.load_images()
+        self.exposures, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
         with h5py.File(self.h5_path, mode='r') as f:
@@ -205,14 +205,19 @@ class ImagePreprocessor(ABC):
         """
         with h5py.File(self.h5_path, mode='r+') as f:
             globals = hz.getGlobalsFromFile(self.h5_path)
+            hz.getDefaultParamsFromFile
             images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
             run_number = f.attrs['run number']
+            try:
+                default_params = hz.getDefaultParamsFromFile(self.h5_path)
+            except KeyError:
+                pass
 
         images_list = tuple(
             images[self.imaging_setup.camera.image_name_stem + str(i)]
             for i in range(len(images))
         )
-        return images_list, run_number, globals
+        return images_list, run_number, globals, default_params
 
     @abstractmethod
     def process_shot(self,) -> None:
