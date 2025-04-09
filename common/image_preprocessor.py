@@ -13,6 +13,10 @@ import h5py
 
 from .analysis_config import ImagingSystem
 from analysislib.analysis.data import h5lyze as hz
+from analysislib.common.image import Image
+from typing import Union
+from os import PathLike
+from pathlib import Path
 
 
 class ImagePreprocessor(ABC):
@@ -100,6 +104,7 @@ class ImagePreprocessor(ABC):
         folder_path = os.path.dirname(h5_path)
 
         return h5_path, folder_path
+
 
     # TODO unit tests for this
     def get_scanning_params(self,):

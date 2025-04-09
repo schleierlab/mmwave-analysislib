@@ -37,6 +37,8 @@ class TweezerPreprocessor(ImagePreprocessor):
     """
 
     ROI_CONFIG_PATH: ClassVar[Path] = importlib.resources.files(multishot) / 'roi_config.yml'
+    PROCESSED_RESULTS_FNAME: ClassVar[Path] = Path('tweezer_preprocess.h5')
+    DEFAULT_PARAMS_PATH: ClassVar[Path] = Path('X:/userlib/labscriptlib/defaults.yml')
 
     atom_roi: ROI
     background_roi: ROI
@@ -65,7 +67,8 @@ class TweezerPreprocessor(ImagePreprocessor):
             load_type=load_type,
             h5_path=h5_path
         )
-        self.atom_roi, self.site_rois = self._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
+
+        self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
         self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
         self.images = [
             Image(
@@ -94,13 +97,35 @@ class TweezerPreprocessor(ImagePreprocessor):
             atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
         except KeyError:
             try:
-                atom_roi_ymin, atom_roi_height = self.default_params["kinetix_roi_row"]
+                default_params = self._load_default_params_from_yaml(self.DEFAULT_PARAMS_PATH)
+                atom_roi_ymin, atom_roi_height  = np.array(eval(default_params["Tweezers"]["kinetix_roi_row"]['value']))
                 atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
             except KeyError:
                 raise KeyError('kinetix_roi_row not found in globals')
         return atom_roi_ylims
 
     @staticmethod
+    def _load_default_params_from_yaml(defaul_params_path: Path):
+        """
+        Load default parameters from YAML file.
+
+        Parameters
+        ----------
+        defaul_params_path : Path
+            Path to the YAML file containing the default parameters.
+
+        Returns
+        -------
+        default_params : dict
+            Dictionary of default parameters.
+        """
+        with defaul_params_path.open('rt') as stream:
+            default_params = yaml.safe_load(stream)
+
+        return default_params
+
+
+
     def _load_rois_from_yaml(roi_config_path: Path, atom_roi_ylims):
         """Load site ROIs from YAML file.
         Want this to be static so that it can be used by TweezerFinder.
@@ -237,7 +262,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             self.site_occupancies = camera_counts > self.site_thresholds
 
         run_number = self.run_number
-        fname = Path(self.folder_path) / 'tweezer_preprocess.h5'
+        fname = Path(self.folder_path) / self.PROCESSED_RESULTS_FNAME
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs

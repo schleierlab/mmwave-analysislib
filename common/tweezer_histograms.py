@@ -24,6 +24,7 @@ class TweezerThresholder:
     df: pd.DataFrame
     rois = list[ROI]
     gmms: list[TweezerCountGMM]
+    '''gaussian mixture models of the counts for each site'''
 
     def __init__(
             self,
@@ -34,7 +35,7 @@ class TweezerThresholder:
     ):
         self.rois = list(rois)
         self.thresholds = None
-        
+
         weight_fns =  weights
         if isinstance(weights, float):
             weight_fns = (weights,) * len(self.n_sites)
@@ -79,7 +80,7 @@ class TweezerThresholder:
         """
         Overwrite the global and site thresholds in the roi_config.yml file, to be used by all subsequent
         TweezerPreprocessor instances.
-        
+
         Parameters
         ----------
         folder : str
@@ -91,25 +92,27 @@ class TweezerThresholder:
         new_site_thresholds = self.thresholds
         # TODO: Think about how the global threshold ought to be computed
         new_global_threshold = np.mean(new_site_thresholds)
-        
+
         sequence_dir = Path(folder)
         shots_h5s = sequence_dir.glob('20*.h5')
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
         atom_roi = processor.atom_roi
         site_rois = processor.site_rois
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
-        # from the globals stored in the shot.h5 as tw_kinetix_roi_row. 
+        # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
         # we could load the atom_roi to be copied in the same way that the threshold is copied below.
 
         roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
-        output_path = TweezerPreprocessor.dump_to_yaml(site_rois, 
-                                                    atom_roi, 
-                                                    new_global_threshold, 
-                                                    new_site_thresholds, 
-                                                    roi_config_path)
+        output_path = TweezerPreprocessor.dump_to_yaml(
+            site_rois,
+            atom_roi,
+            new_global_threshold,
+            new_site_thresholds,
+            roi_config_path,
+        )
         print(f'Site thresholds dumped to {output_path}')
-    
+
     def plot_spreads(self, ax: Optional[Axes] = None, color='C0'):
         if ax is None:
             fig, ax = plt.subplots()
@@ -136,7 +139,8 @@ class TweezerThresholder:
 
         plot_kw = dict(marker='.') | kwargs
         ax.plot(np.arange(self.n_sites), self.loading_rates, **plot_kw)
-        ax.axhline(0.5, color='0.5', linestyle='dashed')
+        ax.axhline(np.mean(self.loading_rates), color='red', linestyle='dashed', label=f'mean = {np.mean(self.loading_rates*100):.1f}%')
+        ax.legend()
 
     def plot_infidelity(self, ax: Optional[Axes] = None, **kwargs):
         if ax is None:
@@ -145,6 +149,7 @@ class TweezerThresholder:
         plot_kw = dict(marker='.') | kwargs
         ax.plot(np.arange(self.n_sites), self.infidelities, **plot_kw)
         ax.set_yscale('log')
+
 
 
 class TweezerCountGMM:

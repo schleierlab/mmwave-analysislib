@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from os import PathLike
 from pathlib import Path
 
 from analysislib.common.image import ROI, Image
@@ -7,11 +8,36 @@ from matplotlib import pyplot as plt
 from matplotlib.collections import PatchCollection
 import numpy as np
 
+from typing import Union
+
 
 class TweezerFinder:
     def __init__(self, images: Sequence[Image]):
         self.images = images
         self.averaged_image = Image.mean(images)
+
+    def detect_rois_by_roi_number(self,
+                                  roi_number: int,
+                                  neighborhood_size = 5,
+                                  detection_threshold = 25,
+                                  roi_size = 5,
+                                  search_step = 0.5):
+
+        new_site_rois = []
+        while len(new_site_rois) != roi_number:
+            if len(new_site_rois) > roi_number:
+                detection_threshold += search_step
+            else:
+                detection_threshold -= search_step
+            new_site_rois = self.detect_rois(
+                neighborhood_size=neighborhood_size,
+                detection_threshold=detection_threshold,
+                roi_size=roi_size,
+                )
+
+        print("Exactly {} sites found".format(len(new_site_rois)))
+
+        return new_site_rois
 
     def detect_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
         return self.averaged_image.detect_site_rois(neighborhood_size, detection_threshold, roi_size)
@@ -24,10 +50,10 @@ class TweezerFinder:
         ]
 
     @classmethod
-    def load_from_h5(cls, h5_path: str):
+    def load_from_h5(cls, h5_path: Union[str, PathLike]):
         sequence_dir = Path(h5_path)
+        cls.folder = sequence_dir
         shots_h5s = sequence_dir.glob('20*.h5')
-
         print('Loading imagess...')
         images: list[Image] = []
         for shot in shots_h5s:
@@ -40,7 +66,7 @@ class TweezerFinder:
     def overwrite_site_rois_to_yaml(self, new_site_rois: list[ROI], folder: str):
         """Overwrite the site ROIs in the roi_config.yml file, to be used by all subsequent
         TweezerPreprocessor instances.
-        
+
         Parameters
         ----------
         new_site_rois : list[ROI]
@@ -53,15 +79,15 @@ class TweezerFinder:
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
         atom_roi = processor.atom_roi
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
-        # from the globals stored in the shot.h5 as tw_kinetix_roi_row. 
+        # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
         # we could load the atom_roi to be copied in the same way that the threshold is copied below.
-        
+
         roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
         global_threshold, site_thresholds = TweezerPreprocessor._load_threshold_from_yaml(roi_config_path)
-        output_path = TweezerPreprocessor.dump_to_yaml(new_site_rois, 
-                                                        atom_roi, 
-                                                        global_threshold, 
+        output_path = TweezerPreprocessor.dump_to_yaml(new_site_rois,
+                                                        atom_roi,
+                                                        global_threshold,
                                                         site_thresholds,
                                                         roi_config_path
                                                         )
@@ -96,5 +122,7 @@ class TweezerFinder:
         patchs = tuple(roi.patch(edgecolor='yellow') for roi in rois)
         collection = PatchCollection(patchs, match_original=True)
         ax.add_collection(collection)
+
+        fig.savefig(f'{self.folder}/tweezers_roi_detection_sites.pdf')
 
 

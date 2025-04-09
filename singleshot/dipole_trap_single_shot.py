@@ -34,3 +34,5 @@ plotter = BulkGasStatistician(
 )
 
 plotter.plot_atom_number(fig = subfigs[1], plot_lorentz = False)
+
+fig.savefig(f"{bulk_gas_preproc.folder_path}/dipole_trap_single_shot.pdf")
