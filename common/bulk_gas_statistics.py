@@ -147,6 +147,11 @@ class BulkGasStatistician(BaseStatistician):
             for x in unique_params
         ])
 
+        ax.set_title(
+            self.folder_path,
+            fontsize=8,
+        )
+
         ax.errorbar(
             unique_params,
             means,
