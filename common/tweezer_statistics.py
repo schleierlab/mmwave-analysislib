@@ -399,6 +399,11 @@ class TweezerStatistician(BaseStatistician):
                 interval_method='variance',
             )
 
+            ax.set_title(
+                self.folder_path,
+                fontsize=8,
+            )
+
             ax.errorbar(
                 unique_params,
                 survival_rates,
@@ -605,3 +610,4 @@ class TweezerStatistician(BaseStatistician):
         )
 
         fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
+        fig.suptitle(f"{self.folder_path}")

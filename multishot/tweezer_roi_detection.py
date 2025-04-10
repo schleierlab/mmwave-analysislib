@@ -31,6 +31,7 @@ multishot_analysis = TweezerMultishotAnalysis(folder)
 
 
 fig, axs = plt.subplots(nrows=4, ncols=1, sharex=True, layout='constrained')
+fig.suptitle(f'{folder}')
 thresholder.plot_spreads(ax=axs[0])
 thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])

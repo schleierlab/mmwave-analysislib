@@ -152,6 +152,11 @@ class BulkGasStatistician(BaseStatistician):
         ])
         sems = stds / np.sqrt(ns)
 
+        ax.set_title(
+            self.folder_path,
+            fontsize=8,
+        )
+
         ax.errorbar(
             unique_params,
             means,
