@@ -127,13 +127,13 @@ class BulkGasStatistician(BaseStatistician):
             The sum of the data for each unique parameter combination.
         """
 
-        means = [np.mean(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
+        means = [[np.mean(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
             for x in unique_params
-        ]
+        ]]
 
-        stds = [np.std(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
+        stds = [[np.std(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
             for x in unique_params
-        ]
+        ]]
 
         return means, stds
 
@@ -244,7 +244,10 @@ class BulkGasStatistician(BaseStatistician):
                 unique_params,
             )
 
+            print(means)
             x_params, y_params = np.meshgrid(x_params, y_params)
+
+            print(x_params,y_params)
 
             pcolor_survival_rate = ax1.pcolormesh(
                 x_params,

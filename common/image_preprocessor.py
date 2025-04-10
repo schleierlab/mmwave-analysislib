@@ -124,6 +124,7 @@ class ImagePreprocessor(ABC):
             number of repetitions
         """
         h5_path = self.h5_path
+        repetition_param_name = 'repetition_index'
         with h5py.File(h5_path, mode='r+') as f:
             globals = f['globals']
             params = {}
@@ -135,15 +136,15 @@ class ImagePreprocessor(ABC):
                         global_var = hz.getAttributeDict(globals[group])[key]
                         global_unit = hz.getAttributeDict(globals[group]['units'])[key]
                         params[key] = (global_var, global_unit)
-            if 'n_shots' in params:
-                rep_str, _ = params['n_shots']
+            if repetition_param_name in params:
+                rep_str, _ = params[repetition_param_name]
                 if rep_str[0:2] != 'np':
                     rep_str = 'np.' + rep_str
                 rep = eval(rep_str)
                 n_rep = rep.shape[0]
-                del params['n_shots']
+                del params[repetition_param_name]
                 if len([key for key in params if 'do' not in key]) == 0:
-                    params['n_shots'] = [rep_str, 'Shots']
+                    params[repetition_param_name] = [rep_str, 'Shots']
                     n_rep = 1
             else:
                 n_rep = 1
