@@ -146,11 +146,16 @@ class BulkGasStatistician(BaseStatistician):
             np.std(self.atom_numbers[loop_params == x])
             for x in unique_params
         ])
+        ns = np.array([
+            (self.atom_numbers[loop_params == x]).size
+            for x in unique_params
+        ])
+        sems = stds / np.sqrt(ns)
 
         ax.errorbar(
             unique_params,
             means,
-            yerr=stds,
+            yerr=sems,
             marker='.',
             linestyle='-',
             alpha=0.5,
@@ -177,7 +182,7 @@ class BulkGasStatistician(BaseStatistician):
 
         # doing the fit at the end of the run
         if self.is_final_shot and plot_lorentz:
-            popt, pcov = self.fit_lorentzian(unique_params, means)
+            popt, pcov = self.fit_lorentzian(unique_params, means, sigma=sems)
             upopt = uncertainties.correlated_values(popt, pcov)
 
             x_plot = np.linspace(
