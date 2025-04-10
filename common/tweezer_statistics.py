@@ -269,7 +269,10 @@ class TweezerStatistician(BaseStatistician):
             The figure to plot on. If None, a new figure is created.
         """
         # Group data points by x-value and calculate statistics
-        loop_params = self.current_params
+        if self.current_params.shape[1] == 1:
+            loop_params = self.current_params[:, 0]
+        else:
+            loop_params = self.current_params
         unique_params = np.unique(loop_params, axis = 0)
         # Calculate survival rates
         initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1)

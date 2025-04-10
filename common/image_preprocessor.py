@@ -64,6 +64,7 @@ class ImagePreprocessor(ABC):
         self.exposures, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
+
         with h5py.File(self.h5_path, mode='r') as f:
             self.n_runs = f.attrs['n_runs']
 

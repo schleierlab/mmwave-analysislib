@@ -158,7 +158,10 @@ class BulkGasStatistician(BaseStatistician):
             )
             is_subfig = False
 
-        loop_params = self.current_params
+        if self.current_params.shape[1] == 1:
+            loop_params = self.current_params[:, 0]
+        else:
+            loop_params = self.current_params
         unique_params = np.unique(loop_params, axis = 0)
 
         if loop_params.ndim == 1:
@@ -224,6 +227,7 @@ class BulkGasStatistician(BaseStatistician):
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
                 )
         elif loop_params.ndim == 2:
+            print(loop_params)
             if fig is not None:
                 ax1, ax2 = fig.subplots(2, 1)
                 is_subfig = True
@@ -276,7 +280,6 @@ class BulkGasStatistician(BaseStatistician):
                 ax.grid(color=self.plot_config.grid_color_minor, which='minor')
             ax1.set_title('Mean', fontsize=self.plot_config.title_font_size)
             ax2.set_title('Std', fontsize=self.plot_config.title_font_size)
-
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
         figname = f"{self.folder_path}\count vs param.png"
