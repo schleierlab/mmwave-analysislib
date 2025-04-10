@@ -19,7 +19,6 @@ from .constants import cesium_atomic_mass
 from .plot_config import PlotConfig
 from .base_statistics import BaseStatistician
 
-
 globals_friendly_names = {
     'bm_tof_imaging_delay': 'Time of flight',
     'mw_detuning': 'Microwave detuning',
@@ -109,6 +108,35 @@ class BulkGasStatistician(BaseStatistician):
     def is_final_shot(self) -> bool:
         return self.shots_processed == self.n_runs
 
+    def get_mean_std_of_unique_params(self, data, loop_params, unique_params):
+        """
+        Returns the sum of the data for each unique parameter combination.
+
+        Parameters
+        ----------
+        data : array_like
+            The data to sum.
+        loop_params : array_like
+            The parameters to loop over.
+        unique_params : array_like
+            The unique parameter combinations.
+
+        Returns
+        -------
+        data_sum : array_like
+            The sum of the data for each unique parameter combination.
+        """
+
+        means = [np.mean(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
+            for x in unique_params
+        ]
+
+        stds = [np.std(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
+            for x in unique_params
+        ]
+
+        return means, stds
+
     def plot_atom_number(self, fig: Optional[Figure] = None, plot_lorentz = True):
         """Plot atom number vs the looped parameter (simplest is shot number) and save
         the image in the folder path.
@@ -129,74 +157,128 @@ class BulkGasStatistician(BaseStatistician):
                 constrained_layout=self.plot_config.constrained_layout,
             )
             is_subfig = False
+
+        loop_params = self.current_params
+        unique_params = np.unique(loop_params, axis = 0)
+
+        if loop_params.ndim == 1:
+            if fig is not None:
+                ax = fig.subplots()
+                is_subfig = True
+            means = np.array([
+                np.mean(self.atom_numbers[loop_params == x])
+                for x in unique_params
+            ])
+            stds = np.array([
+                np.std(self.atom_numbers[loop_params == x])
+                for x in unique_params
+            ])
+
+            ax.set_title(
+                self.folder_path,
+                fontsize=8,
+            )
+
+            ax.errorbar(
+                unique_params,
+                means,
+                yerr=stds,
+                marker='.',
+                linestyle='-',
+                alpha=0.5,
+                capsize=3,
+            )
+            ax.set_xlabel(
+                f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
+                fontsize=self.plot_config.label_font_size,
+            )
+            ax.set_ylabel(
+                'atom count',
+                fontsize=self.plot_config.label_font_size,
+            )
+            ax.tick_params(
+                axis='both',
+                which='major',
+                labelsize=self.plot_config.label_font_size,
+            )
+
+            ax.set_ylim(bottom=0)
+
+            ax.grid(color=self.plot_config.grid_color_major, which='major')
+            ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+
+            # doing the fit at the end of the run
+            if self.is_final_shot and plot_lorentz:
+                popt, pcov = self.fit_lorentzian(unique_params, means)
+                upopt = uncertainties.correlated_values(popt, pcov)
+
+                x_plot = np.linspace(
+                    np.min(unique_params),
+                    np.max(unique_params),
+                    1000,
+                )
+
+                ax.plot(x_plot, self.lorentzian(x_plot, *popt))
+                fig.suptitle(
+                    f'Center frequency: ${upopt[0]:SL}$ MHz; '
+                    f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+                )
+        elif loop_params.ndim == 2:
+            if fig is not None:
+                ax1, ax2 = fig.subplots(2, 1)
+                is_subfig = True
+
+            x_params_index, y_params_index = self.get_params_order(unique_params)
+
+            x_params = self.get_unique_params_along_axis(unique_params, x_params_index)
+            y_params = self.get_unique_params_along_axis(unique_params, y_params_index)
+
+
+            means, stds = self.get_mean_std_of_unique_params(
+                self.atom_numbers,
+                loop_params,
+                unique_params,
+            )
+
+            x_params, y_params = np.meshgrid(x_params, y_params)
+
+            pcolor_survival_rate = ax1.pcolormesh(
+                x_params,
+                y_params,
+                means,
+            )
+
+            fig.colorbar(pcolor_survival_rate, ax=ax1)
+
+            pcolor_std =ax2.pcolormesh(
+                x_params,
+                y_params,
+                stds,
+            )
+
+            fig.colorbar(pcolor_std, ax=ax2)
+
+            for ax in [ax1, ax2]:
+                ax.set_xlabel(
+                    f"{self.params_list[x_params_index][0].decode('utf-8')} [{self.params_list[x_params_index][1].decode('utf-8')}]",
+                    fontsize=self.plot_config.label_font_size,
+                )
+                ax.set_ylabel(
+                    f"{self.params_list[y_params_index][0].decode('utf-8')} [{self.params_list[y_params_index][1].decode('utf-8')}]",
+                    fontsize=self.plot_config.label_font_size,
+                )
+                ax.tick_params(
+                    axis='both',
+                    which='major',
+                    labelsize=self.plot_config.label_font_size,
+                )
+                ax.grid(color=self.plot_config.grid_color_major, which='major')
+                ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+            ax1.set_title('Mean', fontsize=self.plot_config.title_font_size)
+            ax2.set_title('Std', fontsize=self.plot_config.title_font_size)
+
         else:
-            ax = fig.subplots()
-            is_subfig = True
-
-        # loop_params = np.squeeze(self.current_params)
-        loop_params = self.current_params[:, 0]
-
-        # Group data points by x-value and calculate statistics
-        unique_params = np.unique(loop_params)
-        means = np.array([
-            np.mean(self.atom_numbers[loop_params == x])
-            for x in unique_params
-        ])
-        stds = np.array([
-            np.std(self.atom_numbers[loop_params == x])
-            for x in unique_params
-        ])
-
-        ax.set_title(
-            self.folder_path,
-            fontsize=8,
-        )
-
-        ax.errorbar(
-            unique_params,
-            means,
-            yerr=stds,
-            marker='.',
-            linestyle='-',
-            alpha=0.5,
-            capsize=3,
-        )
-        ax.set_xlabel(
-            f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
-            fontsize=self.plot_config.label_font_size,
-        )
-        ax.set_ylabel(
-            'atom count',
-            fontsize=self.plot_config.label_font_size,
-        )
-        ax.tick_params(
-            axis='both',
-            which='major',
-            labelsize=self.plot_config.label_font_size,
-        )
-
-        ax.set_ylim(bottom=0)
-
-        ax.grid(color=self.plot_config.grid_color_major, which='major')
-        ax.grid(color=self.plot_config.grid_color_minor, which='minor')
-
-        # doing the fit at the end of the run
-        if self.is_final_shot and plot_lorentz:
-            popt, pcov = self.fit_lorentzian(unique_params, means)
-            upopt = uncertainties.correlated_values(popt, pcov)
-
-            x_plot = np.linspace(
-                np.min(unique_params),
-                np.max(unique_params),
-                1000,
-            )
-
-            ax.plot(x_plot, self.lorentzian(x_plot, *popt))
-            fig.suptitle(
-                f'Center frequency: ${upopt[0]:SL}$ MHz; '
-                f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
-            )
-
+            raise NotImplementedError("I only know how to plot 1d and 2d scans")
         figname = f"{self.folder_path}\count vs param.png"
         if not is_subfig:
             fig.savefig(figname)
