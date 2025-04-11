@@ -63,7 +63,6 @@ class ImagePreprocessor(ABC):
         self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
         self.exposures, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
-        print(f"{self.params = }")
 
 
         with h5py.File(self.h5_path, mode='r') as f:
