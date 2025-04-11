@@ -227,6 +227,7 @@ class BulkGasStatistician(BaseStatistician):
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
                 )
         elif loop_params.ndim == 2:
+            print(loop_params)
             if fig is not None:
                 ax1, ax2 = fig.subplots(2, 1)
                 is_subfig = True
