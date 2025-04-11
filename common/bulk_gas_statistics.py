@@ -135,6 +135,9 @@ class BulkGasStatistician(BaseStatistician):
             for x in unique_params
         ]
 
+        means = np.array(means)
+        stds = np.array(stds)
+
         return means, stds
 
     def plot_atom_number(self, fig: Optional[Figure] = None, plot_lorentz = True):
@@ -227,7 +230,6 @@ class BulkGasStatistician(BaseStatistician):
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
                 )
         elif loop_params.ndim == 2:
-            print(loop_params)
             if fig is not None:
                 ax1, ax2 = fig.subplots(2, 1)
                 is_subfig = True
@@ -243,6 +245,9 @@ class BulkGasStatistician(BaseStatistician):
                 loop_params,
                 unique_params,
             )
+
+            means = self.reshape_to_unique_params_dim(means, x_params, y_params)
+            stds = self.reshape_to_unique_params_dim(stds, x_params, y_params)
 
             x_params, y_params = np.meshgrid(x_params, y_params)
 
