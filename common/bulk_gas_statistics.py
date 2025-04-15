@@ -179,6 +179,10 @@ class BulkGasStatistician(BaseStatistician):
                 np.std(self.atom_numbers[loop_params == x])
                 for x in unique_params
             ])
+            ns = np.array([
+                np.sum(loop_params == x)
+                for x in unique_params
+            ])
 
             ax.set_title(
                 self.folder_path,
@@ -188,7 +192,7 @@ class BulkGasStatistician(BaseStatistician):
             ax.errorbar(
                 unique_params,
                 means,
-                yerr=stds,
+                yerr=stds/np.sqrt(ns),
                 marker='.',
                 linestyle='-',
                 alpha=0.5,
@@ -282,8 +286,9 @@ class BulkGasStatistician(BaseStatistician):
                     labelsize=self.plot_config.label_font_size,
                 )
                 ax.grid(color=self.plot_config.grid_color_major, which='major')
-                ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+                # ax.grid(color=self.plot_config.grid_color_minor, which='minor')
             ax1.set_title('Mean', fontsize=self.plot_config.title_font_size)
+            ax1.set_yscale('log')
             ax2.set_title('Std', fontsize=self.plot_config.title_font_size)
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
