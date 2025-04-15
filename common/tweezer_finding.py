@@ -16,28 +16,39 @@ class TweezerFinder:
         self.images = images
         self.averaged_image = Image.mean(images)
 
-    def detect_rois_by_roi_number(self,
-                                  roi_number: int,
-                                  neighborhood_size = 5,
-                                  detection_threshold = 25,
-                                  roi_size = 5,
-                                  search_step = 0.5):
+    def detect_rois_by_roi_number(
+        self,
+        roi_number: int,
+        neighborhood_size: int = 5,
+        detection_threshold: float = 25,
+        roi_size: int = 5,
+        search_step: float = 0.5,
+    ):
+        site_rois = self.detect_rois(
+            neighborhood_size=neighborhood_size,
+            detection_threshold=detection_threshold,
+            roi_size=roi_size,
+        )
 
-        new_site_rois = []
-        while len(new_site_rois) != roi_number:
-            if len(new_site_rois) > roi_number:
-                detection_threshold += search_step
-            else:
-                detection_threshold -= search_step
-            new_site_rois = self.detect_rois(
-                neighborhood_size=neighborhood_size,
-                detection_threshold=detection_threshold,
-                roi_size=roi_size,
-                )
+        site_count_difference_init = len(site_rois) - roi_number
+        if site_count_difference_init == 0:
+            return site_rois
 
-        print("Exactly {} sites found".format(len(new_site_rois)))
+        current_threshold = detection_threshold
+        init_difference_sign = +1 if site_count_difference_init > 0 else -1
+        threshold_step = search_step * init_difference_sign
+        while (len(site_rois) - roi_number) * init_difference_sign > 0:
+            current_threshold += threshold_step
+            print(f"Attempting threshold {current_threshold}")
+            site_rois = self.detect_rois(
+                neighborhood_size,
+                current_threshold,
+                roi_size,
+            )
 
-        return new_site_rois
+        print(f"Exactly {len(site_rois)} sites found")
+
+        return site_rois
 
     def detect_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
         return self.averaged_image.detect_site_rois(neighborhood_size, detection_threshold, roi_size)
