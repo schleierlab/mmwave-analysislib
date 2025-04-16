@@ -1,4 +1,5 @@
 from typing import Literal, Optional
+from typing_extensions import assert_never
 
 import h5py
 import matplotlib.pyplot as plt
