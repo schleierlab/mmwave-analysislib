@@ -166,7 +166,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         atom_numbers = self.get_atom_numbers(method='sum', subtraction='double')
         run_number = self.run_number
-        fname = Path(self.folder_path) / 'bulkgas_preprocess.h5'
+        fname = self.h5_path.with_name('bulkgas_preprocess.h5')
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
