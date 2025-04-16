@@ -62,13 +62,14 @@ class BulkGasStatistician(BaseStatistician):
             Path to the processed quantities h5 file
         """
         with h5py.File(preproc_h5_path, 'r') as f:
-            self.atom_numbers = f['atom_numbers'][:]
+            self.atom_numbers = f['atom_numbers'][:, 0]
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
             if 'gaussian_cloud_params_nom' in f:
-                self.gaussian_cloud_params_nom = f['gaussian_cloud_params_nom'][:]
-                self.gaussian_cloud_params_cov = f['gaussian_cloud_params_cov'][:]
+                # presently, only extract the params from the first fit
+                self.gaussian_cloud_params_nom = f['gaussian_cloud_params_nom'][:, 0]
+                self.gaussian_cloud_params_cov = f['gaussian_cloud_params_cov'][:, 0]
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -289,13 +290,13 @@ class BulkGasStatistician(BaseStatistician):
                 ax.grid(color=self.plot_config.grid_color_major, which='major')
                 # ax.grid(color=self.plot_config.grid_color_minor, which='minor')
             ax1.set_title('Mean', fontsize=self.plot_config.title_font_size)
-            ax1.set_yscale('log')
+            # ax1.set_yscale('log')
             ax2.set_title('Std', fontsize=self.plot_config.title_font_size)
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
-        figname = f"{self.folder_path}\count vs param.png"
+
         if not is_subfig:
-            fig.savefig(figname)
+            fig.savefig(self.folder_path / 'count_vs_param.pdf')
 
     def plot_mot_params(self, fig: Optional[Figure] = None, show_means=True):
         """Plot atom number vs the looped parameter and save the image in the folder path.
