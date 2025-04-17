@@ -259,7 +259,7 @@ class Image:
         # shape (..., 2)
         z_score_vector = np.dot(centered_xy, inverse_rotation_matrix.T) / [width, height]
 
-        # shape (...)
+        # shape (...,)
         mahalanobis_dist_sq = np.sum(z_score_vector**2, axis=-1)
 
         return offset + peak_height * np.exp(-mahalanobis_dist_sq / 2)
