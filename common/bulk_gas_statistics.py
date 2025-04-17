@@ -7,6 +7,7 @@ import numpy as np
 import uncertainties
 import uncertainties.unumpy as unumpy
 from matplotlib.figure import Figure
+from numpy.typing import ArrayLike, NDArray
 from pathlib import Path
 from scipy import optimize
 from scipy.constants import k as k_B, pi
@@ -20,6 +21,7 @@ from .constants import cesium_atomic_mass
 from .plot_config import PlotConfig
 from .base_statistics import BaseStatistician
 
+# TODO make these a shared resource, also include preferred plot units and scale factor
 globals_friendly_names = {
     'bm_tof_imaging_delay': 'Time of flight',
     'mw_detuning': 'Microwave detuning',
@@ -42,6 +44,10 @@ class BulkGasStatistician(BaseStatistician):
     plot_config : PlotConfig, optional
         Configuration object for plot styling
     """
+
+    current_params: NDArray
+    """shape (n_shots, n_looping_params)"""
+
     def __init__(self,
                  preproc_h5_path: str,
                  shot_h5_path: str,
@@ -70,6 +76,10 @@ class BulkGasStatistician(BaseStatistician):
                 # presently, only extract the params from the first fit
                 self.gaussian_cloud_params_nom = f['gaussian_cloud_params_nom'][:, 0]
                 self.gaussian_cloud_params_cov = f['gaussian_cloud_params_cov'][:, 0]
+                self.gaussian_atom_number = unumpy.uarray(
+                    f['gaussian_atom_numbers_nom'][:, 0],
+                    f['gaussian_atom_numbers_std'][:, 0],
+                )
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -142,7 +152,47 @@ class BulkGasStatistician(BaseStatistician):
 
         return means, stds
 
-    def plot_atom_number(self, fig: Optional[Figure] = None, plot_lorentz = True):
+    @property
+    def unique_params(self) -> NDArray:
+        """
+        Returns
+        -------
+        unique_params: NDArray, shape (n_unique_param_combos,)
+        """
+        return np.unique(self.current_params, axis=0)
+
+    # TODO promote this to BaseStatistician?
+    def mean_values_by_unique_params(self, values: ArrayLike, add_std_errs: bool = False) -> NDArray:
+        """
+        Parameters
+        ----------
+        values: array_like of scalars or UFloats, shape (n_shots, ...)
+            Values to mean over.
+        add_std_errs: bool
+            Whether to add an additional standard error of the mean
+            into the uncertainties of the returned mean values.
+
+        Returns
+        -------
+        meaned_values: NDArray, shape (n_unique_param_combos, ...)
+        """
+        values = np.asarray(values)
+
+        meaned_values = []
+        for param_combo in self.unique_params:
+            mask = np.all(self.current_params == param_combo, axis=1)
+            mean_value_this_paramcombo = np.mean(values[mask], axis=0)
+            if add_std_errs:
+                n = np.sum(mask)
+                std_err = 0
+                if n > 1:
+                    std_err = np.std(unumpy.nominal_values(values)[mask], axis=0, ddof=1) / np.sqrt(n)
+                mean_value_this_paramcombo += unumpy.uarray(0, std_err)
+            meaned_values.append(mean_value_this_paramcombo)
+
+        return np.array(meaned_values)
+
+    def plot_atom_number(self, fig: Optional[Figure] = None, plot_lorentz: bool = True):
         """Plot atom number vs the looped parameter (simplest is shot number) and save
         the image in the folder path.
 
@@ -339,8 +389,8 @@ class BulkGasStatistician(BaseStatistician):
             Whether to show the means of the mot params vs loop params as a horizontal line on
             on the plot.
         """
-        loop_params = self.current_params[:, 0]
-        unique_params = np.unique(loop_params)
+        # assume 1D scan
+        unique_params = self.unique_params[:, 0]
 
         # Create subplots
         if fig is None:
@@ -349,6 +399,8 @@ class BulkGasStatistician(BaseStatistician):
                 constrained_layout=True
             )
         is_subfig = (fig is not None)
+        loop_global_name: str = self.params_list[0][0].decode('utf-8')
+        loop_global_unit: str = self.params_list[0][1].decode('utf-8')
 
         axs = fig.subplots(2, 2, sharex=True)
         axs_flat = axs.flatten()
@@ -364,79 +416,95 @@ class BulkGasStatistician(BaseStatistician):
             uncertainties.correlated_values(nom, cov)
             for nom, cov in zip(self.gaussian_cloud_params_nom, self.gaussian_cloud_params_cov)
         ])
+        gaussian_cloud_params_groupby_unique = self.mean_values_by_unique_params(gaussian_cloud_params, add_std_errs=True)
 
         # For each parameter
         # for param_idx, (ax, param_name) in enumerate(zip(axs, param_names)):
-        for param_idx in range(gaussian_cloud_params.shape[-1]):
-            # For each unique x value, compute mean and combined uncertainty
-            means = []
-            uncerts = []
-            for x in unique_params:
-                # Get all measurements for this x value
-                mask = (loop_params == x)
-                # Get all values for this parameter at the matching x positions
-                param_values = gaussian_cloud_params[mask][:, param_idx]
-
-                if len(param_values) > 1:
-                    # Multiple measurements: combine fit uncertainties with shot-to-shot variance
-                    mean_value = np.mean(unumpy.nominal_values(param_values))
-                    shot_to_shot_var = np.var(unumpy.nominal_values(param_values))
-                    # Average the individual fit variances
-                    fit_var = np.mean(unumpy.std_devs(param_values)**2)
-                    # Total uncertainty is sqrt of sum of variances
-                    total_uncertainty = np.sqrt(shot_to_shot_var + fit_var)
-                else:
-                    # Single measurement: just use the fit uncertainty
-                    mean_value = unumpy.nominal_values(param_values[0])
-                    total_uncertainty = unumpy.std_devs(param_values[0])
-
-                means.append(mean_value)
-                uncerts.append(total_uncertainty)
-
-            means = np.array(means)
-            uncerts = np.array(uncerts)
+        for param_idx in range(5):
+            param_uvals = gaussian_cloud_params_groupby_unique[:, param_idx]
+            means, uncerts = unumpy.nominal_values(param_uvals), unumpy.std_devs(param_uvals)
 
             ax = axs_flat[ax_inds[param_idx]]
             scale_factor = scale_factors[ax_inds[param_idx]]
 
             # Plot with error bars
+            plotting_fit = self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay' and param_idx in [0, 1, 2, 3]
             ax.errorbar(
                 unique_params,
                 scale_factor * means,  # No need for indexing, means is already for this param
                 yerr=scale_factor * uncerts,  # No need for indexing, uncertainties is already for this param
                 color=colors[param_idx],
                 marker='.',
-                linestyle=('None' if param_idx in [2, 3] else 'solid'),
+                linestyle=('None' if plotting_fit else 'solid'),
                 alpha=0.5,
                 capsize=3,
-                label=plot_labels[param_idx],
+                label=(None if plotting_fit else plot_labels[param_idx]),
             )
 
-        loop_global_name: str = self.params_list[0][0].decode('utf-8')
-        loop_global_unit: str = self.params_list[0][1].decode('utf-8')
+        atom_numbers_groupby_unique = self.mean_values_by_unique_params(self.atom_numbers, add_std_errs=True)
+        axs[1, 1].errorbar(
+            unique_params,
+            unumpy.nominal_values(atom_numbers_groupby_unique),
+            unumpy.std_devs(atom_numbers_groupby_unique),
+            alpha=0.5,
+            capsize=3,
+            label='by summing'
+        )
+
+        gauss_atom_num_groupby_unique = self.mean_values_by_unique_params(self.gaussian_atom_number)
+        axs[1, 1].errorbar(
+            unique_params,
+            unumpy.nominal_values(gauss_atom_num_groupby_unique),
+            unumpy.std_devs(gauss_atom_num_groupby_unique),
+            alpha=0.5,
+            capsize=3,
+            label='Gaussian integration'
+        )
+
         fig.supxlabel(
             f'{loop_global_name} [{loop_global_unit}]',
             fontsize=self.plot_config.label_font_size,
         )
         fig.suptitle('MOT Cloud Parameters', fontsize=self.plot_config.title_font_size)
 
-        # time of flight temperature measurement
+        # time of flight fits
         if self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay':
             times = self.current_params[:, 0]
+            time_range = np.linspace(np.min(times), np.max(times), 101)
 
+            # acceleration measurement
+            # x, y positions in fields (0, 1)
+            for param_idx in (0, 1):
+                positions_u = gaussian_cloud_params[:, param_idx]
+                upopt = self.uniform_acceleration_fit(times, positions_u, a0=(9.8 * param_idx))
+
+                var = 'x' if param_idx == 0 else 'y'
+                axs_flat[0].plot(
+                    time_range,
+                    self.uniform_acceleration(time_range, *unumpy.nominal_values(upopt)) * scale_factors[ax_inds[param_idx]],
+                    alpha=0.5,
+                    color=colors[param_idx],
+                    label='\n'.join([
+                        f'${var}_0 = {upopt[0] * 1e+3:SL}$ mm, ',
+                        f'$v_{{0{var}}} = {upopt[1] * 1e+3:SL}$ mm/s, ',
+                        f'$a_{{0{var}}} = {upopt[2]:SL}$ m/s$^2$'
+                    ]),
+                )
+
+            # temperature measurement
             for param_idx in (2, 3):
                 # x, y widths in fields (2, 3)
                 widths_u = gaussian_cloud_params[:, param_idx]
                 upopt = self.time_of_flight_fit(times, widths_u, method='curve_fit')
                 init_width_u, temperature_u = upopt
 
-                time_range = np.linspace(np.min(times), np.max(times), 101)
+                var = 'u' if param_idx == 2 else 'v'
                 axs_flat[1].plot(
                     time_range,
                     self.time_of_flight_expansion(time_range, *unumpy.nominal_values(upopt)) * scale_factors[ax_inds[param_idx]],
                     alpha=0.5,
                     color=colors[param_idx],
-                    label=f'{1e+6 * temperature_u:S} $\mu$K'
+                    label=f'$T_{{{var}}} = {1e+6 * temperature_u:SL}$ $\mu$K'
                 )
 
         for ax in axs_flat:
@@ -446,18 +514,36 @@ class BulkGasStatistician(BaseStatistician):
                 labelsize=self.plot_config.label_font_size,
             )
             ax.grid(True, alpha=0.3)
-            ax.legend()
+            ax.legend(fontsize='x-small')
 
         axs[0, 0].set_ylabel('Position (mm)')
         axs[0, 1].set_ylabel('Gaussian width (mm)')
         axs[1, 0].set_ylabel('Rotation (deg)')
-        axs[1, 1].set_ylabel('Counts')
+        axs[1, 1].set_ylabel('Atom number')
+        axs[1, 1].set_ylim(0, None)
 
         figname = f"{self.folder_path}\mot_params.png"
         if is_subfig:
             self.save_subfig(fig, figname)
         else:
             fig.savefig(figname)
+
+    @staticmethod
+    def uniform_acceleration(t, x0, v0, a):
+        return x0 + v0 * t + 0.5 * a * t**2
+
+    @classmethod
+    def uniform_acceleration_fit(cls, times, positions_u, a0=0):
+        positions_n = unumpy.nominal_values(positions_u)
+        popt, pcov = optimize.curve_fit(
+            cls.uniform_acceleration,
+            times,
+            positions_n,
+            p0=(np.mean(positions_n), 0, a0),
+            sigma=unumpy.std_devs(positions_u),
+        )
+
+        return uncertainties.correlated_values(popt, pcov)
 
     @staticmethod
     def time_of_flight_expansion(time, initial_width, temperature):
