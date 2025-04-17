@@ -167,7 +167,34 @@ class BulkGasStatistician(BaseStatistician):
             loop_params = self.current_params
         unique_params = np.unique(loop_params, axis = 0)
 
-        if loop_params.ndim == 1:
+        if loop_params.size == 0:
+            print("loop_params is empty with dimension", loop_params.ndim)
+            print("atom number is", self.atom_numbers)
+            if fig is not None:
+                ax = fig.subplots()
+                is_subfig = True
+
+            ax.plot(self.atom_numbers, 'o')
+
+            ax.set_title(
+                self.folder_path,
+                fontsize=8,
+            )
+
+            # ax.set_xlabel(
+            #     f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
+            #     fontsize=self.plot_config.label_font_size,
+            # )
+            ax.set_ylabel(
+                'atom count',
+                fontsize=self.plot_config.label_font_size,
+            )
+
+            # ax.set_ylim(bottom=0)
+
+            ax.grid(color=self.plot_config.grid_color_major, which='major')
+            ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+        elif loop_params.ndim == 1:
             if fig is not None:
                 ax = fig.subplots()
                 is_subfig = True
