@@ -290,4 +290,5 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 ax=ax,
                 cmap='magma',
                 vmin=0,
+                vmax = 20,
             )
