@@ -6,11 +6,6 @@ import numpy as np
 
 import h5py
 
-# try:
-#     lyse
-# except NameError:
-#     import lyse
-
 from .analysis_config import ImagingSystem
 from analysislib.analysis.data import h5lyze as hz
 from analysislib.common.image import Image
@@ -36,8 +31,7 @@ class ImagePreprocessor(ABC):
     """
 
     run_number: int
-    h5_path: str
-    folder_path: str
+    h5_path: Path
     exposures: tuple[np.ndarray, ...]
 
     n_runs: int
@@ -60,7 +54,7 @@ class ImagePreprocessor(ABC):
             Path to h5 file, only used if load_type='h5'
         """
         self.imaging_setup = imaging_setup
-        self.h5_path, self.folder_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
+        self.h5_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
         self.exposures, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
@@ -69,7 +63,7 @@ class ImagePreprocessor(ABC):
             self.n_runs = f.attrs['n_runs']
 
     # TODO migrate to using pathlib Paths instead
-    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[str] = None) -> tuple[str, str]:
+    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[str] = None) -> Path:
         """
         get h5_path based on load_type
         Parameters
@@ -81,30 +75,27 @@ class ImagePreprocessor(ABC):
 
         Returns
         -------
-        h5_path: str
-        The actual h5 file path used based on the selected load_type
+        h5_path: Path
+            The actual h5 file path used based on the selected load_type
         """
         if load_type == 'lyse':
             import lyse
             # Is this script being run from within an interactive lyse session?
             if lyse.spinning_top:
                 # If so, use the filepath of the current h5_path
-                h5_path = lyse.path
+                h5_path = Path(lyse.path)
             else:
                 # If not, get the filepath of the last h5_path of the lyse DataFrame
                 df = lyse.data()
-                h5_path = df.filepath.iloc[-1]
+                h5_path = Path(df.filepath.iloc[-1])
         elif load_type == 'h5':
             if h5_path is None:
                 raise ValueError("When load_type is h5, please provide exact h5 path")
-            h5_path = h5_path
+            h5_path = Path(h5_path)
         else:
             raise ValueError("load_type must be 'lyse' or 'h5'")
 
-        # Get folder path from h5 path
-        folder_path = os.path.dirname(h5_path)
-
-        return h5_path, folder_path
+        return h5_path
 
 
     # TODO unit tests for this

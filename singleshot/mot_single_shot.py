@@ -34,4 +34,4 @@ plotter = BulkGasStatistician(
 # plotter.plot_atom_number(fig = subfigs[1], plot_lorentz=False)
 plotter.plot_mot_params(fig = subfigs[1])
 
-fig.savefig(f"{bulk_gas_preproc.folder_path}/mot_single_shot.pdf")
+fig.savefig(bulk_gas_preproc.h5_path.with_name("mot_single_shot.pdf"))
