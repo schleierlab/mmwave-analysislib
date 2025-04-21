@@ -18,8 +18,6 @@ class TweezerMultishotAnalysis():
     def __init__(self, folder_path: Union[str, PathLike]):
         self.tweezer_statistician = self.analyze_the_folder(folder_path)
 
-
-
     @classmethod
     def analyze_the_folder(cls, h5_path: Union[str, PathLike]):
         sequence_dir = Path(h5_path)

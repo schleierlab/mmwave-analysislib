@@ -254,7 +254,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
 
         # Implement the thresholding to determine site occupancy
-        if use_global_threshold:
+        if use_global_threshold: # means we use the same threshold for all sites
             print("Using global threshold =", self.threshold)
             self.site_occupancies = camera_counts > self.threshold
         else:
