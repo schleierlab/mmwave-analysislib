@@ -123,26 +123,30 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         return atom_counts / self.counts_per_atom
 
-    def get_gaussian_cloud_params(self):
+    def get_gaussian_cloud_params(self, uniform = False):
         """
         Returns
         -------
-        NDArray[UFloat], shape (n_images, 7)
+        NDArray[UFloat], shape (n_images, number_of_parameters)
             A numpy array of (uncertain) Gaussian fit parameters for each image.
             The parameters, in order, are
                 (x, y, width, height, rotation, amplitude, offset)
             Center coordinates (x, y) and widths (width, height) are in meters;
             rotation is in radians,
             (amplitude, offset) are given in counts.
+            Note that when rotation = 0, we have only 6 parameters; if uniform, we have only 5
         """
         upopts = []
         for image in self.images:
-            popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi)
+            popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform)
             upopt = uncertainties.correlated_values(popt, pcov)
             upopts.append(upopt)
 
         pixel_size = self.analysis_config.imaging_system.atom_plane_pixel_size
-        return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
+        if uniform:
+            return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, 1, 1)
+        else:
+            return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
 
     def process_shot(self, cloud_fit=None) -> str:
         """
@@ -150,8 +154,9 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         Parameters
         ----------
-        cloud_fit : {'gaussian', None}, default=None
+        cloud_fit : {'gaussian', 'gaussian_uniform', None}, default=None
             If 'gaussian', fit the atom cloud to a 2D Gaussian and store the parameters.
+            If 'gaussian_uniform', fit the atom cloud to a 2D Gaussian with uniform width and height.
             If None, do not fit the atom cloud. No parameters are stored.
 
         Returns
@@ -163,10 +168,19 @@ class BulkGasPreprocessor(ImagePreprocessor):
             gauss_params = self.get_gaussian_cloud_params()
             gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
             gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
-
             # integrated under 2D gaussian: 2 * pi * peak_height * sigma_u * sigma_v
             # need to express sigma_u, sigma_v in pixels
             gauss_atom_counts = 2 * pi * np.prod(gauss_params[:, [2, 3, 4]], axis=1) / (self.imaging_setup.atom_plane_pixel_size)**2
+            gauss_atom_num = gauss_atom_counts / self.counts_per_atom
+        elif cloud_fit == 'gaussian_uniform':
+            gauss_params = self.get_gaussian_cloud_params(uniform=True)
+            gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
+            gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
+            # integrated under 2D gaussian: 2 * pi * peak_height * sigma^2
+            # need to express sigma in pixels
+            width = gauss_params[:, 2]  # Get the uniform width parameter
+            amplitude = gauss_params[:, 3]  # Get the amplitude parameter
+            gauss_atom_counts = 2 * np.pi * amplitude * width**2 / (self.imaging_setup.atom_plane_pixel_size)**2
             gauss_atom_num = gauss_atom_counts / self.counts_per_atom
 
         atom_numbers = self.get_atom_numbers(method='sum', subtraction='double')
@@ -182,10 +196,23 @@ class BulkGasPreprocessor(ImagePreprocessor):
                     f['gaussian_cloud_params_nom'].attrs['fields'] = ['x', 'y', 'width', 'height', 'amplitude', 'offset']
                     f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'm', 'counts', 'counts']
                     f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, len(self.images), n_params, n_params))
-                    # f.create_dataset('gaussian_cloud_params_nom', data=[gauss_nom], maxshape=(self.n_runs, len(self.images), n_params))
-                    # f['gaussian_cloud_params_nom'].attrs['fields'] = ['x', 'y', 'width', 'height', 'amplitude', 'offset']
-                    # f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'm', 'rad', 'counts', 'counts']
-                    # f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, len(self.images), n_params, n_params))
+
+                    f.create_dataset(
+                        'gaussian_atom_numbers_nom',
+                        data=[unumpy.nominal_values(gauss_atom_num)],
+                        maxshape=(self.n_runs, len(self.images)),
+                    )
+                    f.create_dataset(
+                        'gaussian_atom_numbers_std',
+                        data=[unumpy.std_devs(gauss_atom_num)],
+                        maxshape=(self.n_runs, len(self.images)),
+                    )
+                elif cloud_fit == 'gaussian_uniform':
+                    n_params = 5
+                    f.create_dataset('gaussian_cloud_params_nom', data=[gauss_nom], maxshape=(self.n_runs, len(self.images), n_params))
+                    f['gaussian_cloud_params_nom'].attrs['fields'] = ['x', 'y', 'width', 'amplitude', 'offset']
+                    f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'counts', 'counts']
+                    f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, len(self.images), n_params, n_params))
 
                     f.create_dataset(
                         'gaussian_atom_numbers_nom',
@@ -218,7 +245,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
 
-                if cloud_fit == 'gaussian':
+                if cloud_fit == 'gaussian' or cloud_fit == 'gaussian_uniform':
                     f['gaussian_cloud_params_nom'].resize(run_number + 1, axis=0)
                     f['gaussian_cloud_params_nom'][run_number] = gauss_nom
                     f['gaussian_cloud_params_cov'].resize(run_number + 1, axis=0)

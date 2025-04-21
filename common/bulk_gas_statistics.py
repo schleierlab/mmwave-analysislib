@@ -375,7 +375,7 @@ class BulkGasStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(self.folder_path / 'count_vs_param.pdf')
 
-    def plot_mot_params(self, fig: Optional[Figure] = None, show_means=True):
+    def plot_mot_params(self, fig: Optional[Figure] = None, uniform = True, show_means=True):
         """Plot atom number vs the looped parameter and save the image in the folder path.
 
         This function requires that get_atom_number has been run first to save the
@@ -385,6 +385,8 @@ class BulkGasStatistician(BaseStatistician):
         ----------
         fig : Optional[Figure], default=None
             Figure to plot on, if None a new figure is created
+        uniform : bool, default=True
+            Whether to use a uniform width and height for the Gaussian fit
         show_means : bool, default=True
             Whether to show the means of the mot params vs loop params as a horizontal line on
             on the plot.
@@ -405,67 +407,54 @@ class BulkGasStatistician(BaseStatistician):
         axs = fig.subplots(2, 2, sharex=True)
         axs_flat = axs.flatten()
 
-        ax_inds = [0, 0, 1, 1, 2, 2]
+        if uniform:
+            # For uniform fit: x, y, width, amplitude, offset
+            param_groups = [
+                ([0, 1], (0, 0), 'Position (mm)'),      # x, y in first subplot
+                ([2], (0, 1), 'Gaussian width (mm)'),   # width in second subplot
+                ([3, 4], (1, 0), 'Peak height and offset') # amplitude, offset in third subplot
+            ]
+            plot_labels = ['$x$', '$y$', '$\sigma$', 'peak height', 'offset']
+            scale_factors = [1e3, 1e3, 1e3, 1, 1]  # mm conversion for positions and width
+        else:
+            # For regular fit: x, y, width_u, width_v, amplitude, offset
+            param_groups = [
+                ([0, 1], (0, 0), 'Position (mm)'),      # x, y in first subplot
+                ([2, 3], (0, 1), 'Gaussian width (mm)'), # σu, σv in second subplot
+                ([4, 5], (1, 0), 'Peak height and offset') # amplitude, offset in third subplot
+            ]
+            plot_labels = ['$x$', '$y$', '$\sigma_u$', '$\sigma_v$', 'peak height', 'offset']
+            scale_factors = [1e3, 1e3, 1e3, 1e3, 1, 1]  # mm conversion for positions and widths
+
         colors = ['C0', 'C1', 'C0', 'C1', 'C0', 'C1']
-        plot_labels = ['$x$', '$y$', '$\sigma_u$', '$\sigma_v$', 'peak height', 'offset']
-        scale_factors = [1e3, 1e3, 1e3, 1e3, 1, 1]
 
         # Convert nominal values and uncertainties to ufloat arrays
-        # shape: (n_shots, n_params = 6)
         gaussian_cloud_params = np.array([
             uncertainties.correlated_values(nom, cov)
             for nom, cov in zip(self.gaussian_cloud_params_nom, self.gaussian_cloud_params_cov)
         ])
         gaussian_cloud_params_groupby_unique = self.mean_values_by_unique_params(gaussian_cloud_params, add_std_errs=True)
 
-        # Plot positions (x,y) in first subplot
-        for param_idx in [0, 1]:  # x, y positions
-            param_uvals = gaussian_cloud_params_groupby_unique[:, param_idx]
-            means, uncerts = unumpy.nominal_values(param_uvals), unumpy.std_devs(param_uvals)
-            plotting_fit = self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay'
-            axs[0, 0].errorbar(
-                unique_params,
-                scale_factors[param_idx] * means,
-                yerr=scale_factors[param_idx] * uncerts,
-                color=colors[param_idx],
-                marker='.',
-                linestyle=('None' if plotting_fit else 'solid'),
-                alpha=0.5,
-                capsize=3,
-                label=plot_labels[param_idx],
-            )
-
-        # Plot widths (σu,σv) in second subplot
-        for param_idx in [2, 3]:  # widths
-            param_uvals = gaussian_cloud_params_groupby_unique[:, param_idx]
-            means, uncerts = unumpy.nominal_values(param_uvals), unumpy.std_devs(param_uvals)
-            plotting_fit = self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay'
-            axs[0, 1].errorbar(
-                unique_params,
-                scale_factors[param_idx] * means,
-                yerr=scale_factors[param_idx] * uncerts,
-                color=colors[param_idx],
-                marker='.',
-                linestyle=('None' if plotting_fit else 'solid'),
-                alpha=0.5,
-                capsize=3,
-                label=plot_labels[param_idx],
-            )
-
-        # Plot peak height in third subplot
-        param_uvals = gaussian_cloud_params_groupby_unique[:, 4]  # peak height
-        means, uncerts = unumpy.nominal_values(param_uvals), unumpy.std_devs(param_uvals)
-        axs[1, 0].errorbar(
-            unique_params,
-            means,
-            yerr=uncerts,
-            color=colors[4],
-            marker='.',
-            linestyle='solid',
-            alpha=0.5,
-            capsize=3,
-            label=plot_labels[4],
-        )
+        # Plot each group of parameters
+        for param_indices, (row, col), ylabel in param_groups:
+            for i, param_idx in enumerate(param_indices):
+                param_uvals = gaussian_cloud_params_groupby_unique[:, param_idx]
+                means, uncerts = unumpy.nominal_values(param_uvals), unumpy.std_devs(param_uvals)
+                plotting_fit = self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay' and param_idx in [0, 1, 2, 3]
+                axs[row, col].errorbar(
+                    unique_params,
+                    scale_factors[param_idx] * means,
+                    yerr=scale_factors[param_idx] * uncerts,
+                    color=colors[param_idx],
+                    marker='.',
+                    linestyle=('None' if plotting_fit else 'solid'),
+                    alpha=0.5,
+                    capsize=3,
+                    label=plot_labels[param_idx],
+                )
+            axs[row, col].set_ylabel(ylabel)
+            if any(param_indices):  # Only add legend if we have parameters to plot
+                axs[row, col].legend()
 
         # Plot atom numbers in fourth subplot
         atom_numbers_groupby_unique = self.mean_values_by_unique_params(self.atom_numbers, add_std_errs=True)
@@ -506,9 +495,9 @@ class BulkGasStatistician(BaseStatistician):
                 upopt = self.uniform_acceleration_fit(times, positions_u, a0=(9.8 * param_idx))
 
                 var = 'x' if param_idx == 0 else 'y'
-                axs_flat[0].plot(
+                axs[0, 0].plot(
                     time_range,
-                    self.uniform_acceleration(time_range, *unumpy.nominal_values(upopt)) * scale_factors[ax_inds[param_idx]],
+                    self.uniform_acceleration(time_range, *unumpy.nominal_values(upopt)) * scale_factors[param_idx],
                     alpha=0.5,
                     color=colors[param_idx],
                     label='\n'.join([
@@ -519,20 +508,34 @@ class BulkGasStatistician(BaseStatistician):
                 )
 
             # temperature measurement
-            for param_idx in (2, 3):
-                # x, y widths in fields (2, 3)
-                widths_u = gaussian_cloud_params[:, param_idx]
+            if uniform:
+                # For uniform Gaussian, only one width parameter
+                widths_u = gaussian_cloud_params[:, 2]  # width parameter
                 upopt = self.time_of_flight_fit(times, widths_u, method='curve_fit')
                 init_width_u, temperature_u = upopt
 
-                var = 'u' if param_idx == 2 else 'v'
-                axs_flat[1].plot(
+                axs[0, 1].plot(
                     time_range,
-                    self.time_of_flight_expansion(time_range, *unumpy.nominal_values(upopt)) * scale_factors[ax_inds[param_idx]],
+                    self.time_of_flight_expansion(time_range, *unumpy.nominal_values(upopt)) * scale_factors[2],
                     alpha=0.5,
-                    color=colors[param_idx],
-                    label=f'$T_{{{var}}} = {1e+6 * temperature_u:SL}$ $\mu$K'
+                    color=colors[2],
+                    label=f'$T = {1e+6 * temperature_u:SL}$ $\mu$K'
                 )
+            else:
+                # For non-uniform Gaussian, fit both width parameters
+                for param_idx in (2, 3):
+                    widths_u = gaussian_cloud_params[:, param_idx]
+                    upopt = self.time_of_flight_fit(times, widths_u, method='curve_fit')
+                    init_width_u, temperature_u = upopt
+
+                    var = 'u' if param_idx == 2 else 'v'
+                    axs[0, 1].plot(
+                        time_range,
+                        self.time_of_flight_expansion(time_range, *unumpy.nominal_values(upopt)) * scale_factors[param_idx],
+                        alpha=0.5,
+                        color=colors[param_idx],
+                        label=f'$T_{{{var}}} = {1e+6 * temperature_u:SL}$ $\mu$K'
+                    )
 
         for ax in axs_flat:
             ax.tick_params(
