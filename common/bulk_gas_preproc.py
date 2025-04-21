@@ -164,6 +164,11 @@ class BulkGasPreprocessor(ImagePreprocessor):
             gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
             gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
 
+            # integrated under 2D gaussian: 2 * pi * peak_height * sigma_u * sigma_v
+            # need to express sigma_u, sigma_v in pixels
+            gauss_atom_counts = 2 * pi * np.prod(gauss_params[:, [2, 3, 5]], axis=1) / (self.imaging_setup.atom_plane_pixel_size)**2
+            gauss_atom_num = gauss_atom_counts / self.counts_per_atom
+
         atom_numbers = self.get_atom_numbers(method='sum', subtraction='double')
         run_number = self.run_number
         fname = self.h5_path.with_name('bulkgas_preprocess.h5')
@@ -177,6 +182,17 @@ class BulkGasPreprocessor(ImagePreprocessor):
                     f['gaussian_cloud_params_nom'].attrs['fields'] = ['x', 'y', 'width', 'height', 'amplitude', 'offset']
                     f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'm', 'rad', 'counts', 'counts']
                     f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, len(self.images), n_params, n_params))
+
+                    f.create_dataset(
+                        'gaussian_atom_numbers_nom',
+                        data=[unumpy.nominal_values(gauss_atom_num)],
+                        maxshape=(self.n_runs, len(self.images)),
+                    )
+                    f.create_dataset(
+                        'gaussian_atom_numbers_std',
+                        data=[unumpy.std_devs(gauss_atom_num)],
+                        maxshape=(self.n_runs, len(self.images)),
+                    )
 
                 # save parameters from runmanager globals
                 f.create_dataset(
@@ -203,6 +219,10 @@ class BulkGasPreprocessor(ImagePreprocessor):
                     f['gaussian_cloud_params_nom'][run_number] = gauss_nom
                     f['gaussian_cloud_params_cov'].resize(run_number + 1, axis=0)
                     f['gaussian_cloud_params_cov'][run_number] = gauss_cov
+                    f['gaussian_atom_numbers_nom'].resize(run_number + 1, axis=0)
+                    f['gaussian_atom_numbers_nom'][run_number] = unumpy.nominal_values(gauss_atom_num)
+                    f['gaussian_atom_numbers_std'].resize(run_number + 1, axis=0)
+                    f['gaussian_atom_numbers_std'][run_number] = unumpy.std_devs(gauss_atom_num)
 
         return fname
 
