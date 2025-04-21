@@ -142,7 +142,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             upopts.append(upopt)
 
         pixel_size = self.analysis_config.imaging_system.atom_plane_pixel_size
-        return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1, 1)
+        return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
 
     def process_shot(self, cloud_fit=None) -> str:
         """
@@ -166,7 +166,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
             # integrated under 2D gaussian: 2 * pi * peak_height * sigma_u * sigma_v
             # need to express sigma_u, sigma_v in pixels
-            gauss_atom_counts = 2 * pi * np.prod(gauss_params[:, [2, 3, 5]], axis=1) / (self.imaging_setup.atom_plane_pixel_size)**2
+            gauss_atom_counts = 2 * pi * np.prod(gauss_params[:, [2, 3, 4]], axis=1) / (self.imaging_setup.atom_plane_pixel_size)**2
             gauss_atom_num = gauss_atom_counts / self.counts_per_atom
 
         atom_numbers = self.get_atom_numbers(method='sum', subtraction='double')
@@ -177,11 +177,15 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 f.attrs['n_runs'] = self.n_runs
                 f.create_dataset('atom_numbers', data=[atom_numbers], maxshape=(self.n_runs, len(self.images)))
                 if cloud_fit == 'gaussian':
-                    n_params = 7
+                    n_params = 6
                     f.create_dataset('gaussian_cloud_params_nom', data=[gauss_nom], maxshape=(self.n_runs, len(self.images), n_params))
                     f['gaussian_cloud_params_nom'].attrs['fields'] = ['x', 'y', 'width', 'height', 'amplitude', 'offset']
-                    f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'm', 'rad', 'counts', 'counts']
+                    f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'm', 'counts', 'counts']
                     f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, len(self.images), n_params, n_params))
+                    # f.create_dataset('gaussian_cloud_params_nom', data=[gauss_nom], maxshape=(self.n_runs, len(self.images), n_params))
+                    # f['gaussian_cloud_params_nom'].attrs['fields'] = ['x', 'y', 'width', 'height', 'amplitude', 'offset']
+                    # f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'm', 'rad', 'counts', 'counts']
+                    # f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, len(self.images), n_params, n_params))
 
                     f.create_dataset(
                         'gaussian_atom_numbers_nom',
@@ -290,6 +294,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
         )
 
     def show_state_sensitive_images(self, fig: Optional[Figure] = None, ):
+        fig.suptitle(self.h5_path, fontsize='x-small')
+
         if fig is None:
             fig, axs = plt.subplots(
                 nrows=2,
@@ -304,11 +310,12 @@ class BulkGasPreprocessor(ImagePreprocessor):
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
 
         for i, ax in enumerate(axs):
-            self.images[i].imshow_view(
+            im = self.images[i].imshow_view(
                 self.atoms_roi,
                 scale_factor=plot_units_per_pixel,
                 ax=ax,
                 cmap='magma',
                 vmin=0,
-                vmax = 20,
+                vmax=(20 if i == 0 else None),
             )
+            fig.colorbar(im, ax=ax, location='right')

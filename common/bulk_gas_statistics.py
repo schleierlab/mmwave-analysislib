@@ -405,10 +405,10 @@ class BulkGasStatistician(BaseStatistician):
         axs = fig.subplots(2, 2, sharex=True)
         axs_flat = axs.flatten()
 
-        ax_inds = [0, 0, 1, 1, 2, 3, 3]
-        colors = ['C0', 'C1', 'C0', 'C1', 'C0', 'C0', 'C1']
-        plot_labels = ['$x$', '$y$', '$\sigma_u$', '$\sigma_v$', None, 'peak height', 'offset']
-        scale_factors = [1e3, 1e3, pi/2, 1]
+        ax_inds = [0, 0, 1, 1, 2, 2]
+        colors = ['C0', 'C1', 'C0', 'C1', 'C0', 'C1']
+        plot_labels = ['$x$', '$y$', '$\sigma_u$', '$\sigma_v$', 'peak height', 'offset']
+        scale_factors = [1e3, 1e3, 1e3, 1e3, 1, 1]
 
         # Convert nominal values and uncertainties to ufloat arrays
         # shape: (n_shots, n_params = 6)
@@ -418,29 +418,56 @@ class BulkGasStatistician(BaseStatistician):
         ])
         gaussian_cloud_params_groupby_unique = self.mean_values_by_unique_params(gaussian_cloud_params, add_std_errs=True)
 
-        # For each parameter
-        # for param_idx, (ax, param_name) in enumerate(zip(axs, param_names)):
-        for param_idx in range(5):
+        # Plot positions (x,y) in first subplot
+        for param_idx in [0, 1]:  # x, y positions
             param_uvals = gaussian_cloud_params_groupby_unique[:, param_idx]
             means, uncerts = unumpy.nominal_values(param_uvals), unumpy.std_devs(param_uvals)
-
-            ax = axs_flat[ax_inds[param_idx]]
-            scale_factor = scale_factors[ax_inds[param_idx]]
-
-            # Plot with error bars
-            plotting_fit = self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay' and param_idx in [0, 1, 2, 3]
-            ax.errorbar(
+            plotting_fit = self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay'
+            axs[0, 0].errorbar(
                 unique_params,
-                scale_factor * means,  # No need for indexing, means is already for this param
-                yerr=scale_factor * uncerts,  # No need for indexing, uncertainties is already for this param
+                scale_factors[param_idx] * means,
+                yerr=scale_factors[param_idx] * uncerts,
                 color=colors[param_idx],
                 marker='.',
                 linestyle=('None' if plotting_fit else 'solid'),
                 alpha=0.5,
                 capsize=3,
-                label=(None if plotting_fit else plot_labels[param_idx]),
+                label=plot_labels[param_idx],
             )
 
+        # Plot widths (σu,σv) in second subplot
+        for param_idx in [2, 3]:  # widths
+            param_uvals = gaussian_cloud_params_groupby_unique[:, param_idx]
+            means, uncerts = unumpy.nominal_values(param_uvals), unumpy.std_devs(param_uvals)
+            plotting_fit = self.is_final_shot and loop_global_name == 'bm_tof_imaging_delay'
+            axs[0, 1].errorbar(
+                unique_params,
+                scale_factors[param_idx] * means,
+                yerr=scale_factors[param_idx] * uncerts,
+                color=colors[param_idx],
+                marker='.',
+                linestyle=('None' if plotting_fit else 'solid'),
+                alpha=0.5,
+                capsize=3,
+                label=plot_labels[param_idx],
+            )
+
+        # Plot peak height in third subplot
+        param_uvals = gaussian_cloud_params_groupby_unique[:, 4]  # peak height
+        means, uncerts = unumpy.nominal_values(param_uvals), unumpy.std_devs(param_uvals)
+        axs[1, 0].errorbar(
+            unique_params,
+            means,
+            yerr=uncerts,
+            color=colors[4],
+            marker='.',
+            linestyle='solid',
+            alpha=0.5,
+            capsize=3,
+            label=plot_labels[4],
+        )
+
+        # Plot atom numbers in fourth subplot
         atom_numbers_groupby_unique = self.mean_values_by_unique_params(self.atom_numbers, add_std_errs=True)
         axs[1, 1].errorbar(
             unique_params,
@@ -518,7 +545,7 @@ class BulkGasStatistician(BaseStatistician):
 
         axs[0, 0].set_ylabel('Position (mm)')
         axs[0, 1].set_ylabel('Gaussian width (mm)')
-        axs[1, 0].set_ylabel('Rotation (deg)')
+        axs[1, 0].set_ylabel('Peak height (counts)')
         axs[1, 1].set_ylabel('Atom number')
         axs[1, 1].set_ylim(0, None)
 

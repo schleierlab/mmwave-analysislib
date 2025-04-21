@@ -205,14 +205,13 @@ class Image:
         x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
         width_guess = roi.width/4
         height_guess = roi.height/4
-        rotation_guess = 0
         z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
         offset_guess = np.min(roiview)
 
-        p0 = [x0_guess, y0_guess, width_guess, height_guess, rotation_guess, a_guess, offset_guess]
+        p0 = [x0_guess, y0_guess, width_guess, height_guess, a_guess, offset_guess]
         return optimize.curve_fit(
-            self.gaussian2d,
+            lambda xy, x0, y0, width, height, peak_height, offset :self.gaussian2d(xy, x0, y0, width, height, rotation = 0, peak_height = peak_height, offset = offset),
             xys,
             roiview.ravel(),
             p0=p0,
@@ -221,7 +220,6 @@ class Image:
                 (0, roi.height),
                 (0, roi.width),
                 (0, roi.height),
-                (-pi/4, pi/4),
                 (0, np.inf),
                 (-np.inf, np.inf),
             ]).T,
