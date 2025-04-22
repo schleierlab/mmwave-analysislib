@@ -16,6 +16,7 @@ from scipy.stats import norm
 
 from analysislib.common.image import ROI, Image
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
+from analysislib.common.tweezer_statistics import TweezerStatistician
 
 
 class TweezerThresholder:
@@ -32,6 +33,7 @@ class TweezerThresholder:
             rois: Sequence[ROI],
             weights: Sequence[NDArray | float] | float = 1,
             background_subtract: bool = False,
+            processed_results_fname: Optional[Path] = None
     ):
         self.rois = list(rois)
         self.thresholds = None
@@ -39,16 +41,23 @@ class TweezerThresholder:
         weight_fns =  weights
         if isinstance(weights, float):
             weight_fns = (weights,) * len(self.n_sites)
-        roi_counts = [
-            [
-                np.sum(
-                    (image if background_subtract else image.raw_image()).roi_view(roi)
-                    * weight_fn
-                )
-                for roi, weight_fn in zip(rois, weight_fns)
+
+        if images is not None:
+            roi_counts = [
+                [
+                    np.sum(
+                        (image if background_subtract else image.raw_image()).roi_view(roi)
+                        * weight_fn
+                    )
+                    for roi, weight_fn in zip(rois, weight_fns)
+                ]
+                for image in images
             ]
-            for image in images
-        ]
+        else:
+            tweezer_statistician = TweezerStatistician(
+                    preproc_h5_path=processed_results_fname,
+                )
+            roi_counts = tweezer_statistician.camera_counts[:,0,:] # the 1st images
         self.df = pd.DataFrame(roi_counts).melt(var_name=self.INDEX_NAME, value_name=self.COUNTS_NAME)
 
     @property

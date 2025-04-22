@@ -104,6 +104,7 @@ class TweezerFinder:
                                                         )
         print(f'Site ROIs dumped to {output_path}')
 
+
     def plot_sites(self, rois: Sequence[ROI]):
         fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
 
