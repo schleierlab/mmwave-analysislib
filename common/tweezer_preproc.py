@@ -302,6 +302,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             roi_patches: bool = True,
             fig: Optional[Figure] = None,
             vmax: Optional[int] = 70,
+            cmap: str = 'viridis', #'bone'
     ):
         if fig is None:
             fig, axs = plt.subplots(
@@ -311,7 +312,6 @@ class TweezerPreprocessor(ImagePreprocessor):
         else:
             axs = fig.subplots(nrows=2, ncols=1)
 
-        cmap = 'bone'
         norm = Normalize(vmin=10, vmax=vmax)
         for i, image in enumerate(self.images):
             ax = cast(Axes, axs[i])
@@ -330,4 +330,4 @@ class TweezerPreprocessor(ImagePreprocessor):
                 collection = PatchCollection(patches, match_original=True)
                 ax.add_collection(collection)
 
-        fig.colorbar(ScalarMappable(norm, cmap='bone'), ax=axs, label='Counts')
+        fig.colorbar(ScalarMappable(norm, cmap=cmap), ax=axs, label='Counts')
