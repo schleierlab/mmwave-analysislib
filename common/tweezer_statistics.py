@@ -290,13 +290,13 @@ class TweezerStatistician(BaseStatistician):
             is_subfig = False
 
         if loop_params.size == 0:
-            print("loop_params is empty with dimension", loop_params.ndim)
+            # print("loop_params is empty with dimension", loop_params.ndim)
             if fig is not None:
                 ax = fig.subplots()
                 is_subfig = True
 
             survival_rates = surviving_atoms / initial_atoms
-            print("survival rate is", survival_rates)
+            # print("survival rate is", survival_rates)
 
             error = np.sqrt((survival_rates * (1 - survival_rates)) / self.site_occupancies.shape[2])
 

@@ -220,8 +220,8 @@ class BulkGasStatistician(BaseStatistician):
         unique_params = np.unique(loop_params, axis = 0)
 
         if loop_params.size == 0:
-            print("loop_params is empty with dimension", loop_params.ndim)
-            print("atom number is", self.atom_numbers)
+            # print("loop_params is empty with dimension", loop_params.ndim)
+            # print("atom number is", self.atom_numbers)
             if fig is not None:
                 ax = fig.subplots()
                 is_subfig = True
