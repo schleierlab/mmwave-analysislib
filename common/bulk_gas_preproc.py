@@ -8,12 +8,8 @@ import uncertainties.unumpy as unumpy
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from numpy.typing import NDArray
 from scipy.constants import pi
-
-try:
-    lyse
-except:
-    import lyse
 
 from .analysis_config import BulkGasAnalysisConfig
 from .image import Image, ROI
@@ -37,6 +33,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
     atoms_roi: ROI
     background_roi: ROI
+    images: tuple[Image, ...]
 
     def __init__(
             self,
@@ -84,60 +81,72 @@ class BulkGasPreprocessor(ImagePreprocessor):
             config.exposure_time,
         )
 
-        atom_image, background_image = self.exposures
-        self.image = Image(atom_image, background_image)
+        background_exposure = self.exposures[-1]
+        self.images = tuple(
+            Image(atom_exposure, background_exposure)
+            for atom_exposure in self.exposures[:-1]
+        )
 
-    def get_atom_number(
+    def get_atom_numbers(
             self,
             method: Literal['sum', 'fit'] = 'sum',
             subtraction: Literal['simple', 'double'] = 'simple',
-    ):
+    ) -> NDArray:
         """
         sum of counts in roi/counts_per_atom - average background atom per px* roi size
 
         Parameters
         ----------
         method: {'sum', 'fit'}
-            Method for atom number calculation. If 'sum', just take the total counts
-            and convert to an atom number. If 'fit', fit the observed image to a
+            Method for atom number calculation. If 'sum', just take the total counts within a ROI
+            and convert to an atom number. If 'fit', fit the observed images to a
             2D Gaussian and integrate the Gaussian to get the total counts.
         subtraction: {'simple', 'double'}
             Background subtraction method. If 'simple', do the naive thing.
-            If 'double', use the background-subtracted image and further
-            use a distant part of the image to estimate any further background
+            If 'double', use the background-subtracted images and further
+            use a distant part of the images to estimate any further background
             in the already-background-subtracted image (which may arise from
             e.g. drifts in TA power.)
 
         Returns
         -------
-        atom_number: float
+        atom_number: NDArray, (n_images,)
         """
         if method == 'fit':
             raise NotImplementedError
 
-        atom_counts = self.image.roi_sum(self.atoms_roi)
+        atom_counts = np.asarray([image.roi_sum(self.atoms_roi) for image in self.images]).astype(np.float_)
         if subtraction == 'double':
             area_ratio = self.atoms_roi.pixel_area / self.background_roi.pixel_area
-            atom_counts -= self.image.roi_sum(self.background_roi) * area_ratio
+            background_counts = np.asarray([image.roi_sum(self.background_roi) for image in self.images])
+            atom_counts -= background_counts * area_ratio
 
         return atom_counts / self.counts_per_atom
 
-    def get_gaussian_cloud_params(self):
+    def get_gaussian_cloud_params(self, uniform = False):
         """
         Returns
         -------
-        ndarray of UFloat
-            (x, y, width, height, rotation, amplitude, offset)
-            upopt: parameters of the fit with uncertainties.
-            Positions (x, y) and widths (width, height) are in meters;
+        NDArray[UFloat], shape (n_images, number_of_parameters)
+            A numpy array of (uncertain) Gaussian fit parameters for each image.
+            The parameters, in order, are
+                (x, y, width, height, rotation, amplitude, offset)
+            Center coordinates (x, y) and widths (width, height) are in meters;
             rotation is in radians,
             (amplitude, offset) are given in counts.
+            Note that when rotation = 0, we have only 6 parameters; if uniform, we have only 5
         """
-        popt, pcov = self.image.roi_fit_gaussian2d(self.atoms_roi)
-        upopt = uncertainties.correlated_values(popt, pcov)
+        upopts = []
+        for image in self.images:
+            popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform)
+            upopt = uncertainties.correlated_values(popt, pcov)
+            upopts.append(upopt)
 
         pixel_size = self.analysis_config.imaging_system.atom_plane_pixel_size
-        return np.asarray(upopt) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1, 1)
+        if uniform:
+            return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, 1, 1)
+        else:
+            return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
 
     def process_shot(self, cloud_fit=None) -> str:
         """
@@ -145,8 +154,9 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         Parameters
         ----------
-        cloud_fit : {'gaussian', None}, default=None
+        cloud_fit : {'gaussian', 'gaussian_uniform', None}, default=None
             If 'gaussian', fit the atom cloud to a 2D Gaussian and store the parameters.
+            If 'gaussian_uniform', fit the atom cloud to a 2D Gaussian with uniform width and height.
             If None, do not fit the atom cloud. No parameters are stored.
 
         Returns
@@ -156,22 +166,64 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         if cloud_fit == 'gaussian':
             gauss_params = self.get_gaussian_cloud_params()
-            gauss_nom = unumpy.nominal_values(gauss_params)
-            gauss_cov = uncertainties.covariance_matrix(gauss_params)
+            gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
+            gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
+            # integrated under 2D gaussian: 2 * pi * peak_height * sigma_u * sigma_v
+            # need to express sigma_u, sigma_v in pixels
+            gauss_atom_counts = 2 * pi * np.prod(gauss_params[:, [2, 3, 4]], axis=1) / (self.imaging_setup.atom_plane_pixel_size)**2
+            gauss_atom_num = gauss_atom_counts / self.counts_per_atom
+        elif cloud_fit == 'gaussian_uniform':
+            gauss_params = self.get_gaussian_cloud_params(uniform=True)
+            gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
+            gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
+            # integrated under 2D gaussian: 2 * pi * peak_height * sigma^2
+            # need to express sigma in pixels
+            width = gauss_params[:, 2]  # Get the uniform width parameter
+            amplitude = gauss_params[:, 3]  # Get the amplitude parameter
+            gauss_atom_counts = 2 * np.pi * amplitude * width**2 / (self.imaging_setup.atom_plane_pixel_size)**2
+            gauss_atom_num = gauss_atom_counts / self.counts_per_atom
 
-        atom_number = self.get_atom_number(method='sum', subtraction='double')
+        atom_numbers = self.get_atom_numbers(method='sum', subtraction='double')
         run_number = self.run_number
-        fname = Path(self.folder_path) / 'bulkgas_preprocess.h5'
+        fname = self.h5_path.with_name('bulkgas_preprocess.h5')
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
-                f.create_dataset('atom_numbers', data=[atom_number], maxshape=(self.n_runs,))
+                f.create_dataset('atom_numbers', data=[atom_numbers], maxshape=(self.n_runs, len(self.images)))
                 if cloud_fit == 'gaussian':
-                    n_params = 7
-                    f.create_dataset('gaussian_cloud_params_nom', data=[gauss_nom], maxshape=(self.n_runs, n_params))
+                    n_params = 6
+                    f.create_dataset('gaussian_cloud_params_nom', data=[gauss_nom], maxshape=(self.n_runs, len(self.images), n_params))
                     f['gaussian_cloud_params_nom'].attrs['fields'] = ['x', 'y', 'width', 'height', 'amplitude', 'offset']
-                    f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'm', 'rad', 'counts', 'counts']
-                    f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, n_params, n_params))
+                    f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'm', 'counts', 'counts']
+                    f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, len(self.images), n_params, n_params))
+
+                    f.create_dataset(
+                        'gaussian_atom_numbers_nom',
+                        data=[unumpy.nominal_values(gauss_atom_num)],
+                        maxshape=(self.n_runs, len(self.images)),
+                    )
+                    f.create_dataset(
+                        'gaussian_atom_numbers_std',
+                        data=[unumpy.std_devs(gauss_atom_num)],
+                        maxshape=(self.n_runs, len(self.images)),
+                    )
+                elif cloud_fit == 'gaussian_uniform':
+                    n_params = 5
+                    f.create_dataset('gaussian_cloud_params_nom', data=[gauss_nom], maxshape=(self.n_runs, len(self.images), n_params))
+                    f['gaussian_cloud_params_nom'].attrs['fields'] = ['x', 'y', 'width', 'amplitude', 'offset']
+                    f['gaussian_cloud_params_nom'].attrs['units'] = ['m', 'm', 'm', 'counts', 'counts']
+                    f.create_dataset('gaussian_cloud_params_cov', data=[gauss_cov], maxshape=(self.n_runs, len(self.images), n_params, n_params))
+
+                    f.create_dataset(
+                        'gaussian_atom_numbers_nom',
+                        data=[unumpy.nominal_values(gauss_atom_num)],
+                        maxshape=(self.n_runs, len(self.images)),
+                    )
+                    f.create_dataset(
+                        'gaussian_atom_numbers_std',
+                        data=[unumpy.std_devs(gauss_atom_num)],
+                        maxshape=(self.n_runs, len(self.images)),
+                    )
 
                 # save parameters from runmanager globals
                 f.create_dataset(
@@ -187,21 +239,25 @@ class BulkGasPreprocessor(ImagePreprocessor):
         else:
             with h5py.File(fname, 'a') as f:
                 f['atom_numbers'].resize(run_number + 1, axis=0)
-                f['atom_numbers'][run_number] = atom_number
+                f['atom_numbers'][run_number] = atom_numbers
 
                 # save parameters from runmanager globals
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
 
-                if cloud_fit == 'gaussian':
+                if cloud_fit == 'gaussian' or cloud_fit == 'gaussian_uniform':
                     f['gaussian_cloud_params_nom'].resize(run_number + 1, axis=0)
                     f['gaussian_cloud_params_nom'][run_number] = gauss_nom
                     f['gaussian_cloud_params_cov'].resize(run_number + 1, axis=0)
                     f['gaussian_cloud_params_cov'][run_number] = gauss_cov
+                    f['gaussian_atom_numbers_nom'].resize(run_number + 1, axis=0)
+                    f['gaussian_atom_numbers_nom'][run_number] = unumpy.nominal_values(gauss_atom_num)
+                    f['gaussian_atom_numbers_std'].resize(run_number + 1, axis=0)
+                    f['gaussian_atom_numbers_std'][run_number] = unumpy.std_devs(gauss_atom_num)
 
         return fname
 
-    def show_images(self, fig: Optional[Figure] = None, raw_img_scale = 100) -> None:
+    def show_images(self, image_index: int = 0, fig: Optional[Figure] = None, raw_img_scale: int = 100) -> None:
         """
         Show the images of raw image/background image full frame and background subtracted images in ROIs
         We use the convention show_images() to show camera images at the processing level
@@ -225,7 +281,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
 
-        img_obj = self.image
+        img_obj = self.images[image_index]
 
         axs[0, 0].set_title('Raw, with atoms')
         axs[0, 1].set_title('Raw, without atoms')
@@ -263,3 +319,30 @@ class BulkGasPreprocessor(ImagePreprocessor):
             vmin=-20,
             vmax=+20,
         )
+
+    def show_state_sensitive_images(self, fig: Optional[Figure] = None, ):
+        fig.suptitle(self.h5_path, fontsize='x-small')
+
+        if fig is None:
+            fig, axs = plt.subplots(
+                nrows=2,
+                ncols=1,
+                figsize=(10, 10),
+                layout='constrained',
+            )
+        else:
+            axs = fig.subplots(nrows=2, ncols=1)
+
+        plot_unit = 1e-3
+        plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+
+        for i, ax in enumerate(axs):
+            im = self.images[i].imshow_view(
+                self.atoms_roi,
+                scale_factor=plot_units_per_pixel,
+                ax=ax,
+                cmap='magma',
+                vmin=0,
+                vmax=(20 if i == 0 else None),
+            )
+            fig.colorbar(im, ax=ax, location='right')

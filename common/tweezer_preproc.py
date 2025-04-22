@@ -37,7 +37,7 @@ class TweezerPreprocessor(ImagePreprocessor):
     """
 
     ROI_CONFIG_PATH: ClassVar[Path] = importlib.resources.files(multishot) / 'roi_config.yml'
-    PROCESSED_RESULTS_FNAME: ClassVar[Path] = Path('tweezer_preprocess.h5')
+    PROCESSED_RESULTS_FNAME: ClassVar[str] = 'tweezer_preprocess.h5'
     DEFAULT_PARAMS_PATH: ClassVar[Path] = Path('X:/userlib/labscriptlib/defaults.yml')
 
     atom_roi: ROI
@@ -254,7 +254,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
 
         # Implement the thresholding to determine site occupancy
-        if use_global_threshold:
+        if use_global_threshold: # means we use the same threshold for all sites
             print("Using global threshold =", self.threshold)
             self.site_occupancies = camera_counts > self.threshold
         else:
@@ -262,7 +262,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             self.site_occupancies = camera_counts > self.site_thresholds
 
         run_number = self.run_number
-        fname = Path(self.folder_path) / self.PROCESSED_RESULTS_FNAME
+        fname = self.h5_path.with_name(self.PROCESSED_RESULTS_FNAME)
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs

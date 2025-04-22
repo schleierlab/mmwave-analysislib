@@ -275,7 +275,7 @@ class TweezerStatistician(BaseStatistician):
             loop_params = self.current_params
         unique_params = np.unique(loop_params, axis = 0)
         # Calculate survival rates
-        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1)
+        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1) # sum over all sites for each shot
 
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
@@ -289,7 +289,46 @@ class TweezerStatistician(BaseStatistician):
             )
             is_subfig = False
 
-        if loop_params.ndim == 1:
+        if loop_params.size == 0:
+            print("loop_params is empty with dimension", loop_params.ndim)
+            if fig is not None:
+                ax = fig.subplots()
+                is_subfig = True
+
+            survival_rates = surviving_atoms / initial_atoms
+            print("survival rate is", survival_rates)
+
+            error = np.sqrt((survival_rates * (1 - survival_rates)) / self.site_occupancies.shape[2])
+
+            ax.set_title(
+                self.folder_path,
+                fontsize=8,
+            )
+
+            ax.errorbar(
+                0,
+                survival_rates,
+                yerr=error,
+                marker='.',
+                linestyle='-',
+                alpha=0.5,
+                capsize=3,
+            )
+            ax.set_ylabel(
+                'Survival rate',
+                fontsize=self.plot_config.label_font_size,
+            )
+            ax.tick_params(
+                axis='both',
+                which='major',
+                labelsize=self.plot_config.label_font_size,
+            )
+            ax.set_ylim(bottom=0)
+            ax.grid(color=self.plot_config.grid_color_major, which='major')
+            ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+            ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+        elif loop_params.ndim == 1:
             if fig is not None:
                 ax = fig.subplots()
                 is_subfig = True

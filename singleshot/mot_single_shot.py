@@ -19,7 +19,7 @@ bulk_gas_preproc = BulkGasPreprocessor(
     load_type='lyse',
     h5_path=None,
 )
-processed_results_fname = bulk_gas_preproc.process_shot(cloud_fit='gaussian')
+processed_results_fname = bulk_gas_preproc.process_shot(cloud_fit='gaussian_uniform') # cloud_fit='gaussian' or 'gaussian_uniform' 
 
 fig = plt.figure(layout = "constrained", figsize = [10, 4])
 subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
@@ -32,6 +32,6 @@ plotter = BulkGasStatistician(
     plot_config=PlotConfig(),
 )
 # plotter.plot_atom_number(fig = subfigs[1], plot_lorentz=False)
-plotter.plot_mot_params(fig = subfigs[1])
+plotter.plot_mot_params(fig = subfigs[1], uniform=True)
 
-fig.savefig(f"{bulk_gas_preproc.folder_path}/mot_single_shot.pdf")
+fig.savefig(bulk_gas_preproc.h5_path.with_name("mot_single_shot.pdf"))

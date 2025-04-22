@@ -193,7 +193,7 @@ class Image:
 
         return rois
 
-    def roi_fit_gaussian2d(self, roi: ROI):
+    def roi_fit_gaussian2d(self, roi: ROI, uniform = False):
         """
         Fits a 2D Gaussian function to the image data.
         Mainly intended to fit images of the MOT.
@@ -205,27 +205,41 @@ class Image:
         x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
         width_guess = roi.width/4
         height_guess = roi.height/4
-        rotation_guess = 0
         z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
         offset_guess = np.min(roiview)
 
-        p0 = [x0_guess, y0_guess, width_guess, height_guess, rotation_guess, a_guess, offset_guess]
-        return optimize.curve_fit(
-            self.gaussian2d,
-            xys,
-            roiview.ravel(),
-            p0=p0,
-            bounds=np.array([
-                (0, roi.width),
-                (0, roi.height),
-                (0, roi.width),
-                (0, roi.height),
-                (-pi/4, pi/4),
-                (0, np.inf),
-                (-np.inf, np.inf),
-            ]).T,
-        )
+        if uniform:
+            p0 = [x0_guess, y0_guess, width_guess, a_guess, offset_guess]
+            return optimize.curve_fit(
+                lambda xy, x0, y0, width, peak_height, offset :self.gaussian2d_uniform(xy, x0, y0, width, peak_height, offset),
+                xys,
+                roiview.ravel(),
+                p0=p0,
+                bounds=np.array([
+                    (0, roi.width),
+                    (0, roi.height),
+                    (0, roi.width),
+                    (0, np.inf),
+                    (-np.inf, np.inf),
+                ]).T,
+            )
+        else:
+            p0 = [x0_guess, y0_guess, width_guess, height_guess, a_guess, offset_guess]
+            return optimize.curve_fit(
+                lambda xy, x0, y0, width, height, peak_height, offset :self.gaussian2d(xy, x0, y0, width, height, rotation = 0, peak_height = peak_height, offset = offset),
+                xys,
+                roiview.ravel(),
+                p0=p0,
+                bounds=np.array([
+                    (0, roi.width),
+                    (0, roi.height),
+                    (0, roi.width),
+                    (0, roi.height),
+                    (0, np.inf),
+                    (-np.inf, np.inf),
+                ]).T,
+            )
 
     @staticmethod
     def gaussian2d(xy, x0, y0, width, height, rotation, peak_height, offset):
@@ -259,7 +273,40 @@ class Image:
         # shape (..., 2)
         z_score_vector = np.dot(centered_xy, inverse_rotation_matrix.T) / [width, height]
 
-        # shape (...)
+        # shape (...,)
+        mahalanobis_dist_sq = np.sum(z_score_vector**2, axis=-1)
+
+        return offset + peak_height * np.exp(-mahalanobis_dist_sq / 2)
+
+    @staticmethod
+    def gaussian2d_uniform(xy, x0, y0, width, peak_height, offset):
+        """
+        Returns an axis-parallel 2D Gaussian function with constant offset.
+
+        Parameters
+        ----------
+        xy : array_like, shape (..., 2)
+            Input coordinates as (x, y) arrays
+        x0, y0 : float
+            Center position of the Gaussian
+        width : float
+            Width parameters of the Gaussian in x and y directions. Assume they are the same
+        peak_height : float
+            Peak height of the Gaussian, without the offset
+        offset : float
+            Offset of the Gaussian
+
+        Returns
+        -------
+        array, shape (...,)
+            Gaussian function values
+        """
+        centered_xy = np.asarray(xy) - np.asarray([x0, y0])  # shape (..., 2)
+
+        # shape (..., 2)
+        z_score_vector = centered_xy/ [width, width]
+
+        # shape (...,)
         mahalanobis_dist_sq = np.sum(z_score_vector**2, axis=-1)
 
         return offset + peak_height * np.exp(-mahalanobis_dist_sq / 2)
