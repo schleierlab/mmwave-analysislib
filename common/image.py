@@ -170,9 +170,14 @@ class Image:
         data_maxfilt = ndimage.maximum_filter(data, neighborhood_size)
         data_minfilt = ndimage.minimum_filter(data, neighborhood_size)
 
+        local_maxima = (data == data_maxfilt)
         contrast_filt = ((data_maxfilt - data_minfilt) > detection_threshold)
+        prominent_maxima = np.logical_and(
+            local_maxima,
+            contrast_filt,
+        )
 
-        labeled, _ = ndimage.label(contrast_filt)
+        labeled, _ = ndimage.label(prominent_maxima)
         slices = cast(
             list[tuple[slice, slice]],
             ndimage.find_objects(labeled),
