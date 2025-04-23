@@ -12,32 +12,35 @@ from pathlib import Path
 background_subtract = True
 folder = select_data_directory()
 
-finder = TweezerFinder.load_from_h5(folder)
-new_site_rois = finder.detect_rois_by_roi_number(roi_number=40, neighborhood_size=5, detection_threshold = 30)
-finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
-finder.plot_sites(new_site_rois)
+tweezer_preproc = TweezerPreprocessor(
+        load_type='h5',
+        h5_path = next(folder.glob('20*0.h5')),
+    )
+new_site_rois = tweezer_preproc.site_rois
+preproc_h5_path = Path(folder) / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
 
-# TODO: evaluate whether or not we actually should be subtracting the background for tweezers
-# TODO: Include survival rate if taking two shots
+tweezer_statistician = TweezerStatistician(
+                preproc_h5_path=preproc_h5_path,
+            )
+
 thresholder = TweezerThresholder(
-    finder.images,
+    None,
     new_site_rois,
     background_subtract=background_subtract,
-    weights=finder.weight_functions(new_site_rois, background_subtract=background_subtract),
+    weights=None,
+    processed_results_fname=preproc_h5_path
 )
-
-
-multishot_analysis = TweezerMultishotAnalysis(folder)
 
 thresholder.fit_gmms() # gmm stands for Gaussian mixture model
 thresholder.overwrite_thresholds_to_yaml(folder)
 
+# TODO: add function to plot averaged tweezer image
 fig, axs = plt.subplots(nrows=4, ncols=1, sharex=True, layout='constrained')
 fig.suptitle(f'{folder}')
 thresholder.plot_spreads(ax=axs[0])
 thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
-multishot_analysis.tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
+tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
 axs[0].set_ylabel('Counts')
 axs[1].set_ylabel('Loading rate')
 axs[2].set_ylabel('Infidelity')
