@@ -8,7 +8,10 @@ from analysislib.multishot.util import select_data_directory
 from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from pathlib import Path
-
+'''
+Do tweezer multishot analysis without doing auto roi detection. Plot loading rate, histagrams, imaging fidelity...
+Load data directly from 'tweezer_preprocess.h5' (this is the file generated after running tweezer_single_shot) to do multishot analysis.
+'''
 background_subtract = True
 folder = select_data_directory()
 

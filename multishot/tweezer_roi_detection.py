@@ -26,7 +26,6 @@ thresholder = TweezerThresholder(
     weights=finder.weight_functions(new_site_rois, background_subtract=background_subtract),
 )
 
-
 multishot_analysis = TweezerMultishotAnalysis(folder)
 
 thresholder.fit_gmms() # gmm stands for Gaussian mixture model
