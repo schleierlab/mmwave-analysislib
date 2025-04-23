@@ -26,4 +26,5 @@ tweezer_statistician = TweezerStatistician(
     plot_config=PlotConfig(),
 )
 tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
+
 #tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])
