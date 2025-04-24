@@ -20,7 +20,6 @@ if DO_ROI_DETECTION:
     finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
     finder.plot_sites(new_site_rois)
 
-
     # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
     # TODO: Include survival rate if taking two shots
     thresholder = TweezerThresholder(

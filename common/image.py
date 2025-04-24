@@ -195,6 +195,8 @@ class Image:
                 int(center_y - halfsize),
                 int(center_y + halfsize),
             ))
+        # Sort rois by x1 coordinate
+        rois.sort(key=lambda roi: roi.xmin)
 
         return rois
 
