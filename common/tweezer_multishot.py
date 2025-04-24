@@ -16,7 +16,8 @@ class TweezerMultishotAnalysis():
     """
 
     def __init__(self, folder_path: Union[str, PathLike]):
-        self.tweezer_statistician = self.analyze_the_folder(folder_path)
+        self.tweezer_statistician, self.tweezer_preproc = self.analyze_the_folder(folder_path)
+        self.average_background = self.average_background(self.tweezer_preproc)
 
     @classmethod
     def analyze_the_folder(cls, h5_path: Union[str, PathLike]):
@@ -34,4 +35,16 @@ class TweezerMultishotAnalysis():
             shot_h5_path=tweezer_preproc.h5_path, # Used only for MLOOP
             plot_config=PlotConfig(),
         )
-        return tweezer_statistician
+        return tweezer_statistician, tweezer_preproc
+
+
+    def average_background(self, tweezer_preproc):
+        average_background = None
+        for image in tweezer_preproc.images:
+            if average_background is None:
+                average_background = image.background
+            average_background += image.background
+
+        average_background = average_background / float(len(tweezer_preproc.images))
+        return average_background
+
