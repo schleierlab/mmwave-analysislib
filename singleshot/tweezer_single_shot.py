@@ -4,7 +4,7 @@ from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
 
-SHOW_ROIS = False
+SHOW_ROIS = True
 FIT_LORENTZ = False
 
 # Initialize analysis with background ROI and standard ROI loading

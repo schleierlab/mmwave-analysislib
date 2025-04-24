@@ -124,8 +124,7 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         return default_params
 
-
-
+    @staticmethod
     def _load_rois_from_yaml(roi_config_path: Path, atom_roi_ylims):
         """Load site ROIs from YAML file.
         Want this to be static so that it can be used by TweezerFinder.
