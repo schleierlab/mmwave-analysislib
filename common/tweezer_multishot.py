@@ -39,6 +39,10 @@ class TweezerMultishotAnalysis():
 
 
     def average_background(self, tweezer_preproc):
+        '''
+        Returns the average background for the entire folder
+        The average is calculated by averaging the background (last shot) of each image
+        '''
         average_background = None
         for image in tweezer_preproc.images:
             if average_background is None:

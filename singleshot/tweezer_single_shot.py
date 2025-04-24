@@ -11,6 +11,7 @@ FIT_LORENTZ = False
 tweezer_preproc = TweezerPreprocessor(
     load_type='lyse',
     h5_path=None,
+    use_averaged_background=True
 )
 
 fig = plt.figure(layout='constrained', figsize=(10, 4))

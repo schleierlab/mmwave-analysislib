@@ -12,6 +12,8 @@ import numpy as np
 
 SHOW_ROIS = True
 background_subtract = True
+
+average_background_overwrite_path = Path(r'X:\userlib\analysislib\multishot')
 folder = select_data_directory()
 
 multishot_analysis = TweezerMultishotAnalysis(folder)
@@ -23,3 +25,4 @@ multishot_analysis.tweezer_preproc.show_image(roi_patches=SHOW_ROIS, fig=fig, vm
 fig.savefig(f'{folder}/tweezers_average_background.pdf')
 
 np.save(f'{folder}/avg_shot_bkg.npy', average_background)
+np.save(f'{average_background_overwrite_path}/avg_shot_bkg.npy', average_background)

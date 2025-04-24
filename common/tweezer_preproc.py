@@ -50,6 +50,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             self,
             load_type: str = 'lyse',
             h5_path: str = None,
+            use_averaged_background: bool = False
         ):
         """Initialize TweezerAnalysis with analysis configuration.
 
@@ -75,6 +76,7 @@ class TweezerPreprocessor(ImagePreprocessor):
                 exposure,
                 background=self.exposures[-1],
                 yshift=self.atom_roi.ymin,
+                use_averaged_background = use_averaged_background
             )
             for exposure in self.exposures[:-1]
         ]

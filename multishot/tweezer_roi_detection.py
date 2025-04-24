@@ -10,6 +10,7 @@ from analysislib.common.tweezer_statistics import TweezerStatistician
 from pathlib import Path
 
 DO_ROI_DETECTION = False
+DO_AVG_BACKGROUND = True
 
 background_subtract = True
 folder = select_data_directory()
