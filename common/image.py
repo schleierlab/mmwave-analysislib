@@ -10,6 +10,7 @@ from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from scipy import optimize
 from scipy.constants import pi
+from pathlib import Path
 
 MaybeInt = Optional[int]
 
@@ -74,6 +75,8 @@ class Image:
     background: Union[NDArray, Literal[0]] = 0
 
     yshift: int = 0
+
+    use_averaged_background: bool = False
     '''
     Pixels to shift vertically in the image array for indexing purposes.
     A ROI with ylims [30, 40] for an image with yshift = 10 would give rows
@@ -94,7 +97,12 @@ class Image:
 
     @property
     def subtracted_array(self):
-        return self.array - self.bkg_array
+        if self.use_averaged_background:
+            average_background_overwrite_path = Path(r'X:\userlib\analysislib\multishot\avg_shot_bkg.npy')
+            self.averaged_background = np.load(average_background_overwrite_path)
+            return self.array - self.averaged_background
+        else:
+            return self.array - self.bkg_array
 
     def raw_image(self) -> Image:
         return Image(self.array, background=0, yshift=self.yshift)
