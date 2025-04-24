@@ -17,7 +17,7 @@ folder = select_data_directory()
 
 tweezer_preproc = TweezerPreprocessor(
         load_type='h5',
-        h5_path = next(folder.glob('20*0.h5')), # needed h5 file only to look at kinetix_roi_raw -- is there a better way?
+        h5_path = next(folder.glob('20*0.h5')), # needed h5 file only to look at kinetix_roi_raw -- is there a better way to do this?
     )
 new_site_rois = tweezer_preproc.site_rois
 preproc_h5_path = Path(folder) / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
