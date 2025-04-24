@@ -61,7 +61,7 @@ class TweezerFinder:
         ]
 
     @classmethod
-    def load_from_h5(cls, h5_path: Union[str, PathLike]):
+    def load_from_h5(cls, h5_path: Union[str, PathLike], use_averaged_background = False):
         sequence_dir = Path(h5_path)
         cls.folder = sequence_dir
         shots_h5s = sequence_dir.glob('20*.h5')
@@ -69,7 +69,7 @@ class TweezerFinder:
         images: list[Image] = []
         for shot in shots_h5s:
             print(shot)
-            processor = TweezerPreprocessor(load_type='h5', h5_path=shot)
+            processor = TweezerPreprocessor(load_type='h5', h5_path=shot, use_averaged_background = use_averaged_background)
             images.append(processor.images[0])
 
         return cls(images)
