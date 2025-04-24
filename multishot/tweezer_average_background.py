@@ -20,7 +20,7 @@ multishot_analysis = TweezerMultishotAnalysis(folder)
 average_background = multishot_analysis.average_background
 
 fig = plt.figure(layout='constrained', figsize=(10, 4))
-multishot_analysis.tweezer_preproc.show_image(roi_patches=SHOW_ROIS, fig=fig, vmax=10)
+multishot_analysis.tweezer_preproc.show_image(roi_patches=SHOW_ROIS, fig=fig, vmax=100)
 
 fig.savefig(f'{folder}/tweezers_average_background.pdf')
 

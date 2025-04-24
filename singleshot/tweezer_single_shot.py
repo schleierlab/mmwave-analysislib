@@ -6,12 +6,13 @@ from analysislib.common.plot_config import PlotConfig
 
 SHOW_ROIS = True
 FIT_LORENTZ = False
+USE_AVERAGED_BACKGROUND = True
 
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_preproc = TweezerPreprocessor(
     load_type='lyse',
     h5_path=None,
-    use_averaged_background=True
+    use_averaged_background=USE_AVERAGED_BACKGROUND
 )
 
 fig = plt.figure(layout='constrained', figsize=(10, 4))

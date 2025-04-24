@@ -4,7 +4,7 @@ from pathlib import Path
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
-import numpy as np
+from .image import Image
 
 from typing import Union
 
@@ -43,12 +43,9 @@ class TweezerMultishotAnalysis():
         Returns the average background for the entire folder
         The average is calculated by averaging the background (last shot) of each image
         '''
-        average_background = None
-        for image in tweezer_preproc.images:
-            if average_background is None:
-                average_background = image.background
-            average_background += image.background
 
-        average_background = average_background / float(len(tweezer_preproc.images))
+        average_image = Image.mean(tweezer_preproc.images)
+        average_background = average_image.background
+
         return average_background
 
