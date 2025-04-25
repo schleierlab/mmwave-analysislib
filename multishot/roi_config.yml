@@ -1,6 +1,7 @@
 ---
 threshold: 608.8297297396532
-atom_roi_xlims: [1022, 1437]
+atom_roi_xlims: [1150, 1260]
+atom_roi_xlims: [1150, 1260]
 site_rois:
   - [[1073, 1078],
      [1197, 1202]]

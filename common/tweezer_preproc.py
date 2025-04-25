@@ -223,8 +223,9 @@ class TweezerPreprocessor(ImagePreprocessor):
             # Each site ROI is represented as [[xmin, xmax], [ymin, ymax]]
             site_rois_formatted.append([[roi.xmin, roi.xmax], [roi.ymin, roi.ymax]])
 
-        # Get atom_roi_xlims from the atom_roi object
+        # Get atom_roi_xlims and atom_roi_ylims from the atom_roi object
         atom_roi_xlims = [atom_roi.xmin, atom_roi.xmax]
+        atom_roi_ylims = [atom_roi.ymin, atom_roi.ymax]
 
         # Determine the output path
         output_path = Path(output_path)
@@ -233,6 +234,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         yaml_content = "---\n"
         yaml_content += f"threshold: {global_threshold}\n"
         yaml_content += f"atom_roi_xlims: [{atom_roi_xlims[0]}, {atom_roi_xlims[1]}]\n"
+        yaml_content += f"atom_roi_ylims: [{atom_roi_ylims[0]}, {atom_roi_ylims[1]}]\n"
 
         # Format the site ROIs
         yaml_lines = ["site_rois:"]

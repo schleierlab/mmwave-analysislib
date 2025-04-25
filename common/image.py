@@ -108,7 +108,7 @@ class Image:
     def mean(images: Sequence[Image]) -> Image:
         """
         This is not a function to average the images across different
-        hiles. This only average the images with a single h5 file.
+        h5 files. The input has to be a list of [Image] instead of [Images]
         """
         # sho
         # computed manually to allow for broadcasted backgrounds
