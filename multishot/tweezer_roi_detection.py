@@ -19,16 +19,6 @@ new_site_rois = finder.detect_rois_by_roi_number(roi_number=40, neighborhood_siz
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
 finder.plot_sites(new_site_rois)
 
-# raw_img_color_kw = dict(
-#     cmap='viridis',
-#     vmin=0,
-#     vmax=np.max(finder.averaged_image.subtracted_array),
-# )
-# fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
-# im = finder.averaged_image.imshow_view(
-#     ax = ax,
-#     **raw_img_color_kw)
-# fig.colorbar(im, ax=ax)
 
 # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
 # TODO: Include survival rate if taking two shots

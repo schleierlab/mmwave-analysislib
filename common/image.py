@@ -106,6 +106,11 @@ class Image:
 
     @staticmethod
     def mean(images: Sequence[Image]) -> Image:
+        """
+        This is not a function to average the images across different
+        hiles. This only average the images with a single h5 file.
+        """
+        # sho
         # computed manually to allow for broadcasted backgrounds
         # use larger ints to avoid overflow
         background = sum(image.background.astype(np.int32) for image in images) / len(images)
