@@ -101,6 +101,7 @@ class TweezerThresholder:
         new_site_thresholds = self.thresholds
         # TODO: Think about how the global threshold ought to be computed
         new_global_threshold = np.mean(new_site_thresholds)
+        print(f"{new_global_threshold = }")
 
         sequence_dir = Path(folder)
         shots_h5s = sequence_dir.glob('20*.h5')
@@ -127,7 +128,7 @@ class TweezerThresholder:
             fig, ax = plt.subplots()
 
         inds = np.arange(self.n_sites)
-        ax.plot(inds, self.thresholds, color='red', linestyle='dashed')
+        ax.plot(inds, self.thresholds, color='red', linestyle='dashed', label = f'mean = {np.mean(self.thresholds)}')
         for i in range(2):
             mean_i = self.means[:, i]
             std_i = self.stds[:, i]
@@ -141,6 +142,7 @@ class TweezerThresholder:
                     alpha=0.2,
                     color=color,
                 )
+        ax.legend()
 
     def plot_loading_rate(self, ax: Optional[Axes] = None, **kwargs):
         if ax is None:

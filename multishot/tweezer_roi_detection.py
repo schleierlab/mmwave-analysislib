@@ -8,6 +8,7 @@ from analysislib.multishot.util import select_data_directory
 from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from pathlib import Path
+import numpy as np
 
 background_subtract = True
 USE_AVERAGED_BACKGROUND = True
@@ -17,6 +18,17 @@ finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAG
 new_site_rois = finder.detect_rois_by_roi_number(roi_number=40, neighborhood_size=5, detection_threshold = 30)
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
 finder.plot_sites(new_site_rois)
+
+# raw_img_color_kw = dict(
+#     cmap='viridis',
+#     vmin=0,
+#     vmax=np.max(finder.averaged_image.subtracted_array),
+# )
+# fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
+# im = finder.averaged_image.imshow_view(
+#     ax = ax,
+#     **raw_img_color_kw)
+# fig.colorbar(im, ax=ax)
 
 # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
 # TODO: Include survival rate if taking two shots

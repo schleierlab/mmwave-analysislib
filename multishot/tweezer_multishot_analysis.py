@@ -13,6 +13,7 @@ Do tweezer multishot analysis without doing auto roi detection. Plot loading rat
 Load data directly from 'tweezer_preprocess.h5' (this is the file generated after running tweezer_single_shot) to do multishot analysis.
 '''
 background_subtract = True
+USE_AVERAGED_BACKGROUND = True
 folder = select_data_directory()
 
 tweezer_preproc = TweezerPreprocessor(

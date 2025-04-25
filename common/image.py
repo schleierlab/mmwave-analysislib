@@ -76,7 +76,6 @@ class Image:
 
     yshift: int = 0
 
-    use_averaged_background: bool = False
     '''
     Pixels to shift vertically in the image array for indexing purposes.
     A ROI with ylims [30, 40] for an image with yshift = 10 would give rows
@@ -97,12 +96,7 @@ class Image:
 
     @property
     def subtracted_array(self):
-        if self.use_averaged_background:
-            average_background_overwrite_path = Path(r'X:\userlib\analysislib\multishot\avg_shot_bkg.npy')
-            self.averaged_background = np.load(average_background_overwrite_path)
-            return self.array - self.averaged_background
-        else:
-            return self.array - self.bkg_array
+        return self.array - self.bkg_array
 
     def raw_image(self) -> Image:
         return Image(self.array, background=0, yshift=self.yshift)
@@ -139,7 +133,7 @@ class Image:
             roi.xmin:roi.xmax,
         ]
 
-    def imshow_view(self, roi: ROI, scale_factor: float = 1.0, ax: Optional[Axes] = None, **kwargs):
+    def imshow_view(self, roi: ROI = None, scale_factor: float = 1.0, ax: Optional[Axes] = None, **kwargs):
         '''
         Parameters
         ----------
@@ -152,11 +146,19 @@ class Image:
         '''
         if ax is None:
             fig, ax = plt.subplots()
-        im = ax.imshow(
+        if roi is None:
+            im = ax.imshow(
+                self.subtracted_array,
+            **kwargs,
+            )
+        else:
+            im = ax.imshow(
             self.roi_view(roi),
             extent=(scale_factor * np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin])),
             **kwargs,
-        )
+            )
+
+
         return im
 
     def roi_mean(self, roi: ROI):

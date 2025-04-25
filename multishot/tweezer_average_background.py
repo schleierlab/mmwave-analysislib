@@ -9,6 +9,7 @@ from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 
 SHOW_ROIS = True
 background_subtract = True
@@ -17,12 +18,22 @@ average_background_overwrite_path = Path(r'X:\userlib\analysislib\multishot')
 folder = select_data_directory()
 
 multishot_analysis = TweezerMultishotAnalysis(folder)
-average_background = multishot_analysis.average_background
+averaged_background = multishot_analysis.averaged_background
+print(averaged_background.shape)
 
-fig = plt.figure(layout='constrained', figsize=(10, 4))
-multishot_analysis.tweezer_preproc.show_image(roi_patches=SHOW_ROIS, fig=fig, vmax=100)
+fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
+raw_img_color_kw = dict(
+    cmap='viridis',
+    # vmin=-10,
+    # vmax=10,
+)
+im = ax.imshow(
+    averaged_background,
+    **raw_img_color_kw,
+    )
+fig.colorbar(im, ax=ax)
 
 fig.savefig(f'{folder}/tweezers_average_background.pdf')
 
-np.save(f'{folder}/avg_shot_bkg.npy', average_background)
-np.save(f'{average_background_overwrite_path}/avg_shot_bkg.npy', average_background)
+np.save(f'{folder}/avg_shot_bkg.npy', averaged_background)
+np.save(f'{average_background_overwrite_path}/avg_shot_bkg.npy', averaged_background)

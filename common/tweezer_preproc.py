@@ -71,12 +71,17 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
         self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
+        if use_averaged_background:
+            average_background_overwrite_path = Path(r'X:\userlib\analysislib\multishot\avg_shot_bkg.npy')
+            bkg = np.load(average_background_overwrite_path)
+        else:
+            bkg = self.exposures[-1]
+
         self.images = [
             Image(
                 exposure,
-                background=self.exposures[-1],
+                background=bkg,
                 yshift=self.atom_roi.ymin,
-                use_averaged_background = use_averaged_background
             )
             for exposure in self.exposures[:-1]
         ]
@@ -313,7 +318,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         else:
             axs = fig.subplots(nrows=2, ncols=1)
 
-        norm = Normalize(vmin=10, vmax=vmax)
+        norm = Normalize(vmin=0, vmax=vmax)
         for i, image in enumerate(self.images):
             ax = cast(Axes, axs[i])
             image.imshow_view(

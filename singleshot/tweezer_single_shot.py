@@ -12,7 +12,7 @@ USE_AVERAGED_BACKGROUND = True
 tweezer_preproc = TweezerPreprocessor(
     load_type='lyse',
     h5_path=None,
-    use_averaged_background=USE_AVERAGED_BACKGROUND
+    use_averaged_background = USE_AVERAGED_BACKGROUND
 )
 
 fig = plt.figure(layout='constrained', figsize=(10, 4))
