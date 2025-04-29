@@ -32,12 +32,13 @@ tweezer_statistician = TweezerStatistician(
                 preproc_h5_path=preproc_h5_path,
             )
 
+atom_number_target_array = tweezer_statistician.rearrange_success_rate(target_array)
 
 # TODO: add function to plot averaged tweezer image
-fig, axs = plt.subplots(nrows=4, ncols=1, sharex=True, layout='constrained')
+fig, axs = plt.subplots(nrows=4, ncols=1, layout='constrained')
 fig.suptitle(f'{folder}')
-tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
-axs[0].set_ylabel('Counts')
+tweezer_statistician.plot_rearrange_success_rate(atom_number_target_array, target_array, ax = axs[0])
+# tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
 axs[1].set_ylabel('Loading rate')
 axs[2].set_ylabel('Infidelity')
 axs[-1].set_xlabel('Tweezer index')

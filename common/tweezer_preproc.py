@@ -359,8 +359,8 @@ class TweezerPreprocessor(ImagePreprocessor):
                     )
                  for j, roi in enumerate(self.site_rois)]
 
-            # fig.suptitle(
-            #     self.h5_path,
-            # )
+            fig.suptitle(
+                self.h5_path,
+            )
 
         fig.colorbar(ScalarMappable(norm, cmap=cmap), ax=axs, label='Counts')

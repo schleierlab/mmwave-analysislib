@@ -71,12 +71,71 @@ class TweezerStatistician(BaseStatistician):
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
 
-    def rearrange_success_rate(self,):
-        for i in np.arange(self.n_runs):
-            if np.sum(self.site_occupancies[0,:])< len(self.site_occupancies[0,:])/2:
-                print("Occupy < 50%, skipping rearrange")
-            else:
-                print("Occupy > 50%")
+    def rearrange_success_rate(self, target_array):
+
+        target_array_boolean = np.zeros(len(self.site_occupancies[0,0,:]))
+        target_array_boolean[target_array] = 1
+        # creat an boolean array that is the same size of roi
+        # only = 1 when the index equals to the targe array number
+        atom_number_target_array = np.zeros(len(self.site_occupancies[:,0,0]))
+
+        for i in np.arange(atom_number_target_array.shape[0]):
+            first_shot = self.site_occupancies[i,0,:]
+            second_shot = self.site_occupancies[i,1,:]
+            if np.sum(first_shot)> len(first_shot)/2:
+                # print("Occupy > 50%, starting rearrange")
+                atom_number_target_array[i] = np.dot(second_shot, target_array_boolean)
+                if atom_number_target_array[i] == 0:
+                    print("Warning, the rearrangement happens but 0 atom left in the target array, something is wrong!")
+
+        return atom_number_target_array
+
+    def plot_rearrange_success_rate(
+            self,
+            atom_number_target_array,
+            target_array,
+            ax: Optional[Axes] = None,
+            ):
+        """
+        Plots the survival rate of atoms in the tweezers, site by site.
+
+        Parameters
+        ----------
+        fig : Optional[Figure]
+            The figure to plot on. If None, a new figure is created.
+        """
+        if ax is None:
+            fig, ax = plt.subplots(
+                figsize=self.plot_config.figure_size,
+                constrained_layout=self.plot_config.constrained_layout,
+            )
+        else:
+            ax = ax
+
+        bins = (np.arange(
+            min(atom_number_target_array),
+            max(atom_number_target_array) + 2) - 0.5)
+        # Create the histogram
+        ax.hist(
+            atom_number_target_array,
+            bins,
+            align='mid',
+            rwidth=0.5
+            )
+        ax.set_xticks(np.arange(len(target_array)+1))
+        ax.set_xlabel('atom number in target array')
+        ax.set_ylabel('times')
+        rearrange_number = (
+            atom_number_target_array.shape[0]
+            - atom_number_target_array[atom_number_target_array==0].shape[0]
+            )
+        rearrange_rate = rearrange_number/atom_number_target_array.shape[0]
+        success_number = atom_number_target_array[atom_number_target_array==len(target_array)].shape[0]
+        rearrange_success_rate = success_number/rearrange_number
+
+        ax.set_title(f' rearrange rate = {rearrange_rate*100:.1f}%, success rate = {rearrange_success_rate*100:.1f}%')
+
+
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -264,6 +323,65 @@ class TweezerStatistician(BaseStatistician):
 
         return data_sum
 
+    def plot_target_sites_success_rate(self, target_array, fig: Optional[Figure] = None):
+        """
+        Plots the total survival rate of atoms in the tweezers, summed over all sites.
+
+        Parameters
+        ----------
+        fig : Optional[Figure]
+            The figure to plot on. If None, a new figure is created.
+        """
+        # Calculate survival rates
+        if fig is None:
+            fig, ax = plt.subplots(
+                figsize=self.plot_config.figure_size,
+                constrained_layout=self.plot_config.constrained_layout,
+            )
+            is_subfig = False
+        else:
+            ax = fig.subplots()
+            is_subfig = True
+
+        atom_number_target_array = self.rearrange_success_rate(target_array)
+
+        target_sites_success_rate =  atom_number_target_array/target_array.shape[0]
+
+        error = np.sqrt((target_sites_success_rate * (1 - target_sites_success_rate)) / self.site_occupancies.shape[2])
+
+        ax.set_title(
+            self.folder_path,
+            fontsize=8,
+        )
+
+        ax.errorbar(
+            0,
+            target_sites_success_rate,
+            yerr=error,
+            marker='.',
+            linestyle='-',
+            alpha=0.5,
+            capsize=3,
+        )
+        ax.set_ylabel(
+            'Survival rate',
+            fontsize=self.plot_config.label_font_size,
+        )
+        ax.tick_params(
+            axis='both',
+            which='major',
+            labelsize=self.plot_config.label_font_size,
+        )
+        ax.set_ylim(bottom=0)
+        ax.grid(color=self.plot_config.grid_color_major, which='major')
+        ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+        ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+
+
+        figname = self.folder_path / 'target_sites_success_rate.pdf'
+        if not is_subfig:
+            fig.savefig(figname)
 
 
     def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True):

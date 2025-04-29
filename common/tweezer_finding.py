@@ -151,6 +151,16 @@ class TweezerFinder:
         patchs = tuple(roi.patch(edgecolor='yellow') for roi in rois)
         collection = PatchCollection(patchs, match_original=True)
         ax.add_collection(collection)
+        text_kwargs = {
+                    'color':'red',
+                    'fontsize':'small',
+                    }
+        [ax.annotate(
+            str(j),
+            xy = (roi.xmin, roi.ymin - 5),
+            **text_kwargs
+            )
+            for j, roi in enumerate(rois)]
 
         fig.savefig(f'{self.folder}/tweezers_roi_detection_sites.pdf')
 

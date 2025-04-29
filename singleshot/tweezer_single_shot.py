@@ -7,6 +7,7 @@ from analysislib.common.plot_config import PlotConfig
 SHOW_ROIS = True
 FIT_LORENTZ = False
 USE_AVERAGED_BACKGROUND = True
+DO_REARRANGEMENT = True
 
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_preproc = TweezerPreprocessor(
@@ -20,6 +21,7 @@ subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 
 processed_results_fname = tweezer_preproc.process_shot(use_global_threshold=True)
 tweezer_preproc.show_image(roi_patches=SHOW_ROIS, fig=subfigs[0], vmax=100)
+target_array = tweezer_preproc.target_array
 
 # Initialize statistician with consistent styling
 tweezer_statistician = TweezerStatistician(
@@ -27,6 +29,10 @@ tweezer_statistician = TweezerStatistician(
     shot_h5_path=tweezer_preproc.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
 )
-tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
+
+if DO_REARRANGEMENT:
+    tweezer_statistician.plot_target_sites_success_rate(target_array, fig = subfigs[1])
+else:
+    tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
 
 #tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])
