@@ -88,7 +88,24 @@ class TweezerFinder:
         sequence_dir = Path(folder)
         shots_h5s = sequence_dir.glob('20*.h5')
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
-        atom_roi = processor.atom_roi
+        padding = 50
+
+        xmin_lst = []
+        xmax_lst = []
+        for roi in new_site_rois:
+            xmin_lst.append(roi.xmin)
+            xmax_lst.append(roi.xmax)
+        xmin_lst = np.array(xmin_lst)
+        xmax_lst = np.array(xmax_lst)
+
+        atom_roi = ROI(
+            ymax = processor.atom_roi.ymax,
+            ymin = processor.atom_roi.ymin,
+            xmin = np.min(xmin_lst)- padding,
+            xmax = np.max(xmax_lst) + padding
+            )
+
+
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
         # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
