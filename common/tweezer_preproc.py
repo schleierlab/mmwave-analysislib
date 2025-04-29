@@ -111,6 +111,17 @@ class TweezerPreprocessor(ImagePreprocessor):
                 raise KeyError('kinetix_roi_row not found in globals')
         return atom_roi_ylims
 
+    @property
+    def target_array(self):
+        try:
+            target_array = self.globals['TW_target_array']
+        except KeyError:
+            try:
+                target_array = self.default_params['TW_target_array']
+            except KeyError:
+                raise KeyError('no TW_target_array find in both globals and default values')
+        return target_array
+
     @staticmethod
     def _load_default_params_from_yaml(defaul_params_path: Path):
         """
@@ -337,5 +348,19 @@ class TweezerPreprocessor(ImagePreprocessor):
                 )
                 collection = PatchCollection(patches, match_original=True)
                 ax.add_collection(collection)
+                text_kwargs = {
+                    'color':'red',
+                    'fontsize':'small',
+                    }
+                [ax.annotate(
+                    str(j),
+                    xy = (roi.xmin, roi.ymin - 5),
+                    **text_kwargs
+                    )
+                 for j, roi in enumerate(self.site_rois)]
+
+            # fig.suptitle(
+            #     self.h5_path,
+            # )
 
         fig.colorbar(ScalarMappable(norm, cmap=cmap), ax=axs, label='Counts')

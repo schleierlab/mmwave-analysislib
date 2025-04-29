@@ -71,6 +71,13 @@ class TweezerStatistician(BaseStatistician):
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
 
+    def rearrange_success_rate(self,):
+        for i in np.arange(self.n_runs):
+            if np.sum(self.site_occupancies[0,:])< len(self.site_occupancies[0,:])/2:
+                print("Occupy < 50%, skipping rearrange")
+            else:
+                print("Occupy > 50%")
+
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
