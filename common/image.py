@@ -198,22 +198,24 @@ class Image:
             ndimage.find_objects(labeled),
         )
 
-        rois: list[ROI] = []
+        site_rois: list[ROI] = []
         halfsize = roi_size / 2
         for dy, dx in slices:
             center_x = (dx.start + dx.stop) / 2
             center_y = self.yshift + (dy.start + dy.stop) / 2
 
-            rois.append(ROI(
+            site_rois.append(ROI(
                 int(center_x - halfsize),
                 int(center_x + halfsize),
                 int(center_y - halfsize),
                 int(center_y + halfsize),
             ))
         # Sort rois by x1 coordinate
-        rois.sort(key=lambda roi: roi.xmin)
+        # We want to sort the site rois from x large to x small, because x large corresponds to site 0 for rearrangement
+        # (which is also the site with the smallest frquency)
+        site_rois.sort(key=lambda roi: roi.xmin, reverse=True) # range from from big to small
 
-        return rois
+        return site_rois
 
     def roi_fit_gaussian2d(self, roi: ROI, uniform = False):
         """
