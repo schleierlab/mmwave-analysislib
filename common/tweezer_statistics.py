@@ -82,13 +82,84 @@ class TweezerStatistician(BaseStatistician):
         for i in np.arange(atom_number_target_array.shape[0]):
             first_shot = self.site_occupancies[i,0,:]
             second_shot = self.site_occupancies[i,1,:]
-            if np.sum(first_shot)> len(first_shot)/2:
-                # print("Occupy > 50%, starting rearrange")
+            if np.sum(first_shot)>= len(target_array):
                 atom_number_target_array[i] = np.dot(second_shot, target_array_boolean)
                 if atom_number_target_array[i] == 0:
                     print("Warning, the rearrangement happens but 0 atom left in the target array, something is wrong!")
 
         return atom_number_target_array
+
+    def rearragne_statistics(self, target_array):
+        n_target = len(target_array)
+        # Sum over atoms for each shot, for the first image (axis=1 is atoms)
+        first_img_atom_counts = self.site_occupancies[:, 0, :].sum(axis=1)  # shape: (num_shots,)
+        rearrange_shots = np.where(first_img_atom_counts >= n_target)[0].tolist()
+        n_rearrange_shots = len(rearrange_shots)
+
+        # Create zero array of the same shape
+        target_array_boolean = np.zeros_like(self.site_occupancies[rearrange_shots, 0, :])
+
+        # Set target sites to 1 for all selected shots
+        target_array_boolean[:, target_array] = 1
+
+        site_success_rate = self.site_occupancies[rearrange_shots, 1, :]/target_array_boolean # shape: (num_shots, num_sites)
+        avg_site_success_rate = np.mean(site_success_rate[:, target_array], axis=0) # shape: (num_sites,)
+
+        # For each shot in rearrange_shots, sum over all target sites in the 2nd image
+        # Shape: (n_rearrange_shots, len(target_array)) -> sum over axis=1 -> (n_rearrange_shots,)
+        # rearrange_success_atom_count = self.site_occupancies[rearrange_shots, 1, :][:, target_array].sum(axis=1)
+        rearrange_success_atom_count = self.site_occupancies[:, 1, :][:, target_array].sum(axis=1)
+        success_rearrange = np.sum(rearrange_success_atom_count == n_target)
+        # print(rearrange_success_atom_count)
+        # print(success_rearrange)
+        return success_rearrange, rearrange_success_atom_count, n_rearrange_shots, avg_site_success_rate
+
+    def plot_rearrange_histagram(self, target_array, ax: Optional[Axes] = None):
+        # Bar plot: Number of sites after rearrangement
+        success_rearrange, rearrange_success_atom_count, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
+
+        n_target = len(target_array)
+        n_shots = len(self.site_occupancies)
+        print('n_shots', n_shots)
+        print('n_rarrange_shots', n_rearrange_shots)
+        print('success_rearrange', success_rearrange)
+        unique_elements, counts = np.unique(rearrange_success_atom_count, return_counts=True)
+        ax.bar(unique_elements, counts, width=0.5)
+        ax.grid(axis='y')
+        ax.set_xlabel('Number of sites after rearrangement')
+        ax.set_ylabel('Frequency')
+        ax.set_title(f'{n_target} target sites\nrearrange shot ratio: {n_rearrange_shots/n_shots:.2f}, success rate: {success_rearrange/n_rearrange_shots:.3f}')
+        ax.set_xticks(unique_elements)
+
+    def plot_rearrange_site_success_rate(self, target_array, ax: Optional[Axes] = None):
+        # Site success rate plot
+        _,_,_, avg_site_success_rate = self.rearragne_statistics(target_array)
+
+        # n_sites = self.site_occupancies.shape[2]
+        n_shots = len(self.site_occupancies)
+        ax.plot(target_array, avg_site_success_rate, 'o')
+        ax.axhline(np.mean(avg_site_success_rate), color='red', linestyle='dashed', label=f'mean = {np.mean(avg_site_success_rate):.3f}')
+        ax.grid()
+        ax.set_xlabel('Tweezer index')
+        ax.set_ylabel(f'Rearrangement success rate, {n_shots} shots')
+        ax.set_title(f'Target sites success rate avg: {np.mean(avg_site_success_rate):.3f}')
+
+    def plot_site_loading_rates(self, ax: Optional[Axes] = None):
+        first_img_atoms_by_site = self.site_occupancies[:, 0, :].sum(axis=0) # sum over all shots for the first image, shape: (num_sites,)
+        second_img_atoms_by_site = self.site_occupancies[:, 1, :].sum(axis=0) # sum over all shots for the second image
+        # site_occupancies is of shape (num_shots, num_images, num_atoms)
+        # axis=1 corresponds to the before/after tweezer images
+        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
+        n_shots = len(self.site_occupancies)
+        first_img_loading_rate = first_img_atoms_by_site/n_shots
+        second_img_loading_rate = second_img_atoms_by_site/n_shots
+        ax.plot(first_img_loading_rate, '.-', label='1st shot')
+        ax.plot(second_img_loading_rate,  '.-', label='2nd shot')
+        ax.grid()
+        ax.set_xlabel('Tweezer index')
+        ax.set_ylabel(f'loading rate')
+        ax.set_title(f'Tweezer Loading rates, {n_shots} shots average')
+        ax.legend()
 
     def plot_rearrange_success_rate(
             self,
@@ -134,8 +205,6 @@ class TweezerStatistician(BaseStatistician):
         rearrange_success_rate = success_number/rearrange_number
 
         ax.set_title(f' rearrange rate = {rearrange_rate*100:.1f}%, success rate = {rearrange_success_rate*100:.1f}%')
-
-
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -616,7 +685,7 @@ class TweezerStatistician(BaseStatistician):
         else:
             ax = ax
 
-        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=0)
+        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=0) # sum over all shots for the first image
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
