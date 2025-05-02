@@ -3,6 +3,7 @@ from typing_extensions import assert_never
 
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
+from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta, norm
 import h5py
 import matplotlib.pyplot as plt
@@ -143,10 +144,13 @@ class TweezerStatistician(BaseStatistician):
         n_shots = len(self.site_occupancies)
         ax.plot(target_array, avg_site_success_rate, 'o')
         ax.axhline(np.mean(avg_site_success_rate), color='red', linestyle='dashed', label=f'mean = {np.mean(avg_site_success_rate):.3f}')
+        ax.legend()
         ax.grid()
         ax.set_xlabel('Tweezer index')
-        ax.set_ylabel(f'Rearrangement success rate, {n_shots} shots')
-        ax.set_title(f'Target sites success rate avg: {np.mean(avg_site_success_rate):.3f}')
+        ax.set_ylabel(f'Rearrangement success rate')
+        ax.set_title(f'Target sites success rate, {n_shots} shots average')
+        # Make x-axis show only integers
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     def plot_site_loading_rates(self, ax: Optional[Axes] = None):
         first_img_atoms_by_site = self.site_occupancies[:, 0, :].sum(axis=0) # sum over all shots for the first image, shape: (num_sites,)
@@ -162,7 +166,7 @@ class TweezerStatistician(BaseStatistician):
         ax.grid()
         ax.set_xlabel('Tweezer index')
         ax.set_ylabel(f'loading rate')
-        ax.set_title(f'Tweezer Loading rates, {n_shots} shots average')
+        ax.set_title(f'Tweezer site loading rates, {n_shots} shots average')
         ax.legend()
 
     def plot_rearrange_success_rate(
