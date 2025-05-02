@@ -138,17 +138,16 @@ class TweezerStatistician(BaseStatistician):
 
     def plot_rearrange_site_success_rate(self, target_array, ax: Optional[Axes] = None):
         # Site success rate plot
-        _,_,_, avg_site_success_rate = self.rearragne_statistics(target_array)
+        _,_,n_rearrange_shots, avg_site_success_rate = self.rearragne_statistics(target_array)
 
         # n_sites = self.site_occupancies.shape[2]
-        n_shots = len(self.site_occupancies)
         ax.plot(target_array, avg_site_success_rate, 'o')
         ax.axhline(np.mean(avg_site_success_rate), color='red', linestyle='dashed', label=f'mean = {np.mean(avg_site_success_rate):.3f}')
         ax.legend()
         ax.grid()
         ax.set_xlabel('Tweezer index')
         ax.set_ylabel(f'Rearrangement success rate')
-        ax.set_title(f'Target sites success rate, {n_shots} shots average')
+        ax.set_title(f'Target sites success rate, {n_rearrange_shots} shots average')
         # Make x-axis show only integers
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
