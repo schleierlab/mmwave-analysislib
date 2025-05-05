@@ -28,7 +28,7 @@ subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 bulk_gas_preproc.show_images(fig = subfigs[0], raw_img_scale = 800)
 
 fig2 = plt.figure(layout='constrained', figsize=[6, 6])
-bulk_gas_preproc.show_state_sensitive_images(fig2)
+# bulk_gas_preproc.show_state_sensitive_images(fig2)
 
 plotter = BulkGasStatistician(
     preproc_h5_path=processed_results_fname,

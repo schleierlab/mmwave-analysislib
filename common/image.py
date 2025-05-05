@@ -10,6 +10,7 @@ from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from scipy import optimize
 from scipy.constants import pi
+from pathlib import Path
 
 MaybeInt = Optional[int]
 
@@ -74,6 +75,7 @@ class Image:
     background: Union[NDArray, Literal[0]] = 0
 
     yshift: int = 0
+
     '''
     Pixels to shift vertically in the image array for indexing purposes.
     A ROI with ylims [30, 40] for an image with yshift = 10 would give rows
@@ -104,6 +106,11 @@ class Image:
 
     @staticmethod
     def mean(images: Sequence[Image]) -> Image:
+        """
+        This is not a function to average the images across different
+        h5 files. The input has to be a list of [Image] instead of [Images]
+        """
+        # sho
         # computed manually to allow for broadcasted backgrounds
         # use larger ints to avoid overflow
         background = sum(image.background.astype(np.int32) for image in images) / len(images)
@@ -131,7 +138,7 @@ class Image:
             roi.xmin:roi.xmax,
         ]
 
-    def imshow_view(self, roi: ROI, scale_factor: float = 1.0, ax: Optional[Axes] = None, **kwargs):
+    def imshow_view(self, roi: ROI = None, scale_factor: float = 1.0, ax: Optional[Axes] = None, **kwargs):
         '''
         Parameters
         ----------
@@ -144,11 +151,19 @@ class Image:
         '''
         if ax is None:
             fig, ax = plt.subplots()
-        im = ax.imshow(
+        if roi is None:
+            im = ax.imshow(
+                self.subtracted_array,
+            **kwargs,
+            )
+        else:
+            im = ax.imshow(
             self.roi_view(roi),
             extent=(scale_factor * np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin])),
             **kwargs,
-        )
+            )
+
+
         return im
 
     def roi_mean(self, roi: ROI):
@@ -170,28 +185,37 @@ class Image:
         data_maxfilt = ndimage.maximum_filter(data, neighborhood_size)
         data_minfilt = ndimage.minimum_filter(data, neighborhood_size)
 
+        local_maxima = (data == data_maxfilt)
         contrast_filt = ((data_maxfilt - data_minfilt) > detection_threshold)
+        prominent_maxima = np.logical_and(
+            local_maxima,
+            contrast_filt,
+        )
 
-        labeled, _ = ndimage.label(contrast_filt)
+        labeled, _ = ndimage.label(prominent_maxima)
         slices = cast(
             list[tuple[slice, slice]],
             ndimage.find_objects(labeled),
         )
 
-        rois: list[ROI] = []
+        site_rois: list[ROI] = []
         halfsize = roi_size / 2
         for dy, dx in slices:
             center_x = (dx.start + dx.stop) / 2
             center_y = self.yshift + (dy.start + dy.stop) / 2
 
-            rois.append(ROI(
+            site_rois.append(ROI(
                 int(center_x - halfsize),
                 int(center_x + halfsize),
                 int(center_y - halfsize),
                 int(center_y + halfsize),
             ))
+        # Sort rois by x1 coordinate
+        # We want to sort the site rois from x large to x small, because x large corresponds to site 0 for rearrangement
+        # (which is also the site with the smallest frquency)
+        site_rois.sort(key=lambda roi: roi.xmin, reverse=True) # range from from big to small
 
-        return rois
+        return site_rois
 
     def roi_fit_gaussian2d(self, roi: ROI, uniform = False):
         """

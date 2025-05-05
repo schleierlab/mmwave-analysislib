@@ -61,7 +61,7 @@ class TweezerFinder:
         ]
 
     @classmethod
-    def load_from_h5(cls, h5_path: Union[str, PathLike]):
+    def load_from_h5(cls, h5_path: Union[str, PathLike], use_averaged_background = False):
         sequence_dir = Path(h5_path)
         cls.folder = sequence_dir
         shots_h5s = sequence_dir.glob('20*.h5')
@@ -69,7 +69,7 @@ class TweezerFinder:
         images: list[Image] = []
         for shot in shots_h5s:
             print(shot)
-            processor = TweezerPreprocessor(load_type='h5', h5_path=shot)
+            processor = TweezerPreprocessor(load_type='h5', h5_path=shot, use_averaged_background = use_averaged_background)
             images.append(processor.images[0])
 
         return cls(images)
@@ -88,7 +88,24 @@ class TweezerFinder:
         sequence_dir = Path(folder)
         shots_h5s = sequence_dir.glob('20*.h5')
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
-        atom_roi = processor.atom_roi
+        padding = 50
+
+        xmin_lst = []
+        xmax_lst = []
+        for roi in new_site_rois:
+            xmin_lst.append(roi.xmin)
+            xmax_lst.append(roi.xmax)
+        xmin_lst = np.array(xmin_lst)
+        xmax_lst = np.array(xmax_lst)
+
+        atom_roi = ROI(
+            ymax = processor.atom_roi.ymax,
+            ymin = processor.atom_roi.ymin,
+            xmin = np.min(xmin_lst)- padding,
+            xmax = np.max(xmax_lst) + padding
+            )
+
+
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
         # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
@@ -103,6 +120,7 @@ class TweezerFinder:
                                                         roi_config_path
                                                         )
         print(f'Site ROIs dumped to {output_path}')
+
 
     def plot_sites(self, rois: Sequence[ROI]):
         fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
@@ -133,6 +151,16 @@ class TweezerFinder:
         patchs = tuple(roi.patch(edgecolor='yellow') for roi in rois)
         collection = PatchCollection(patchs, match_original=True)
         ax.add_collection(collection)
+        text_kwargs = {
+                    'color':'red',
+                    'fontsize':'small',
+                    }
+        [ax.annotate(
+            str(j),
+            xy = (roi.xmin, roi.ymin - 5),
+            **text_kwargs
+            )
+            for j, roi in enumerate(rois)]
 
         fig.savefig(f'{self.folder}/tweezers_roi_detection_sites.pdf')
 

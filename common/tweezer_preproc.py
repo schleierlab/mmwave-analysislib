@@ -50,6 +50,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             self,
             load_type: str = 'lyse',
             h5_path: str = None,
+            use_averaged_background: bool = False
         ):
         """Initialize TweezerAnalysis with analysis configuration.
 
@@ -70,10 +71,16 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
         self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
+        if use_averaged_background:
+            average_background_overwrite_path = Path(r'X:\userlib\analysislib\multishot\avg_shot_bkg.npy')
+            bkg = np.load(average_background_overwrite_path)
+        else:
+            bkg = self.exposures[-1]
+
         self.images = [
             Image(
                 exposure,
-                background=self.exposures[-1],
+                background=bkg,
                 yshift=self.atom_roi.ymin,
             )
             for exposure in self.exposures[:-1]
@@ -104,6 +111,17 @@ class TweezerPreprocessor(ImagePreprocessor):
                 raise KeyError('kinetix_roi_row not found in globals')
         return atom_roi_ylims
 
+    @property
+    def target_array(self):
+        try:
+            target_array = self.globals['TW_target_array']
+        except KeyError:
+            try:
+                target_array = self.default_params['TW_target_array']
+            except KeyError:
+                raise KeyError('no TW_target_array find in both globals and default values')
+        return target_array
+
     @staticmethod
     def _load_default_params_from_yaml(defaul_params_path: Path):
         """
@@ -124,8 +142,7 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         return default_params
 
-
-
+    @staticmethod
     def _load_rois_from_yaml(roi_config_path: Path, atom_roi_ylims):
         """Load site ROIs from YAML file.
         Want this to be static so that it can be used by TweezerFinder.
@@ -217,8 +234,9 @@ class TweezerPreprocessor(ImagePreprocessor):
             # Each site ROI is represented as [[xmin, xmax], [ymin, ymax]]
             site_rois_formatted.append([[roi.xmin, roi.xmax], [roi.ymin, roi.ymax]])
 
-        # Get atom_roi_xlims from the atom_roi object
+        # Get atom_roi_xlims and atom_roi_ylims from the atom_roi object
         atom_roi_xlims = [atom_roi.xmin, atom_roi.xmax]
+        atom_roi_ylims = [atom_roi.ymin, atom_roi.ymax]
 
         # Determine the output path
         output_path = Path(output_path)
@@ -227,6 +245,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         yaml_content = "---\n"
         yaml_content += f"threshold: {global_threshold}\n"
         yaml_content += f"atom_roi_xlims: [{atom_roi_xlims[0]}, {atom_roi_xlims[1]}]\n"
+        yaml_content += f"atom_roi_ylims: [{atom_roi_ylims[0]}, {atom_roi_ylims[1]}]\n"
 
         # Format the site ROIs
         yaml_lines = ["site_rois:"]
@@ -302,6 +321,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             roi_patches: bool = True,
             fig: Optional[Figure] = None,
             vmax: Optional[int] = 70,
+            cmap: str = 'viridis', #'bone'
     ):
         if fig is None:
             fig, axs = plt.subplots(
@@ -311,8 +331,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         else:
             axs = fig.subplots(nrows=2, ncols=1)
 
-        cmap = 'bone'
-        norm = Normalize(vmin=10, vmax=vmax)
+        norm = Normalize(vmin=0, vmax=vmax)
         for i, image in enumerate(self.images):
             ax = cast(Axes, axs[i])
             image.imshow_view(
@@ -329,5 +348,19 @@ class TweezerPreprocessor(ImagePreprocessor):
                 )
                 collection = PatchCollection(patches, match_original=True)
                 ax.add_collection(collection)
+                text_kwargs = {
+                    'color':'red',
+                    'fontsize':'small',
+                    }
+                [ax.annotate(
+                    str(j),
+                    xy = (roi.xmin, roi.ymin - 5),
+                    **text_kwargs
+                    )
+                 for j, roi in enumerate(self.site_rois)]
 
-        fig.colorbar(ScalarMappable(norm, cmap='bone'), ax=axs, label='Counts')
+            fig.suptitle(
+                self.h5_path,
+            )
+
+        fig.colorbar(ScalarMappable(norm, cmap=cmap), ax=axs, label='Counts')
