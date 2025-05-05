@@ -6,7 +6,7 @@ from analysislib.common.plot_config import PlotConfig
 
 SHOW_ROIS = True
 FIT_LORENTZ = False
-USE_AVERAGED_BACKGROUND = True
+USE_AVERAGED_BACKGROUND = False
 
 
 # Initialize analysis with background ROI and standard ROI loading

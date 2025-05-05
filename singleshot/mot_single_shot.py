@@ -6,7 +6,7 @@ from analysislib.common.bulk_gas_statistics import BulkGasStatistician
 from analysislib.common.image import ROI
 from analysislib.common.plot_config import PlotConfig
 
-DO_GAUSSIAN_FIT = False
+DO_GAUSSIAN_FIT = True
 analysis_config = BulkGasAnalysisConfig(
     imaging_system=manta_system,
     exposure_time=1e-3,
