@@ -135,7 +135,8 @@ class TweezerStatistician(BaseStatistician):
             Axes object to plot on. If None, a new figure is created.
         plot_overlapping_histograms : bool, optional
             Whether to plot overlapping histograms. The default is True.
-            When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
+            When set to True, plot both the histogram of all shots and the histogram of rearrange shots. 
+            This is helpful when we have bug that causes a lot of rearrangement shots end up with zero atoms in target sites.
             When set to False, plot only the histogram of all shots.
         '''
         # Bar plot: Number of sites after rearrangement
