@@ -32,19 +32,11 @@ tweezer_statistician = TweezerStatistician(
                 preproc_h5_path=preproc_h5_path,
             )
 
-# atom_number_target_array = tweezer_statistician.rearrange_success_rate(target_array)
-
-# TODO: add function to plot averaged tweezer image
-# fig, axs = plt.subplots(nrows=4, ncols=1, layout='constrained')
-# fig.suptitle(f'{folder}')
-# tweezer_statistician.plot_rearrange_success_rate(atom_number_target_array, target_array, ax = axs[0])
-
 fig, axs = plt.subplots(nrows=3, ncols=1, layout='constrained')  # 3 plots in one row
 fig.suptitle(f'{folder}')
 tweezer_statistician.plot_rearrange_histagram(target_array, ax = axs[0])
 tweezer_statistician.plot_rearrange_site_success_rate(target_array, ax = axs[1], plot_overlapping_histograms = True) # When set to False, plot only the histogram of all shots
 tweezer_statistician.plot_site_loading_rates(ax = axs[2])
-# tweezer_statistician.plot_rearrange_success_rate(atom_number_target_array, target_array, ax = axs[3])
 plt.tight_layout()
 plt.show()
 

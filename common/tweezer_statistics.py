@@ -229,52 +229,6 @@ class TweezerStatistician(BaseStatistician):
         ax.set_title(f'Tweezer site loading rates, {n_shots} shots average')
         ax.legend()
 
-    def plot_rearrange_success_rate(
-            self,
-            atom_number_target_array,
-            target_array,
-            ax: Optional[Axes] = None,
-            ):
-        """
-        Plots the survival rate of atoms in the tweezers, site by site.
-
-        Parameters
-        ----------
-        fig : Optional[Figure]
-            The figure to plot on. If None, a new figure is created.
-        """
-        if ax is None:
-            fig, ax = plt.subplots(
-                figsize=self.plot_config.figure_size,
-                constrained_layout=self.plot_config.constrained_layout,
-            )
-        else:
-            ax = ax
-
-        bins = (np.arange(
-            min(atom_number_target_array),
-            max(atom_number_target_array) + 2) - 0.5)
-        # Create the histogram
-        ax.hist(
-            atom_number_target_array,
-            bins,
-            align='mid',
-            rwidth=0.5
-            )
-        ax.set_xticks(np.arange(len(target_array)+1))
-        ax.set_xlabel('atom number in target array')
-        ax.set_ylabel('times')
-        rearrange_number = (
-            atom_number_target_array.shape[0]
-            - atom_number_target_array[atom_number_target_array==0].shape[0]
-            )
-
-        rearrange_rate = rearrange_number/atom_number_target_array.shape[0]
-        success_number = atom_number_target_array[atom_number_target_array==len(target_array)].shape[0]
-        rearrange_success_rate = success_number/rearrange_number
-
-        ax.set_title(f' rearrange rate = {rearrange_rate*100:.1f}%, success rate = {rearrange_success_rate*100:.1f}%')
-
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
