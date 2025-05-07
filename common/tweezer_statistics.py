@@ -113,28 +113,88 @@ class TweezerStatistician(BaseStatistician):
         # For each shot in rearrange_shots, sum over all target sites in the 2nd image
         # Shape: (n_rearrange_shots, len(target_array)) -> sum over axis=1 -> (n_rearrange_shots,)
         # rearrange_success_atom_count = self.site_occupancies[rearrange_shots, 1, :][:, target_array].sum(axis=1)
-        rearrange_success_atom_count = self.site_occupancies[:, 1, :][:, target_array].sum(axis=1)
-        success_rearrange = np.sum(rearrange_success_atom_count == n_target)
-        # print(rearrange_success_atom_count)
-        # print(success_rearrange)
-        return success_rearrange, rearrange_success_atom_count, n_rearrange_shots, avg_site_success_rate
 
-    def plot_rearrange_histagram(self, target_array, ax: Optional[Axes] = None):
+        # Calculate atom count in target_array for the second image, for ALL shots
+        atom_count_in_target_all_shots = self.site_occupancies[:, 1, :][:, target_array].sum(axis=1)
+        # Filter this count for only the rearrange_shots
+        atom_count_in_target_rearrange_shots = atom_count_in_target_all_shots[rearrange_shots] # shape: (n_rearrange_shots,)
+
+        success_rearrange = np.sum(atom_count_in_target_rearrange_shots == n_target)
+        atom_count_in_target = [atom_count_in_target_all_shots, atom_count_in_target_rearrange_shots]
+        return success_rearrange, atom_count_in_target, n_rearrange_shots, avg_site_success_rate
+
+    def plot_rearrange_histagram(self, target_array, ax: Optional[Axes] = None, plot_overlapping_histograms: bool = True):
+        '''
+        Plots a histogram of the number of sites in the taerget array after rearrangement.
+        
+        Parameters
+        ----------
+        target_array : array_like
+            Array of target sites.
+        ax : matplotlib.axes.Axes, optional
+            Axes object to plot on. If None, a new figure is created.
+        plot_overlapping_histograms : bool, optional
+            Whether to plot overlapping histograms. The default is True.
+            When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
+            When set to False, plot only the histogram of all shots.
+        '''
         # Bar plot: Number of sites after rearrangement
-        success_rearrange, rearrange_success_atom_count, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
+        success_rearrange, atom_count_in_target_list, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
 
+        atom_counts_all_shots = atom_count_in_target_list[0]
         n_target = len(target_array)
-        n_shots = len(self.site_occupancies)
-        print('n_shots', n_shots)
+        n_shots = len(self.site_occupancies) # For unified title
+
+        ax.set_xlabel('Number of loaded target sites after rearrangement')
+        ax.set_ylabel('Frequency')
+        ax.grid(axis='y')
+
+        title_parts = [f'{n_target} target sites']
+        if n_shots > 0 and n_rearrange_shots > 0:
+            ratio = n_rearrange_shots / n_shots
+            rate = success_rearrange / n_rearrange_shots
+            title_parts.append(f'rearrange shot ratio: {ratio:.2f}, success rate: {rate:.3f}')
+        elif n_rearrange_shots == 0 and n_shots > 0:
+             title_parts.append('no rearrangement attempts made')
+        else:
+            title_parts.append('no shot data for title metrics')
+        ax.set_title('\n'.join(title_parts))
+
+        if plot_overlapping_histograms:
+            atom_counts_rearrange_shots = atom_count_in_target_list[1]
+
+            unique_all, counts_all = np.unique(atom_counts_all_shots, return_counts=True)
+            unique_rearrange, counts_rearrange = np.unique(atom_counts_rearrange_shots, return_counts=True)
+
+            bar_width_all = 0.8
+            bar_width_rearrange = bar_width_all * 0.7
+
+            x_all = unique_all.astype(int)
+            x_rearrange = unique_rearrange.astype(int)
+
+            if len(counts_all) > 0:
+                ax.bar(x_all, counts_all, width=bar_width_all, label=f'All Shots ({n_shots} shots)', alpha=0.5, color='skyblue')
+            if len(counts_rearrange) > 0:
+                ax.bar(x_rearrange, counts_rearrange, width=bar_width_rearrange, label=f'Rearrange Attempts ({n_rearrange_shots} shots)', alpha=0.8, color='royalblue')
+
+            if len(x_all) > 0:
+                ax.set_xticks(x_all)
+
+            if len(counts_all) > 0 or len(counts_rearrange) > 0:
+                ax.legend()
+        else:
+            unique_elements, counts = np.unique(atom_counts_all_shots, return_counts=True)
+
+            if len(counts) > 0:
+                ax.bar(unique_elements, counts, width=0.5)
+
+            if len(unique_elements) > 0:
+                ax.set_xticks(unique_elements.astype(int))
+
+        print('n_shots (total experiment)', n_shots)
         print('n_rarrange_shots', n_rearrange_shots)
         print('success_rearrange', success_rearrange)
-        unique_elements, counts = np.unique(rearrange_success_atom_count, return_counts=True)
-        ax.bar(unique_elements, counts, width=0.5)
-        ax.grid(axis='y')
-        ax.set_xlabel('Number of sites after rearrangement')
-        ax.set_ylabel('Frequency')
-        ax.set_title(f'{n_target} target sites\nrearrange shot ratio: {n_rearrange_shots/n_shots:.2f}, success rate: {success_rearrange/n_rearrange_shots:.3f}')
-        ax.set_xticks(unique_elements)
+        print(f'Rearrange attempts with 0 loaded atoms: {(atom_count_in_target_list[1] == 0).sum()}')
 
     def plot_rearrange_site_success_rate(self, target_array, ax: Optional[Axes] = None):
         # Site success rate plot
@@ -146,7 +206,7 @@ class TweezerStatistician(BaseStatistician):
         ax.legend()
         ax.grid()
         ax.set_xlabel('Tweezer index')
-        ax.set_ylabel(f'Rearrangement success rate')
+        ax.set_ylabel('Rearrangement success rate')
         ax.set_title(f'Target sites success rate, {n_rearrange_shots} shots average')
         # Make x-axis show only integers
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -164,7 +224,7 @@ class TweezerStatistician(BaseStatistician):
         ax.plot(second_img_loading_rate,  '.-', label='2nd shot')
         ax.grid()
         ax.set_xlabel('Tweezer index')
-        ax.set_ylabel(f'loading rate')
+        ax.set_ylabel('loading rate')
         ax.set_title(f'Tweezer site loading rates, {n_shots} shots average')
         ax.legend()
 
