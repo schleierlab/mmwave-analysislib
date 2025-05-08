@@ -319,6 +319,7 @@ class TweezerPreprocessor(ImagePreprocessor):
     def show_image(
             self,
             roi_patches: bool = True,
+            site_index: bool = True,
             fig: Optional[Figure] = None,
             vmax: Optional[int] = 70,
             cmap: str = 'viridis', #'bone'
@@ -352,12 +353,14 @@ class TweezerPreprocessor(ImagePreprocessor):
                     'color':'red',
                     'fontsize':'small',
                     }
-                [ax.annotate(
-                    str(j),
-                    xy = (roi.xmin, roi.ymin - 5),
-                    **text_kwargs
-                    )
-                 for j, roi in enumerate(self.site_rois)]
+                if site_index:
+                    [ax.annotate(
+                        str(j), # The site index to display
+                        xy=(roi.xmin, roi.ymin - 5), # Position of the text
+                        **text_kwargs
+                        )
+                    # Iterate through sites, but only annotate if j is a multiple of 5
+                    for j, roi in enumerate(self.site_rois) if j % 5 == 0]
 
             fig.suptitle(
                 self.h5_path,

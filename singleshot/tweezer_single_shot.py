@@ -5,6 +5,7 @@ from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
 
 SHOW_ROIS = True
+SHOW_INDEX = True # site index will not show up if show_rois is set to false
 FIT_LORENTZ = False
 USE_AVERAGED_BACKGROUND = True
 
@@ -20,7 +21,7 @@ fig = plt.figure(layout='constrained', figsize=(10, 4))
 subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 
 processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = True)
-tweezer_preproc.show_image(roi_patches=SHOW_ROIS, fig=subfigs[0], vmax=100)
+tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=subfigs[0], vmax=100)
 target_array = tweezer_preproc.target_array
 
 # Initialize statistician with consistent styling
