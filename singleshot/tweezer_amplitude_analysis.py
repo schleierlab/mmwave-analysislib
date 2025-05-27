@@ -244,7 +244,7 @@ image_types = list(images.keys())
 data = images[image_types[0]]
 
 neighborhood_size = 10#6
-threshold = 80 #85 #100 #100
+threshold = 200 #85 #100 #100
 roi_y =  [0, 2560]  #[1300,1860] #
 roi_x = [0, 2560]  #[1300,1860] #
 mag = 750/40.4  # 250/40.4
@@ -266,98 +266,93 @@ data_new = data[roi_y[0]:roi_y[1], roi_x[0]:roi_x[1]]
 # fig.colorbar(pos, ax=axs)
 
 
-# site_roi_x, site_roi_y = auto_roi_detection(data_new, neighborhood_size, threshold)
+site_roi_x, site_roi_y = auto_roi_detection(data_new, neighborhood_size, threshold)
 
 # print(repr(site_roi_x), repr(site_roi_y))
 
-site_roi_x = np.array([[422, 432],
-       [432, 442],
-       [443, 453],
-       [454, 464],
-       [464, 474],
-       [475, 485],
-       [478, 488],
-       [486, 496],
-       [497, 507],
-       [508, 518],
-       [518, 528],
-       [529, 539],
-       [531, 541],
-       [540, 550],
-       [550, 560],
-       [561, 571],
-       [572, 582],
-       [583, 593],
-       [593, 603],
-       [604, 614],
-       [606, 616],
-       [615, 625],
-       [625, 635],
-       [636, 646],
-       [647, 657],
-       [658, 668],
-       [669, 679],
-       [679, 689],
-       [690, 700],
-       [701, 711],
-       [711, 721],
-       [722, 732],
-       [733, 743],
-       [743, 753],
-       [754, 764],
-       [765, 775],
-       [775, 785],
-       [786, 796],
-       [796, 806],
-       [807, 817],
-       [817, 827],
-       [828, 838],
-       [839, 849]]
-       )
 
-site_roi_y = np.array([[1182, 1192],
-       [1170, 1180],
-       [1159, 1169],
-       [1147, 1157],
-       [1136, 1146],
-       [1125, 1135],
-       [1157, 1167],
-       [1113, 1123],
-       [1102, 1112],
-       [1090, 1100],
-       [1079, 1089],
-       [1068, 1078],
-       [1097, 1107],
-       [1056, 1066],
-       [1045, 1055],
-       [1034, 1044],
-       [1022, 1032],
-       [1011, 1021],
-       [ 999, 1009],
-       [ 988,  998],
-       [1017, 1027],
-       [ 977,  987],
-       [ 965,  975],
-       [ 954,  964],
-       [ 943,  953],
-       [ 931,  941],
-       [ 920,  930],
-       [ 909,  919],
-       [ 897,  907],
-       [ 886,  896],
-       [ 875,  885],
-       [ 864,  874],
-       [ 852,  862],
-       [ 841,  851],
-       [ 830,  840],
-       [ 818,  828],
-       [ 807,  817],
-       [ 796,  806],
-       [ 785,  795],
-       [ 773,  783],
-       [ 762,  772],
-       [ 751,  761],
-       [ 740,  750]])
+
+# site_roi_x = np.array([[421, 431],
+#        [432, 442],
+#        [443, 453],
+#        [453, 463],
+#        [464, 474],
+#        [475, 485],
+#        [485, 495],
+#        [496, 506],
+#        [507, 517],
+#        [517, 527],
+#        [529, 539],
+#        [539, 549],
+#        [550, 560],
+#        [561, 571],
+#        [571, 581],
+#        [582, 592],
+#        [593, 603],
+#        [603, 613],
+#        [614, 624],
+#        [625, 635],
+#        [636, 646],
+#        [646, 656],
+#        [657, 667],
+#        [667, 677],
+#        [678, 688],
+#        [689, 699],
+#        [700, 710],
+#        [710, 720],
+#        [721, 731],
+#        [732, 742],
+#        [742, 752],
+#        [753, 763],
+#        [763, 773],
+#        [774, 784],
+#        [785, 795],
+#        [795, 805],
+#        [806, 816],
+#        [817, 827],
+#        [827, 837],
+#        [838, 848]])
+
+# site_roi_y = np.array([[1194, 1204],
+#        [1183, 1193],
+#        [1171, 1181],
+#        [1160, 1170],
+#        [1149, 1159],
+#        [1137, 1147],
+#        [1126, 1136],
+#        [1114, 1124],
+#        [1103, 1113],
+#        [1092, 1102],
+#        [1080, 1090],
+#        [1069, 1079],
+#        [1057, 1067],
+#        [1046, 1056],
+#        [1035, 1045],
+#        [1024, 1034],
+#        [1012, 1022],
+#        [1001, 1011],
+#        [ 989,  999],
+#        [ 978,  988],
+#        [ 967,  977],
+#        [ 955,  965],
+#        [ 944,  954],
+#        [ 933,  943],
+#        [ 921,  931],
+#        [ 910,  920],
+#        [ 899,  909],
+#        [ 887,  897],
+#        [ 876,  886],
+#        [ 865,  875],
+#        [ 854,  864],
+#        [ 843,  853],
+#        [ 831,  841],
+#        [ 820,  830],
+#        [ 808,  818],
+#        [ 798,  808],
+#        [ 786,  796],
+#        [ 775,  785],
+#        [ 764,  774],
+#        [ 753,  763]])
 
 plot_shots_avg(data_new, site_roi_x, site_roi_y, n_shots=1, dx=dx, show_roi=True)
 
@@ -392,31 +387,37 @@ plot_shots_avg(data_new, site_roi_x, site_roi_y, n_shots=1, dx=dx, show_roi=True
 #        80.38897527, 78.68373342, 75.7180051 , 66.68168748, 63.02787757])
 
 
-# params_lst = avg_shots_gauss_fit(data_new, site_roi_x, site_roi_y, plot = False)
-# amplitude, mux, muy, sigmax, sigmay, rotation, offset = params_lst[:, 0], params_lst[:, 1], params_lst[:, 2], params_lst[:, 3], params_lst[:, 4], params_lst[:, 5], params_lst[:, 6]
+params_lst = avg_shots_gauss_fit(data_new, site_roi_x, site_roi_y, plot = False)
+amplitude, mux, muy, sigmax, sigmay, rotation, offset = params_lst[:, 0], params_lst[:, 1], params_lst[:, 2], params_lst[:, 3], params_lst[:, 4], params_lst[:, 5], params_lst[:, 6]
 
-# waist_x = 2*np.mean(sigmax)*dx
-# waist_y = 2*np.mean(sigmay)*dx
-# amplitude = np.abs(amplitude)
+waist_x = 2*np.mean(sigmax)*dx
+waist_y = 2*np.mean(sigmay)*dx
+amplitude = np.abs(amplitude)
 
-# folder_path = '\\'.join(h5_path.split('\\')[0:-1])
-# count_file_path = folder_path+'\\tweezer_waist.csv'
+folder_path = '\\'.join(h5_path.split('\\')[0:-1])
+count_file_path = folder_path+'\\tweezer_waist.csv'
 
-# # if run_number == 0:
-# #     with open(count_file_path, 'w') as f_object:
-# #         f_object.write(f'{waist_x},{waist_y}\n')
-
-# # else:
-# with open(count_file_path, 'a') as f_object:
+# if run_number == 0:
+#     with open(count_file_path, 'w') as f_object:
 #         f_object.write(f'{waist_x},{waist_y}\n')
 
-# folder_path = '\\'.join(h5_path.split('\\')[0:-1])
-# count_file_path = folder_path+'\\tweezer_amplitude.csv'
+# else:
+with open(count_file_path, 'a') as f_object:
+        f_object.write(f'{waist_x},{waist_y}\n')
 
-# np.savetxt(count_file_path, amplitude)
+folder_path = '\\'.join(h5_path.split('\\')[0:-1])
+count_file_path = folder_path+'\\tweezer_amplitude.csv'
+
+np.savetxt(count_file_path, amplitude)
 
 # plt.plot(2*sigmax*dx,'o',label="waist x")
 # plt.plot(2*sigmay*dx,'o',label="waist y")
 # plt.xlabel("sites")
 # plt.ylabel("Gaussian waist (um)")
 # plt.legend()
+
+plt.figure()
+plt.plot(amplitude,'o',label="amplitude")
+plt.xlabel("sites")
+plt.ylabel("amplitude (count)")
+plt.legend()

@@ -47,8 +47,31 @@ class TweezerFinder:
             )
 
         print(f"Exactly {len(site_rois)} sites found")
+        site_rois = self.remove_overlapping_rois(site_rois, min_distance=roi_size)
 
         return site_rois
+
+    def remove_overlapping_rois(self, rois, min_distance):
+        """
+        Remove ROIs whose centers are closer than min_distance.
+        Args:
+            rois: list of ROI objects or tuples (x, y, ...)
+            min_distance: minimum allowed distance between ROI centers
+        Returns:
+            Filtered list of ROIs
+        """
+        filtered = []
+        centers = []
+        for roi in rois:
+            # Extract center coordinates depending on your ROI format
+            if hasattr(roi, 'x') and hasattr(roi, 'y'):
+                cx, cy = roi.x, roi.y
+            else:
+                cx, cy = roi[0], roi[1]  # adjust if your ROI is a tuple/list
+            if all(np.hypot(cx - x0, cy - y0) >= min_distance for x0, y0 in centers):
+                filtered.append(roi)
+                centers.append((cx, cy))
+        return filtered
 
     def detect_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
         return self.averaged_image.detect_site_rois(neighborhood_size, detection_threshold, roi_size)
@@ -156,11 +179,12 @@ class TweezerFinder:
                     'fontsize':'small',
                     }
         [ax.annotate(
-            str(j),
-            xy = (roi.xmin, roi.ymin - 5),
+            str(j), # The site index to display
+            xy=(roi.xmin, roi.ymin - 5), # Position of the text
             **text_kwargs
             )
-            for j, roi in enumerate(rois)]
+        # Iterate through sites, but only annotate if j is a multiple of 5
+        for j, roi in enumerate(rois) if j % 5 == 0]
 
         fig.savefig(f'{self.folder}/tweezers_roi_detection_sites.pdf')
 
