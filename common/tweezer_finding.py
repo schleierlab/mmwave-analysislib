@@ -152,6 +152,10 @@ class TweezerFinder:
 
 
     def plot_sites(self, rois: Sequence[ROI]):
+        '''
+        Plot the average of the 1st image taken from each shot
+        Include rois
+        '''
         fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
 
         rois_bbox = ROI.bounding_box(rois)
@@ -192,7 +196,7 @@ class TweezerFinder:
         # Iterate through sites, but only annotate if j is a multiple of 5
         for j, roi in enumerate(rois) if j % 5 == 0]
 
-        fig.savefig(f'{self.folder}/tweezers_roi_detection_sites.pdf')
+        fig.savefig(f'{self.folder}/tweezers_averaged_image_with_site_rois.pdf')
 
     def plot_averaged_images(self, rois: Sequence[ROI]):
         '''

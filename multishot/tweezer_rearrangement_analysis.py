@@ -14,7 +14,7 @@ Load data directly from 'tweezer_preprocess.h5' (this is the file generated afte
 '''
 background_subtract = True
 USE_AVERAGED_BACKGROUND = True
-PLOT_AVERAGED_IMAGES = True # Show averaged images but takes longer time because need to process through all h5 files
+PLOT_AVERAGED_IMAGES = False # Show averaged images but takes longer time because need to process through all h5 files
 folder = select_data_directory()
 
 tweezer_preproc = TweezerPreprocessor(
