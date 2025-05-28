@@ -82,7 +82,7 @@ class TweezerStatistician(BaseStatistician):
             second_shot = self.site_occupancies[i,1,:]
             second_shot_target_array = second_shot[target_array]
             # use only the targe indexs
-            if np.sum(first_shot) >= len(first_shot)/2:
+            if np.sum(first_shot) >= len(target_array):
                 # print("Occupy >= 50%, starting rearrange")
                 rearrange_index.append(i)
                 atom_number_target_array[i] = np.sum(second_shot_target_array)
@@ -126,7 +126,7 @@ class TweezerStatistician(BaseStatistician):
     def plot_rearrange_histagram(self, target_array, ax: Optional[Axes] = None, plot_overlapping_histograms: bool = True):
         '''
         Plots a histogram of the number of sites in the taerget array after rearrangement.
-        
+
         Parameters
         ----------
         target_array : array_like
@@ -135,7 +135,7 @@ class TweezerStatistician(BaseStatistician):
             Axes object to plot on. If None, a new figure is created.
         plot_overlapping_histograms : bool, optional
             Whether to plot overlapping histograms. The default is True.
-            When set to True, plot both the histogram of all shots and the histogram of rearrange shots. 
+            When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
             This is helpful when we have bug that causes a lot of rearrangement shots end up with zero atoms in target sites.
             When set to False, plot only the histogram of all shots.
         '''
