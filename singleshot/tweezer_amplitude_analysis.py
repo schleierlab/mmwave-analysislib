@@ -387,6 +387,15 @@ plot_shots_avg(data_new, site_roi_x, site_roi_y, n_shots=1, dx=dx, show_roi=True
 #        80.38897527, 78.68373342, 75.7180051 , 66.68168748, 63.02787757])
 
 
+print('site_roi_x:', site_roi_x)
+print('site_roi_y:', site_roi_y)
+dx = site_roi_x[-1][0]-site_roi_x[0][0]
+dy = site_roi_x[0][0]-site_roi_x[-1][0]
+dp = np.sqrt(dx**2 + dy**2)/(len(site_roi_x)-1) # distance between sites in pixels
+print('distance between sites in pixels', dp)
+mag = 750/40.4
+print('distance between sites in um', dp/ mag*5.5)
+
 params_lst = avg_shots_gauss_fit(data_new, site_roi_x, site_roi_y, plot = False)
 amplitude, mux, muy, sigmax, sigmay, rotation, offset = params_lst[:, 0], params_lst[:, 1], params_lst[:, 2], params_lst[:, 3], params_lst[:, 4], params_lst[:, 5], params_lst[:, 6]
 
