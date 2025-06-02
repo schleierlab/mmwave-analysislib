@@ -14,7 +14,8 @@ Load data directly from 'tweezer_preprocess.h5' (this is the file generated afte
 '''
 background_subtract = True
 USE_AVERAGED_BACKGROUND = True
-PLOT_AVERAGED_IMAGES = False # Show averaged image(s) but takes longer time because need to process through all h5 files
+PLOT_AVERAGED_IMAGES = True # Show averaged image(s) but takes longer time because need to process through all h5 files
+PLOT_TWO_IMAGES = True
 folder = select_data_directory()
 
 tweezer_preproc = TweezerPreprocessor(
@@ -25,8 +26,11 @@ new_site_rois = tweezer_preproc.site_rois
 preproc_h5_path = Path(folder) / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
 
 if PLOT_AVERAGED_IMAGES:
-    finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAGED_BACKGROUND, include_2_images = False)
-    finder.plot_sites(new_site_rois)
+    finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAGED_BACKGROUND, include_2_images = PLOT_TWO_IMAGES)
+    if PLOT_TWO_IMAGES:
+        finder.plot_averaged_images(new_site_rois)
+    else:
+        finder.plot_sites(new_site_rois)
 
 tweezer_statistician = TweezerStatistician(
                 preproc_h5_path=preproc_h5_path,
