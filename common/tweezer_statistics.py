@@ -154,7 +154,7 @@ class TweezerStatistician(BaseStatistician):
         if n_shots > 0 and n_rearrange_shots > 0:
             ratio = n_rearrange_shots / n_shots
             rate = success_rearrange / n_rearrange_shots
-            title_parts.append(f'rearrange shot ratio: {ratio:.2f}, success rate: {rate:.3f}')
+            title_parts.append(f'rearrange shot ratio: {ratio:.3f}, success rate: {rate:.3f}')
         elif n_rearrange_shots == 0 and n_shots > 0:
              title_parts.append('no rearrangement attempts made')
         else:
