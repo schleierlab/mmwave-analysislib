@@ -7,7 +7,7 @@ from analysislib.common.plot_config import PlotConfig
 SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to false
 FIT_LORENTZ = False
-USE_AVERAGED_BACKGROUND = False
+USE_AVERAGED_BACKGROUND = True
 SHOW_IMG_ONLY = False
 
 # Initialize analysis with background ROI and standard ROI loading
@@ -20,10 +20,10 @@ tweezer_preproc = TweezerPreprocessor(
 fig = plt.figure(layout='constrained')
 processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = True)
 if SHOW_IMG_ONLY:
-    tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=fig, vmax=100)
+    tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=fig, vmax=80)
 else:
     subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
-    tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=subfigs[0], vmax=100)
+    tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=subfigs[0], vmax=85)
 
 target_array = tweezer_preproc.target_array
 
