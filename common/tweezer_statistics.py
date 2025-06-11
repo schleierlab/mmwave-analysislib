@@ -722,6 +722,7 @@ class TweezerStatistician(BaseStatistician):
                     f'Center frequency: ${upopt[0]:SL}$ MHz; '
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
                 )
+            return unique_params, survival_rates, sigma_beta
 
         elif loop_params.ndim == 2:
             if fig is not None:
@@ -832,7 +833,7 @@ class TweezerStatistician(BaseStatistician):
         ax.legend()
 
     # TODO: merge this into plot_survival_rate_by_site
-    def plot_survival_rate_by_site_2d(self, fig: Optional[Figure] = None):
+    def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None):
         """
         Plots the survival rate of atoms in the tweezers, site by site.
 
@@ -841,13 +842,15 @@ class TweezerStatistician(BaseStatistician):
         fig : Optional[Figure]
             The figure to plot on. If None, a new figure is created.
         """
-        if fig is None:
+        if ax is None:
             fig, ax = plt.subplots(
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
+            is_subfig = False
         else:
-            ax = fig.subplots()
+            ax = ax
+            is_subfig = True
 
         loop_params = self.current_params[:, 0]
 
@@ -884,5 +887,8 @@ class TweezerStatistician(BaseStatistician):
             survival_rates.T,
         )
 
-        fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
-        fig.suptitle(f"{self.folder_path}")
+        ax.set_xlabel('')
+
+        if not is_subfig:
+            fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
+            fig.suptitle(f"{self.folder_path}")

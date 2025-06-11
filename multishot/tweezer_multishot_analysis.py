@@ -54,6 +54,8 @@ thresholder.plot_spreads(ax=axs[0])
 thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
 tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
+tweezer_statistician.plot_survival_rate_by_site_2d()
+
 axs[0].set_ylabel('Counts')
 axs[1].set_ylabel('Loading rate')
 axs[2].set_ylabel('Infidelity')
