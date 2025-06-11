@@ -887,7 +887,8 @@ class TweezerStatistician(BaseStatistician):
             survival_rates.T,
         )
 
-        ax.set_xlabel('')
+        ax.set_xlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
+        ax.set_ylabel('Site index')
 
         if not is_subfig:
             fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
