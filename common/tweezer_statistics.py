@@ -881,7 +881,7 @@ class TweezerStatistician(BaseStatistician):
         # survival rate using laplace rule of succession
         survival_rates = (surviving_atoms_sum + 1) / (initial_atoms_sum + 2)
 
-        ax.pcolormesh(
+        pm = ax.pcolormesh(
             unique_params,
             np.arange(n_sites),
             survival_rates.T,
@@ -889,6 +889,7 @@ class TweezerStatistician(BaseStatistician):
 
         ax.set_xlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
         ax.set_ylabel('Site index')
+        cbar = fig.colorbar(pm, ax=ax)
 
         if not is_subfig:
             fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")

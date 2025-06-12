@@ -49,4 +49,6 @@ if not SHOW_IMG_ONLY:
 
         np.savetxt(folder_path + "/data.csv", [unique_params, survival_rates, sigma_beta], delimiter=",")
 
+figname = folder_path + '/tweezer_single_shot.pdf'
+fig.savefig(figname)
 #tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])
