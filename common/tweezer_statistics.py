@@ -833,7 +833,7 @@ class TweezerStatistician(BaseStatistician):
         ax.legend()
 
     # TODO: merge this into plot_survival_rate_by_site
-    def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None):
+    def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None, unique_params_scale = 1):
         """
         Plots the survival rate of atoms in the tweezers, site by site.
 
@@ -882,7 +882,7 @@ class TweezerStatistician(BaseStatistician):
         survival_rates = (surviving_atoms_sum + 1) / (initial_atoms_sum + 2)
 
         pm = ax.pcolormesh(
-            unique_params,
+            unique_params*unique_params_scale,
             np.arange(n_sites),
             survival_rates.T,
         )
