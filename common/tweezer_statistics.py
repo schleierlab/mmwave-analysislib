@@ -786,10 +786,10 @@ class TweezerStatistician(BaseStatistician):
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
 
-
         figname = self.folder_path / 'survival_rate_vs_param.pdf'
         if not is_subfig:
             fig.savefig(figname)
+        return unique_params, survival_rates, sigma_beta
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
