@@ -48,10 +48,7 @@ if not SHOW_IMG_ONLY:
         unique_params, survival_rates, sigma_beta= tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
 
         # np.savetxt(folder_path + "/data.csv", [unique_params, survival_rates, sigma_beta], delimiter=",")
-<<<<<<< HEAD
-=======
         # TODO: this function right now doesn't work with 2d parameter scan
->>>>>>> a6f20eea098440756cc7dcacd8e8273fc88dcb97
 
 figname = folder_path + '/tweezer_single_shot.pdf'
 fig.savefig(figname)

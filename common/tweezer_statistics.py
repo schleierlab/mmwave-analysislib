@@ -13,6 +13,7 @@ import uncertainties
 from pathlib import Path
 import lyse
 
+
 # try:
 #     lyse
 # except NameError:
@@ -478,7 +479,7 @@ class TweezerStatistician(BaseStatistician):
             fig.savefig(figname)
 
 
-    def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True):
+    def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True, plot_gaussian: bool = False):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
 
@@ -754,6 +755,11 @@ class TweezerStatistician(BaseStatistician):
                 survival_rates,
             )
 
+            if plot_gaussian:
+                popt, perr = self.fit_gaussian_2d(x_params, y_params, survival_rates)
+
+
+
             fig.colorbar(pcolor_survival_rate, ax=ax1)
 
             pcolor_std =ax2.pcolormesh(
@@ -761,6 +767,8 @@ class TweezerStatistician(BaseStatistician):
                 y_params,
                 sigma_beta,
             )
+
+
 
             fig.colorbar(pcolor_std, ax=ax2)
 
@@ -782,6 +790,8 @@ class TweezerStatistician(BaseStatistician):
                 axs.grid(color=self.plot_config.grid_color_minor, which='minor')
             ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
             ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
+            if plot_gaussian:
+                ax1.title.set_text(f'X waist = {popt[3]:.2f} +/- {perr[3]:.2f}, Y waist = {popt[4]:.2f} +/- {perr[4]:.2f}')
 
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")

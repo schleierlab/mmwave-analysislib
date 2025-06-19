@@ -96,6 +96,39 @@ class BaseStatistician(ABC):
         p0 = [x0_guess, width_guess, a_guess, offset_guess]
         return optimize.curve_fit(self.lorentzian, x_data, y_data, p0=p0, sigma=sigma)
 
+
+    @staticmethod
+    # --- Step 1: Define 2D Gaussian model ---
+    def gaussian_2d(coords, A, x0, y0, sigma_x, sigma_y, theta, offset):
+        """
+        2D Gaussian function with elliptical shape and rotation.
+        """
+        x, y = coords
+        xo = float(x0)
+        yo = float(y0)
+        a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
+        b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
+        c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
+        g = offset + A * np.exp(-(a*((x - xo)**2) + 2*b*(x - xo)*(y - yo) + c*((y - yo)**2)))
+        return g.ravel()
+
+
+    def fit_gaussian_2d(self, X, Y, data, sigma=None):
+        """
+        Fits a 2D Gaussian function to the atom number data.
+        """
+        X = np.ravel(X)
+        Y = np.ravel(Y)
+        data = np.ravel(data)
+        p0 = [np.max(data), X[np.argmax(data)], Y[np.argmax(data)], 1, 1, 0, np.min(data)]
+        bounds = (
+                [0, X.min(), Y.min(), 1e-5, 1e-5, -np.pi, -np.inf],  # Lower bounds
+                [np.inf, X.max(), Y.max(), X.max(), Y.max(), np.pi, np.inf]  # Upper bounds
+            )
+        popt, pcov = optimize.curve_fit(self.gaussian_2d, (X, Y), data, p0=p0, sigma=sigma, bounds=bounds)
+        perr = np.sqrt(np.diag(pcov))
+        return popt, perr
+
     def reshape_to_unique_params_dim(self,data, x_params, y_params):
         """
         Reshape the data to have the same shape as the unique parameter combinations.
