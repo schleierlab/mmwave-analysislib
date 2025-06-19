@@ -786,10 +786,10 @@ class TweezerStatistician(BaseStatistician):
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
 
-
         figname = self.folder_path / 'survival_rate_vs_param.pdf'
         if not is_subfig:
             fig.savefig(figname)
+        return unique_params, survival_rates, sigma_beta
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
@@ -932,11 +932,11 @@ class TweezerStatistician(BaseStatistician):
         unique_params, data = self.loop_param_and_site_survival_rate_matrix()
 
         # Define the damped Rabi oscillation model
-        def rabi_model(t, A, Omega, phi, T2, C, exp_decay = True):
+        def rabi_model(t, A, Omega, phi, T2, C, exp_decay = False):
             if exp_decay:
                 return A * np.cos(Omega * t + phi) * np.exp(-t / T2) + C
             else:
-                return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C
+                return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C # gaussian decay
 
         n_groups, averaged_data = self.group_data(data, group_size)
 
@@ -961,21 +961,28 @@ class TweezerStatistician(BaseStatistician):
                     f'p-p Ampl: {A_fit*2:.3f}\n'
                     f'$\Omega$: {Omega_fit / 1e6 / (2 * np.pi):.3f} MHz\n'
                     f'Phase: {phi_fit:.2f} rad\n'
-                    f'T₂: {T2_fit * 1e6:.2f} µs\n'
+                    f'T₂*: {T2_fit * 1e6:.2f} µs\n'
                     # f'Offset: {C_fit:.2f}'
                 )
+                # ax.annotate(annotation_text,
+                #             xy=(0.02, 0.95),  # top-left corner inside the subplot
+                #             xycoords='axes fraction',
+                #             fontsize=9,
+                #             ha='left', va='top',
+                #             )
                 ax.annotate(annotation_text,
-                            xy=(0.02, 0.95),  # top-left corner inside the subplot
+                            xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
                             xycoords='axes fraction',
                             fontsize=9,
-                            ha='left', va='top',
+                            ha='left', va='bottom',
                             )
 
                 ax.legend(loc='upper right')
 
         # fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
         # TODO change this to fit with whatever we are plotting
-        fig.supxlabel('Time')
+        # fig.supxlabel('Time')
+        fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
         fig.supylabel('Population')
 
         fig.suptitle("Rabi Oscillation Fits", fontsize=14)

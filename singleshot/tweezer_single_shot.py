@@ -10,7 +10,7 @@ from analysislib.common.plot_config import PlotConfig
 SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to false
 FIT_LORENTZ = False
-USE_AVERAGED_BACKGROUND = True
+USE_AVERAGED_BACKGROUND = False
 SHOW_IMG_ONLY = False
 
 # Initialize analysis with background ROI and standard ROI loading
@@ -48,6 +48,10 @@ if not SHOW_IMG_ONLY:
         unique_params, survival_rates, sigma_beta= tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
 
         # np.savetxt(folder_path + "/data.csv", [unique_params, survival_rates, sigma_beta], delimiter=",")
+<<<<<<< HEAD
+=======
+        # TODO: this function right now doesn't work with 2d parameter scan
+>>>>>>> a6f20eea098440756cc7dcacd8e8273fc88dcb97
 
 figname = folder_path + '/tweezer_single_shot.pdf'
 fig.savefig(figname)
