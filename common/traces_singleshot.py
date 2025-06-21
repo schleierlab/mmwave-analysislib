@@ -51,7 +51,7 @@ class TraceSingleshotAnalysis(ABC):
             Path to h5 file, only used if load_type='h5'
         """
         self.h5_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
-        self.traces_dict, self.run_number= self.load_traces()
+        self.traces_dict, self.run_number, self.globals = self.load_traces()
         self.traces_name, self.traces_time, self.traces_value = self.convert_dict_to_name_time_value(self.traces_dict)
 
         with h5py.File(self.h5_path, mode='r') as f:
@@ -122,14 +122,8 @@ class TraceSingleshotAnalysis(ABC):
         traces_value = []
         for key, value in traces_dict.items():
             traces_name.append(key)
-            traces_time.append(value['time'])
-            traces_value.append(value['value'])
+            traces_time=value['t']
+            traces_value.append(value['values'])
         return traces_name, traces_time, traces_value
 
 
-    @abstractmethod
-    def process_shot(self,) -> None:
-        """
-        Abstract method that should be overriden by subclasses to process the image data from a single shot.
-        """
-        raise NotImplementedError

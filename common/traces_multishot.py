@@ -1,7 +1,7 @@
 from os import PathLike
 from pathlib import Path
 
-from analysislib.common.traces_single_shot import TraceSingleshotAnalysis
+from analysislib.common.traces_singleshot import TraceSingleshotAnalysis
 from analysislib.common.plot_config import PlotConfig
 from .image import Image
 
@@ -17,7 +17,7 @@ class TraceMultishotAnalysis():
     """
 
     def __init__(self, folder_path: Union[str, PathLike]):
-        self.traces_name, self.traces_time, self.traces_valu_lst = self.analyze_the_folder(folder_path)
+        self.traces_name, self.traces_time, self.traces_value_lst = self.analyze_the_folder(folder_path)
 
 
     @classmethod
@@ -57,7 +57,6 @@ class TraceMultishotAnalysis():
             traces_value = self.traces_value_lst[:,i,:]
             traces_mean = np.mean(traces_value, axis=0)
             traces_std = np.std(traces_value, axis=0)
-
             ax.plot(self.traces_time, traces_mean, label = f'{self.traces_name[i]}')
             ax.fill_between(self.traces_time, traces_mean - traces_std, traces_mean + traces_std, alpha=0.2)
 
