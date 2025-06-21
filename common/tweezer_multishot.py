@@ -44,6 +44,7 @@ class TweezerMultishotAnalysis():
         return tweezer_statistician, bkg_image_lst, atom_roi, site_rois
 
 
+
     def averaged_background(self, bkg_image_lst):
         '''
         Returns the average background for the entire folder
