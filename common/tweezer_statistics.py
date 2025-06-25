@@ -719,7 +719,7 @@ class TweezerStatistician(BaseStatistician):
                     1000,
                 )
 
-                axs.plot(x_plot, self.lorentzian(x_plot, *popt))
+                axs[0].plot(x_plot, self.lorentzian(x_plot, *popt))
                 fig.suptitle(
                     f'Center frequency: ${upopt[0]:SL}$ MHz; '
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'

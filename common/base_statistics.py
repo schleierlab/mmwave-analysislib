@@ -89,7 +89,7 @@ class BaseStatistician(ABC):
         x0_guess = x_data[np.argmax(y_data)]
         x_resolution = (x_data[1] - x_data[0])
         width_guess = 2*x_resolution
-        y_data_range = np.max(y_data) - np.min(y_data)
+        y_data_range = np.min(y_data) - np.max(y_data) #np.max(y_data) - np.min(y_data)
         a_guess = y_data_range / width_guess * (width_guess/2)**2
 
         offset_guess = np.min(y_data)
