@@ -55,7 +55,7 @@ thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
 tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
 tweezer_statistician.plot_survival_rate_by_site_2d()
-# tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d(group_size = 10, Rabi_oscillation_fit = True)
+tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d(group_size = 10, Rabi_oscillation_fit = True)
 
 axs[0].set_ylabel('Counts')
 axs[1].set_ylabel('Loading rate')
