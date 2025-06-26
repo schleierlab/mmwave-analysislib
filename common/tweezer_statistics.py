@@ -937,7 +937,7 @@ class TweezerStatistician(BaseStatistician):
             fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
             fig.suptitle(f"{self.folder_path}")
 
-    def plot_avg_survival_rate_by_grouped_sites_1d(self, group_size, Rabi_oscillation_fit = False):
+    def plot_avg_survival_rate_by_grouped_sites_1d(self, group_size, fit_type = None):
 
         unique_params, data = self.loop_param_and_site_survival_rate_matrix()
 
@@ -959,7 +959,7 @@ class TweezerStatistician(BaseStatistician):
         for i in np.arange(averaged_data.shape[0]):
             ax = axs[i]
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
-            if Rabi_oscillation_fit:
+            if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
                 initial_guess = [1, 2*np.pi*2e6, 0, 1e-6, 0.5]
                 params_opt, params_cov = curve_fit(rabi_model, unique_params, averaged_data[i], p0=initial_guess)
@@ -988,14 +988,36 @@ class TweezerStatistician(BaseStatistician):
                             )
 
                 ax.legend(loc='upper right')
+            elif fit_type == 'lorentzian':
+                popt, pcov = self.fit_lorentzian(unique_params, averaged_data[i], sigma=None)
+                upopt = uncertainties.correlated_values(popt, pcov)
 
+                x_plot = np.linspace(
+                    np.min(unique_params),
+                    np.max(unique_params),
+                    1000,
+                )
+
+                ax.plot(x_plot, self.lorentzian(x_plot, *popt), 'r-', label=rf'{i}Fit')
+                annotation_text = (
+                    f'Center frequency: ${upopt[0]:SL}$ MHz\n'
+                    f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+                )
+                ax.annotate(annotation_text,
+                            xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
+                            xycoords='axes fraction',
+                            fontsize=9,
+                            ha='left', va='bottom',
+                            )
+
+                ax.legend(loc='upper right')
         # fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
         # TODO change this to fit with whatever we are plotting
         # fig.supxlabel('Time')
         fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
         fig.supylabel('Population')
 
-        fig.suptitle("Rabi Oscillation Fits", fontsize=14)
+        # fig.suptitle("Rabi Oscillation Fits", fontsize=14)
 
         fig.savefig(f"{self.folder_path}/grouped_survival_rate_by_site_1d.pdf")
         fig.suptitle(f"{self.folder_path}")
