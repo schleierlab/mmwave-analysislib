@@ -57,7 +57,7 @@ class TraceMultishotAnalysis():
             traces_value = self.traces_value_lst[:,i,:]
             traces_mean = np.mean(traces_value, axis=0)
             traces_std = np.std(traces_value, axis=0)
-            ax.plot(self.traces_time, traces_mean, label = f'{self.traces_name[i]}')
+            ax.plot(self.traces_time, traces_mean, '.-',label = f'{self.traces_name[i]}')
             ax.fill_between(self.traces_time, traces_mean - traces_std, traces_mean + traces_std, alpha=0.2)
 
         ax.set_title('Traces')
