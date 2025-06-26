@@ -12,7 +12,7 @@ import numpy as np
 import uncertainties
 from pathlib import Path
 import lyse
-
+import os
 
 # try:
 #     lyse
@@ -940,6 +940,9 @@ class TweezerStatistician(BaseStatistician):
     def plot_avg_survival_rate_by_grouped_sites_1d(self, group_size, fit_type = None):
 
         unique_params, data = self.loop_param_and_site_survival_rate_matrix()
+        file_path = os.path.join(f"{self.folder_path}/", 'survival_by_sites_matrix.npy')
+        np.save(file_path, data)
+        print('file saved!')
 
         # Define the damped Rabi oscillation model
         def rabi_model(t, A, Omega, phi, T2, C, exp_decay = False):
@@ -1009,7 +1012,7 @@ class TweezerStatistician(BaseStatistician):
                             fontsize=9,
                             ha='left', va='bottom',
                             )
-
+                print(popt[0], pcov[0][0]) # print out value for plotting
                 ax.legend(loc='upper right')
         # fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
         # TODO change this to fit with whatever we are plotting
