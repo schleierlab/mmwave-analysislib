@@ -879,16 +879,6 @@ class TweezerStatistician(BaseStatistician):
 
         return unique_params,survival_rates.T
 
-    def group_data(self, data, group_size):
-        n_groups = data.shape[0]//group_size
-        print('n_groups',n_groups)
-        grouped_data = data[:data.shape[0]].reshape(n_groups, group_size, -1)
-        averaged_data = grouped_data.mean(axis = 1)
-
-        print('shape of data', data.shape)
-        print('shape of averaged data', averaged_data.shape)
-        return n_groups, averaged_data
-
     # TODO: merge this into plot_survival_rate_by_site
     def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None, plot_grouped_averaged = False): #TODO: add grouped averaged option
         """
@@ -936,6 +926,16 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
             fig.suptitle(f"{self.folder_path}")
+
+    def group_data(self, data, group_size):
+        n_groups = data.shape[0]//group_size
+        print('n_groups',n_groups)
+        grouped_data = data[:data.shape[0]].reshape(n_groups, group_size, -1)
+        averaged_data = grouped_data.mean(axis = 1)
+
+        print('shape of data', data.shape)
+        print('shape of averaged data', averaged_data.shape)
+        return n_groups, averaged_data
 
     def plot_avg_survival_rate_by_grouped_sites_1d(self, group_size, fit_type = None):
 
