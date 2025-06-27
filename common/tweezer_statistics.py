@@ -959,8 +959,8 @@ class TweezerStatistician(BaseStatistician):
 
         #1D plot, group averaged, separate plots with fit
         fig, axs = plt.subplots(nrows=n_groups, ncols=1, sharex=True, sharey= True, layout='constrained')
-        for i in np.arange(averaged_data.shape[0]):
-            ax = axs[i]
+        for i in np.flip(np.arange(averaged_data.shape[0])):
+            ax = axs[-i-1]
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
