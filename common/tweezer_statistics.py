@@ -843,7 +843,7 @@ class TweezerStatistician(BaseStatistician):
         ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
         ax.legend()
 
-    def loop_param_and_site_survival_rate_matrix(self):
+    def loop_param_and_site_survival_rate_matrix(self, return_site_occupancies = False):
         '''
         return an array of loop parameters
         and a matrix with each row being the survival rate array of each site
@@ -877,7 +877,10 @@ class TweezerStatistician(BaseStatistician):
         # survival rate using laplace rule of succession
         survival_rates = (surviving_atoms_sum + 1) / (initial_atoms_sum + 2)
 
-        return unique_params,survival_rates.T
+        if not return_site_occupancies:
+            return unique_params,survival_rates.T
+        else:
+            return unique_params,survival_rates.T, self.site_occupancies
 
     # TODO: merge this into plot_survival_rate_by_site
     def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None, plot_grouped_averaged = False): #TODO: add grouped averaged option
@@ -939,10 +942,12 @@ class TweezerStatistician(BaseStatistician):
 
     def plot_avg_survival_rate_by_grouped_sites_1d(self, group_size, fit_type = None):
 
-        unique_params, data = self.loop_param_and_site_survival_rate_matrix()
+        unique_params, data, site_occupancies_matrix = self.loop_param_and_site_survival_rate_matrix(return_site_occupancies = True)
         file_path = os.path.join(f"{self.folder_path}/", 'survival_by_sites_matrix.npy')
         np.save(file_path, data)
-        print('file saved!')
+        file_path = os.path.join(f"{self.folder_path}/", 'site_occupancies_matrix.npy')
+        np.save(file_path, data)
+        print('files saved!')
 
         # Define the damped Rabi oscillation model
         def rabi_model(t, A, Omega, phi, T2, C, exp_decay = False):
