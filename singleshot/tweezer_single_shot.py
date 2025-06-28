@@ -9,7 +9,7 @@ from analysislib.common.plot_config import PlotConfig
 
 SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to false
-FIT_LORENTZ = True
+FIT_LORENTZ = False
 USE_AVERAGED_BACKGROUND = True
 SHOW_IMG_ONLY = False
 
