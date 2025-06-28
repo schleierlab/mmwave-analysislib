@@ -296,6 +296,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         atoms_roi = self.atoms_roi
         axs[0, 0].add_patch(atoms_roi.patch(scale_factor=plot_units_per_pixel))
         axs[1, 0].set_title('Cloud Region \n(background subtracted)')
+        # axs[1, 0].axhline(y=1.06, color='white', linestyle='--', label='Reference Line')
 
         img_obj.imshow_view(
             atoms_roi,
