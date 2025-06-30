@@ -57,6 +57,14 @@ class BaseStatistician(ABC):
     # have access to them and we keep fitting functionality in one place.
 
     @staticmethod
+    # Define the damped Rabi oscillation model
+    def rabi_model(t, A, Omega, phi, T2, C, exp_decay = False):
+        if exp_decay:
+            return A * np.cos(Omega * t + phi) * np.exp(-t / T2) + C
+        else:
+            return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C # gaussian decay
+
+    @staticmethod
     def lorentzian(x, x0, width, a, offset):
         """
         Returns a Lorentzian function.

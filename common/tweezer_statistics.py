@@ -478,7 +478,6 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
 
-
     def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True, plot_gaussian: bool = False):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -843,41 +842,48 @@ class TweezerStatistician(BaseStatistician):
         ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
         ax.legend()
 
-    def loop_param_and_site_survival_rate_matrix(self):
+    def loop_param_and_site_survival_rate_matrix(self, num_time_groups = 1, method = 'laplace'):
         '''
         return an array of loop parameters
-        and a matrix with each row being the survival rate array of each site
-        with shape (num_sites, length_loop_params)
+        and a array of matrix with each row being the survival rate array of each site
+        with shape (num_sites, length_loop_params, num_time_groups)
+        num_time_groups split the data into groups taken in earlier time and later time
+        based on the shot number
         '''
         loop_params = self.current_params[:, 0]
-
-        # Group data points by x-value and calculate statistics
         unique_params = np.unique(loop_params)
+        num_unique = len(unique_params)
+        num_sites = self.site_occupancies.shape[2]
 
-        # Calculate survival rates
         initial_atoms = self.site_occupancies[:, 0, :]
-
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1)
 
+        # Initialize array: (num_sites, num_unique_params, num_groups_per_param)
+        survival_rates = np.empty((num_sites, num_unique, num_time_groups))
 
-        initial_atoms_sum = np.array([
-            np.sum(initial_atoms[loop_params == x], axis=0)
-            for x in unique_params
-        ])
+        for i, x in enumerate(unique_params):
+            idx = np.where(loop_params == x)[0]
+            shots_per_param = len(idx)
+            group_size = shots_per_param // num_time_groups
 
-        surviving_atoms_sum = np.array([
-            np.sum(surviving_atoms[loop_params == x], axis=0)
-            for x in unique_params
-        ])
+            for g in range(num_time_groups):
+                start = g * group_size
+                end = (g + 1) * group_size if g < num_time_groups - 1 else shots_per_param
 
-        #survival_rates = surviving_atoms / initial_atoms
-        # survival rate using laplace rule of succession
-        survival_rates = (surviving_atoms_sum + 1) / (initial_atoms_sum + 2)
+                selected_idx = idx[start:end]
+                i_sum = np.sum(initial_atoms[selected_idx], axis=0)
+                s_sum = np.sum(surviving_atoms[selected_idx], axis=0)
+                # survival_rates = surviving_atoms / initial_atoms
+                # survival rate using laplace rule of succession
+                if method == 'exact':
+                    survival_rates[:, i, g] = s_sum / i_sum
+                elif method == 'laplace':
+                    survival_rates[:, i, g] = (s_sum + 1) / (i_sum + 2)
 
-        return unique_params,survival_rates.T
+        return unique_params, survival_rates
 
     # TODO: merge this into plot_survival_rate_by_site
     def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None, plot_grouped_averaged = False): #TODO: add grouped averaged option
@@ -900,6 +906,7 @@ class TweezerStatistician(BaseStatistician):
             is_subfig = True
 
         unique_params, survival_rates_matrix = self.loop_param_and_site_survival_rate_matrix()
+        survival_rates_matrix = survival_rates_matrix[:, :, 0]
 
         n_sites = survival_rates_matrix.shape[0]
 
@@ -937,7 +944,72 @@ class TweezerStatistician(BaseStatistician):
         print('shape of averaged data', averaged_data.shape)
         return n_groups, averaged_data
 
-    def plot_avg_survival_rate_by_grouped_sites_1d(self, group_size, fit_type = None):
+    def plot_avg_survival_rate_by_grouped_sites_1d(self, group_size, fit_type=None, num_time_groups = 1):
+        """
+        Parameters:
+            unique_params: shape (num_unique_params,)
+            data: shape (num_sites, num_unique_params, num_groups)
+            group_size: how many sites per row (grouped for averaging)
+            fit_type: if 'rabi_oscillation', fit each trace
+        """
+        unique_params, data = self.loop_param_and_site_survival_rate_matrix(num_time_groups)
+        num_sites, num_params, num_groups = data.shape
+        assert num_sites % group_size == 0, "num_sites must be divisible by group_size"
+        n_rows = num_sites // group_size
+        n_cols = num_groups
+
+        # Average over site groups
+        averaged_data = data.reshape(n_rows, group_size, num_params, num_groups).mean(axis=1)
+        # shape: (n_rows, num_params, num_groups)
+
+        # Create subplot grid
+        fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, sharex=True, sharey=True,
+                                figsize=(4 * n_cols, 2.5 * n_rows), layout='constrained')
+
+        if n_rows == 1 and n_cols == 1:
+            axs = np.array([[axs]])
+        elif n_rows == 1:
+            axs = np.expand_dims(axs, axis=0)  # shape (1, n_cols)
+        elif n_cols == 1:
+            axs = np.expand_dims(axs, axis=1)  # shape (n_rows, 1)
+        # else axs is already 2D
+
+        for row in range(n_rows):
+            for col in range(n_cols):
+                ax = axs[row, col]
+                y = averaged_data[row, :, col]
+                ax.plot(unique_params, y, '.-', label=rf'site group {row}')
+
+                # Title for top row only
+                if row == 0:
+                    ax.set_title(f'Time Group {col}', fontsize=12)
+
+                if fit_type == 'rabi_oscillation':
+                    try:
+                        initial_guess = [1, 2 * np.pi * 2e6, 0, 1e-6, 0.5]
+                        params_opt, _ = curve_fit(self.rabi_model, unique_params, y, p0=initial_guess)
+                        A_fit, Omega_fit, phi_fit, T2_fit, C_fit = params_opt
+                        ax.plot(unique_params, self.rabi_model(unique_params, *params_opt), 'r-', label='Fit')
+
+                        annotation_text = (
+                            f'p-p Ampl: {A_fit*2:.3f}\n'
+                            f'Ω: {Omega_fit / 1e6 / (2*np.pi):.3f} MHz\n'
+                            f'Phase: {phi_fit:.2f} rad\n'
+                            f'T₂*: {T2_fit * 1e6:.2f} µs'
+                        )
+                        ax.annotate(annotation_text,
+                                    xy=(0.02, 0.05), xycoords='axes fraction',
+                                    fontsize=9, ha='left', va='bottom')
+                    except Exception as e:
+                        ax.annotate("Fit failed", xy=(0.02, 0.05), xycoords='axes fraction',
+                                    fontsize=9, ha='left', va='bottom')
+
+                ax.legend(loc='upper right')
+
+        fig.supxlabel('Time')
+        fig.supylabel('Population')
+
+    def plot_avg_survival_rate_by_grouped_sites_1d_old(self, group_size, fit_type = None):
 
         unique_params, data =  self.loop_param_and_site_survival_rate_matrix()
         site_occupancies_matrix = self.site_occupancies
@@ -946,13 +1018,6 @@ class TweezerStatistician(BaseStatistician):
         file_path = os.path.join(f"{self.folder_path}/", 'site_occupancies_matrix.npy')
         np.save(file_path, site_occupancies_matrix)
         print('files saved!')
-
-        # Define the damped Rabi oscillation model
-        def rabi_model(t, A, Omega, phi, T2, C, exp_decay = False):
-            if exp_decay:
-                return A * np.cos(Omega * t + phi) * np.exp(-t / T2) + C
-            else:
-                return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C # gaussian decay
 
         n_groups, averaged_data = self.group_data(data, group_size)
 
@@ -967,12 +1032,12 @@ class TweezerStatistician(BaseStatistician):
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
-                initial_guess = [1, 2*np.pi*2e6, 0, 1e-6, 0.5]
-                params_opt, params_cov = curve_fit(rabi_model, unique_params, averaged_data[i], p0=initial_guess)
+                initial_guess = [1, 2*np.pi*2e6, 0, 2e-6, 0.5]
+                params_opt, params_cov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
 
                 # Extract fit results
                 A_fit, Omega_fit, phi_fit, T2_fit, C_fit = params_opt
-                ax.plot(unique_params, rabi_model(unique_params, *params_opt), 'r-', label=rf'{i}Fit')
+                ax.plot(unique_params, self.rabi_model(unique_params, *params_opt), 'r-', label=rf'{i}Fit')
                 annotation_text = (
                     f'p-p Ampl: {A_fit*2:.3f}\n'
                     f'$\Omega$: {Omega_fit / 1e6 / (2 * np.pi):.3f} MHz\n'
