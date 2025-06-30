@@ -5,12 +5,14 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta, norm
+from scipy.optimize import curve_fit
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import uncertainties
 from pathlib import Path
 import lyse
+import os
 
 # try:
 #     lyse
@@ -82,7 +84,7 @@ class TweezerStatistician(BaseStatistician):
             second_shot = self.site_occupancies[i,1,:]
             second_shot_target_array = second_shot[target_array]
             # use only the targe indexs
-            if np.sum(first_shot) >= len(first_shot)/2:
+            if np.sum(first_shot) >= len(target_array):
                 # print("Occupy >= 50%, starting rearrange")
                 rearrange_index.append(i)
                 atom_number_target_array[i] = np.sum(second_shot_target_array)
@@ -113,28 +115,89 @@ class TweezerStatistician(BaseStatistician):
         # For each shot in rearrange_shots, sum over all target sites in the 2nd image
         # Shape: (n_rearrange_shots, len(target_array)) -> sum over axis=1 -> (n_rearrange_shots,)
         # rearrange_success_atom_count = self.site_occupancies[rearrange_shots, 1, :][:, target_array].sum(axis=1)
-        rearrange_success_atom_count = self.site_occupancies[:, 1, :][:, target_array].sum(axis=1)
-        success_rearrange = np.sum(rearrange_success_atom_count == n_target)
-        # print(rearrange_success_atom_count)
-        # print(success_rearrange)
-        return success_rearrange, rearrange_success_atom_count, n_rearrange_shots, avg_site_success_rate
 
-    def plot_rearrange_histagram(self, target_array, ax: Optional[Axes] = None):
+        # Calculate atom count in target_array for the second image, for ALL shots
+        atom_count_in_target_all_shots = self.site_occupancies[:, 1, :][:, target_array].sum(axis=1)
+        # Filter this count for only the rearrange_shots
+        atom_count_in_target_rearrange_shots = atom_count_in_target_all_shots[rearrange_shots] # shape: (n_rearrange_shots,)
+
+        success_rearrange = np.sum(atom_count_in_target_rearrange_shots == n_target)
+        atom_count_in_target = [atom_count_in_target_all_shots, atom_count_in_target_rearrange_shots]
+        return success_rearrange, atom_count_in_target, n_rearrange_shots, avg_site_success_rate
+
+    def plot_rearrange_histagram(self, target_array, ax: Optional[Axes] = None, plot_overlapping_histograms: bool = True):
+        '''
+        Plots a histogram of the number of sites in the taerget array after rearrangement.
+
+        Parameters
+        ----------
+        target_array : array_like
+            Array of target sites.
+        ax : matplotlib.axes.Axes, optional
+            Axes object to plot on. If None, a new figure is created.
+        plot_overlapping_histograms : bool, optional
+            Whether to plot overlapping histograms. The default is True.
+            When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
+            This is helpful when we have bug that causes a lot of rearrangement shots end up with zero atoms in target sites.
+            When set to False, plot only the histogram of all shots.
+        '''
         # Bar plot: Number of sites after rearrangement
-        success_rearrange, rearrange_success_atom_count, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
+        success_rearrange, atom_count_in_target_list, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
 
+        atom_counts_all_shots = atom_count_in_target_list[0]
         n_target = len(target_array)
-        n_shots = len(self.site_occupancies)
-        print('n_shots', n_shots)
+        n_shots = len(self.site_occupancies) # For unified title
+
+        ax.set_xlabel('Number of loaded target sites after rearrangement')
+        ax.set_ylabel('Frequency')
+        ax.grid(axis='y')
+
+        title_parts = [f'{n_target} target sites']
+        if n_shots > 0 and n_rearrange_shots > 0:
+            ratio = n_rearrange_shots / n_shots
+            rate = success_rearrange / n_rearrange_shots
+            title_parts.append(f'rearrange shot ratio: {ratio:.3f}, success rate: {rate:.3f}')
+        elif n_rearrange_shots == 0 and n_shots > 0:
+             title_parts.append('no rearrangement attempts made')
+        else:
+            title_parts.append('no shot data for title metrics')
+        ax.set_title('\n'.join(title_parts))
+
+        if plot_overlapping_histograms:
+            atom_counts_rearrange_shots = atom_count_in_target_list[1]
+
+            unique_all, counts_all = np.unique(atom_counts_all_shots, return_counts=True)
+            unique_rearrange, counts_rearrange = np.unique(atom_counts_rearrange_shots, return_counts=True)
+
+            bar_width_all = 0.8
+            bar_width_rearrange = bar_width_all * 0.7
+
+            x_all = unique_all.astype(int)
+            x_rearrange = unique_rearrange.astype(int)
+
+            if len(counts_all) > 0:
+                ax.bar(x_all, counts_all, width=bar_width_all, label=f'All Shots ({n_shots} shots)', alpha=0.5, color='skyblue')
+            if len(counts_rearrange) > 0:
+                ax.bar(x_rearrange, counts_rearrange, width=bar_width_rearrange, label=f'Rearrange Attempts ({n_rearrange_shots} shots)', alpha=0.8, color='royalblue')
+
+            if len(x_all) > 0:
+                ax.set_xticks(x_all)
+
+            if len(counts_all) > 0 or len(counts_rearrange) > 0:
+                ax.legend()
+        else:
+            unique_elements, counts = np.unique(atom_counts_all_shots, return_counts=True)
+
+            if len(counts) > 0:
+                ax.bar(unique_elements, counts, width=0.5)
+
+            if len(unique_elements) > 0:
+                ax.set_xticks(unique_elements.astype(int))
+
+        print('n_shots (total experiment)', n_shots)
         print('n_rarrange_shots', n_rearrange_shots)
         print('success_rearrange', success_rearrange)
-        unique_elements, counts = np.unique(rearrange_success_atom_count, return_counts=True)
-        ax.bar(unique_elements, counts, width=0.5)
-        ax.grid(axis='y')
-        ax.set_xlabel('Number of sites after rearrangement')
-        ax.set_ylabel('Frequency')
-        ax.set_title(f'{n_target} target sites\nrearrange shot ratio: {n_rearrange_shots/n_shots:.2f}, success rate: {success_rearrange/n_rearrange_shots:.3f}')
-        ax.set_xticks(unique_elements)
+        print(f'Rearrange attempts with 0 loaded atoms: {(atom_count_in_target_list[1] == 0).sum()}')
 
     def plot_rearrange_site_success_rate(self, target_array, ax: Optional[Axes] = None):
         # Site success rate plot
@@ -146,7 +209,7 @@ class TweezerStatistician(BaseStatistician):
         ax.legend()
         ax.grid()
         ax.set_xlabel('Tweezer index')
-        ax.set_ylabel(f'Rearrangement success rate')
+        ax.set_ylabel('Rearrangement success rate')
         ax.set_title(f'Target sites success rate, {n_rearrange_shots} shots average')
         # Make x-axis show only integers
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -164,55 +227,9 @@ class TweezerStatistician(BaseStatistician):
         ax.plot(second_img_loading_rate,  '.-', label='2nd shot')
         ax.grid()
         ax.set_xlabel('Tweezer index')
-        ax.set_ylabel(f'loading rate')
+        ax.set_ylabel('loading rate')
         ax.set_title(f'Tweezer site loading rates, {n_shots} shots average')
         ax.legend()
-
-    def plot_rearrange_success_rate(
-            self,
-            atom_number_target_array,
-            target_array,
-            ax: Optional[Axes] = None,
-            ):
-        """
-        Plots the survival rate of atoms in the tweezers, site by site.
-
-        Parameters
-        ----------
-        fig : Optional[Figure]
-            The figure to plot on. If None, a new figure is created.
-        """
-        if ax is None:
-            fig, ax = plt.subplots(
-                figsize=self.plot_config.figure_size,
-                constrained_layout=self.plot_config.constrained_layout,
-            )
-        else:
-            ax = ax
-
-        bins = (np.arange(
-            min(atom_number_target_array),
-            max(atom_number_target_array) + 2) - 0.5)
-        # Create the histogram
-        ax.hist(
-            atom_number_target_array,
-            bins,
-            align='mid',
-            rwidth=0.5
-            )
-        ax.set_xticks(np.arange(len(target_array)+1))
-        ax.set_xlabel('atom number in target array')
-        ax.set_ylabel('times')
-        rearrange_number = (
-            atom_number_target_array.shape[0]
-            - atom_number_target_array[atom_number_target_array==0].shape[0]
-            )
-
-        rearrange_rate = rearrange_number/atom_number_target_array.shape[0]
-        success_number = atom_number_target_array[atom_number_target_array==len(target_array)].shape[0]
-        rearrange_success_rate = success_number/rearrange_number
-
-        ax.set_title(f' rearrange rate = {rearrange_rate*100:.1f}%, success rate = {rearrange_success_rate*100:.1f}%')
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -461,8 +478,7 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
 
-
-    def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True):
+    def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True, plot_gaussian: bool = False):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
 
@@ -702,11 +718,12 @@ class TweezerStatistician(BaseStatistician):
                     1000,
                 )
 
-                axs.plot(x_plot, self.lorentzian(x_plot, *popt))
+                axs[0].plot(x_plot, self.lorentzian(x_plot, *popt))
                 fig.suptitle(
                     f'Center frequency: ${upopt[0]:SL}$ MHz; '
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
                 )
+            return unique_params, survival_rates, sigma_beta
 
         elif loop_params.ndim == 2:
             if fig is not None:
@@ -737,6 +754,11 @@ class TweezerStatistician(BaseStatistician):
                 survival_rates,
             )
 
+            if plot_gaussian:
+                popt, perr = self.fit_gaussian_2d(x_params, y_params, survival_rates)
+
+
+
             fig.colorbar(pcolor_survival_rate, ax=ax1)
 
             pcolor_std =ax2.pcolormesh(
@@ -744,6 +766,8 @@ class TweezerStatistician(BaseStatistician):
                 y_params,
                 sigma_beta,
             )
+
+
 
             fig.colorbar(pcolor_std, ax=ax2)
 
@@ -765,14 +789,16 @@ class TweezerStatistician(BaseStatistician):
                 axs.grid(color=self.plot_config.grid_color_minor, which='minor')
             ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
             ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
+            if plot_gaussian:
+                ax1.title.set_text(f'X waist = {popt[3]:.2f} +/- {perr[3]:.2f}, Y waist = {popt[4]:.2f} +/- {perr[4]:.2f}')
 
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
 
-
         figname = self.folder_path / 'survival_rate_vs_param.pdf'
         if not is_subfig:
             fig.savefig(figname)
+        return unique_params, survival_rates, sigma_beta
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
@@ -816,8 +842,51 @@ class TweezerStatistician(BaseStatistician):
         ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
         ax.legend()
 
+    def loop_param_and_site_survival_rate_matrix(self, num_time_groups = 1, method = 'laplace'):
+        '''
+        return an array of loop parameters
+        and a array of matrix with each row being the survival rate array of each site
+        with shape (num_sites, length_loop_params, num_time_groups)
+        num_time_groups split the data into groups taken in earlier time and later time
+        based on the shot number
+        '''
+        loop_params = self.current_params[:, 0]
+        unique_params = np.unique(loop_params)
+        num_unique = len(unique_params)
+        num_sites = self.site_occupancies.shape[2]
+
+        initial_atoms = self.site_occupancies[:, 0, :]
+        # site_occupancies is of shape (num_shots, num_images, num_atoms)
+        # axis=1 corresponds to the before/after tweezer images
+        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
+        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1)
+
+        # Initialize array: (num_sites, num_unique_params, num_groups_per_param)
+        survival_rates = np.empty((num_sites, num_unique, num_time_groups))
+
+        for i, x in enumerate(unique_params):
+            idx = np.where(loop_params == x)[0]
+            shots_per_param = len(idx)
+            group_size = shots_per_param // num_time_groups
+
+            for g in range(num_time_groups):
+                start = g * group_size
+                end = (g + 1) * group_size if g < num_time_groups - 1 else shots_per_param
+
+                selected_idx = idx[start:end]
+                i_sum = np.sum(initial_atoms[selected_idx], axis=0)
+                s_sum = np.sum(surviving_atoms[selected_idx], axis=0)
+                # survival_rates = surviving_atoms / initial_atoms
+                # survival rate using laplace rule of succession
+                if method == 'exact':
+                    survival_rates[:, i, g] = s_sum / i_sum
+                elif method == 'laplace':
+                    survival_rates[:, i, g] = (s_sum + 1) / (i_sum + 2)
+
+        return unique_params, survival_rates
+
     # TODO: merge this into plot_survival_rate_by_site
-    def plot_survival_rate_by_site_2d(self, fig: Optional[Figure] = None):
+    def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None, plot_grouped_averaged = False): #TODO: add grouped averaged option
         """
         Plots the survival rate of atoms in the tweezers, site by site.
 
@@ -826,48 +895,200 @@ class TweezerStatistician(BaseStatistician):
         fig : Optional[Figure]
             The figure to plot on. If None, a new figure is created.
         """
-        if fig is None:
+        if ax is None:
             fig, ax = plt.subplots(
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
+            is_subfig = False
         else:
-            ax = fig.subplots()
+            ax = ax
+            is_subfig = True
 
-        loop_params = self.current_params[:, 0]
+        unique_params, survival_rates_matrix = self.loop_param_and_site_survival_rate_matrix()
+        survival_rates_matrix = survival_rates_matrix[:, :, 0]
 
-        # Group data points by x-value and calculate statistics
-        unique_params = np.unique(loop_params)
+        n_sites = survival_rates_matrix.shape[0]
 
-        # Calculate survival rates
-        initial_atoms = self.site_occupancies[:, 0, :]
-        n_sites = self.site_occupancies.shape[2]
+        if plot_grouped_averaged:
+            n_groups, averaged_data = self.group_data(survival_rates_matrix, group_size = 10)
+            # 2D plot, group averaged
+            pm = ax.pcolormesh(
+                unique_params,
+                np.arange(n_groups),
+                averaged_data,
+            )
+        else:
+            # 2D plot, all sites
+            pm = ax.pcolormesh(
+                unique_params,
+                np.arange(n_sites),
+                survival_rates_matrix,
+            )
 
-        # site_occupancies is of shape (num_shots, num_images, num_atoms)
-        # axis=1 corresponds to the before/after tweezer images
-        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1)
+        ax.set_xlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
+        ax.set_ylabel('Site index')
+        cbar = fig.colorbar(pm, ax=ax)
 
+        if not is_subfig:
+            fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
+            fig.suptitle(f"{self.folder_path}")
 
-        initial_atoms_sum = np.array([
-            np.sum(initial_atoms[loop_params == x], axis=0)
-            for x in unique_params
-        ])
+    def group_data(self, data, group_size):
+        n_groups = data.shape[0]//group_size
+        print('n_groups',n_groups)
+        grouped_data = data[:data.shape[0]].reshape(n_groups, group_size, -1)
+        averaged_data = grouped_data.mean(axis = 1)
 
-        surviving_atoms_sum = np.array([
-            np.sum(surviving_atoms[loop_params == x], axis=0)
-            for x in unique_params
-        ])
+        print('shape of data', data.shape)
+        print('shape of averaged data', averaged_data.shape)
+        return n_groups, averaged_data
 
-        #survival_rates = surviving_atoms / initial_atoms
-        # survival rate using laplace rule of succession
-        survival_rates = (surviving_atoms_sum + 1) / (initial_atoms_sum + 2)
+    def plot_avg_survival_rate_by_grouped_sites_1d(self, group_size, fit_type=None, num_time_groups = 1):
+        """
+        Parameters:
+            unique_params: shape (num_unique_params,)
+            data: shape (num_sites, num_unique_params, num_groups)
+            group_size: how many sites per row (grouped for averaging)
+            fit_type: if 'rabi_oscillation', fit each trace
+        """
+        unique_params, data = self.loop_param_and_site_survival_rate_matrix(num_time_groups)
+        num_sites, num_params, num_groups = data.shape
+        assert num_sites % group_size == 0, "num_sites must be divisible by group_size"
+        n_rows = num_sites // group_size
+        n_cols = num_groups
 
-        ax.pcolormesh(
-            unique_params,
-            np.arange(n_sites),
-            survival_rates.T,
-        )
+        # Average over site groups
+        averaged_data = data.reshape(n_rows, group_size, num_params, num_groups).mean(axis=1)
+        # shape: (n_rows, num_params, num_groups)
 
-        fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
+        # Create subplot grid
+        fig, axs = plt.subplots(nrows=n_rows, ncols=n_cols, sharex=True, sharey=True,
+                                figsize=(4 * n_cols, 2.5 * n_rows), layout='constrained')
+
+        if n_rows == 1 and n_cols == 1:
+            axs = np.array([[axs]])
+        elif n_rows == 1:
+            axs = np.expand_dims(axs, axis=0)  # shape (1, n_cols)
+        elif n_cols == 1:
+            axs = np.expand_dims(axs, axis=1)  # shape (n_rows, 1)
+        # else axs is already 2D
+
+        for row in range(n_rows):
+            for col in range(n_cols):
+                ax = axs[row, col]
+                y = averaged_data[row, :, col]
+                ax.plot(unique_params, y, '.-', label=rf'site group {row}')
+
+                # Title for top row only
+                if row == 0:
+                    ax.set_title(f'Time Group {col}', fontsize=12)
+
+                if fit_type == 'rabi_oscillation':
+                    try:
+                        initial_guess = [1, 2 * np.pi * 2e6, 0, 1e-6, 0.5]
+                        params_opt, _ = curve_fit(self.rabi_model, unique_params, y, p0=initial_guess)
+                        A_fit, Omega_fit, phi_fit, T2_fit, C_fit = params_opt
+                        ax.plot(unique_params, self.rabi_model(unique_params, *params_opt), 'r-', label='Fit')
+
+                        annotation_text = (
+                            f'p-p Ampl: {A_fit*2:.3f}\n'
+                            f'Ω: {Omega_fit / 1e6 / (2*np.pi):.3f} MHz\n'
+                            f'Phase: {phi_fit:.2f} rad\n'
+                            f'T₂*: {T2_fit * 1e6:.2f} µs'
+                        )
+                        ax.annotate(annotation_text,
+                                    xy=(0.02, 0.05), xycoords='axes fraction',
+                                    fontsize=9, ha='left', va='bottom')
+                    except Exception as e:
+                        ax.annotate("Fit failed", xy=(0.02, 0.05), xycoords='axes fraction',
+                                    fontsize=9, ha='left', va='bottom')
+
+                ax.legend(loc='upper right')
+
+        fig.supxlabel('Time')
+        fig.supylabel('Population')
+
+    def plot_avg_survival_rate_by_grouped_sites_1d_old(self, group_size, fit_type = None):
+
+        unique_params, data =  self.loop_param_and_site_survival_rate_matrix()
+        site_occupancies_matrix = self.site_occupancies
+        file_path = os.path.join(f"{self.folder_path}/", 'survival_by_sites_matrix.npy')
+        np.save(file_path, data)
+        file_path = os.path.join(f"{self.folder_path}/", 'site_occupancies_matrix.npy')
+        np.save(file_path, site_occupancies_matrix)
+        print('files saved!')
+
+        n_groups, averaged_data = self.group_data(data, group_size)
+
+        # 1D plot, group averaged, in the same plot
+        # for i in np.arange(averaged_data.shape[0]):
+        #     ax.plot(unique_params, averaged_data[i],'.-',label = rf'{i}')
+
+        #1D plot, group averaged, separate plots with fit
+        fig, axs = plt.subplots(nrows=n_groups, ncols=1, sharex=True, sharey= True, layout='constrained')
+        for i in np.flip(np.arange(averaged_data.shape[0])):
+            ax = axs[-i-1]
+            ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
+            if fit_type == 'rabi_oscillation':
+                # Fit the model to the data
+                initial_guess = [1, 2*np.pi*2e6, 0, 2e-6, 0.5]
+                params_opt, params_cov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
+
+                # Extract fit results
+                A_fit, Omega_fit, phi_fit, T2_fit, C_fit = params_opt
+                ax.plot(unique_params, self.rabi_model(unique_params, *params_opt), 'r-', label=rf'{i}Fit')
+                annotation_text = (
+                    f'p-p Ampl: {A_fit*2:.3f}\n'
+                    f'$\Omega$: {Omega_fit / 1e6 / (2 * np.pi):.3f} MHz\n'
+                    f'Phase: {phi_fit:.2f} rad\n'
+                    f'T₂*: {T2_fit * 1e6:.2f} µs\n'
+                    # f'Offset: {C_fit:.2f}'
+                )
+                # ax.annotate(annotation_text,
+                #             xy=(0.02, 0.95),  # top-left corner inside the subplot
+                #             xycoords='axes fraction',
+                #             fontsize=9,
+                #             ha='left', va='top',
+                #             )
+                ax.annotate(annotation_text,
+                            xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
+                            xycoords='axes fraction',
+                            fontsize=9,
+                            ha='left', va='bottom',
+                            )
+
+                ax.legend(loc='upper right')
+            elif fit_type == 'lorentzian':
+                popt, pcov = self.fit_lorentzian(unique_params, averaged_data[i], sigma=None)
+                upopt = uncertainties.correlated_values(popt, pcov)
+
+                x_plot = np.linspace(
+                    np.min(unique_params),
+                    np.max(unique_params),
+                    1000,
+                )
+
+                ax.plot(x_plot, self.lorentzian(x_plot, *popt), 'r-', label=rf'{i}Fit')
+                annotation_text = (
+                    f'Center frequency: ${upopt[0]:SL}$ MHz\n'
+                    f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+                )
+                ax.annotate(annotation_text,
+                            xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
+                            xycoords='axes fraction',
+                            fontsize=9,
+                            ha='left', va='bottom',
+                            )
+                print(popt[0], pcov[0][0]) # print out value for plotting
+                ax.legend(loc='upper right')
+        # fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
+        # TODO change this to fit with whatever we are plotting
+        # fig.supxlabel('Time')
+        fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
+        fig.supylabel('Population')
+
+        # fig.suptitle("Rabi Oscillation Fits", fontsize=14)
+
+        fig.savefig(f"{self.folder_path}/grouped_survival_rate_by_site_1d.pdf")
         fig.suptitle(f"{self.folder_path}")

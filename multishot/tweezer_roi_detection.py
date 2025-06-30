@@ -15,22 +15,21 @@ USE_AVERAGED_BACKGROUND = True
 folder = select_data_directory()
 
 finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAGED_BACKGROUND)
-new_site_rois = finder.detect_rois_by_roi_number(roi_number=40, neighborhood_size=5, detection_threshold = 30)
+new_site_rois = finder.detect_rois_by_roi_number(roi_number= 50, neighborhood_size=5, detection_threshold = 35)
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
-finder.plot_sites(new_site_rois)
-
-
 # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
 # TODO: Include survival rate if taking two shots
-thresholder = TweezerThresholder(
-    finder.images,
-    new_site_rois,
-    background_subtract=background_subtract,
-    weights=finder.weight_functions(new_site_rois, background_subtract=background_subtract),
-)
 
 multishot_analysis = TweezerMultishotAnalysis(folder, use_averaged_background = USE_AVERAGED_BACKGROUND)
 
+finder.plot_sites(new_site_rois)
+
+thresholder = TweezerThresholder(
+        finder.images,
+        new_site_rois,
+        background_subtract=background_subtract,
+        weights=finder.weight_functions(new_site_rois, background_subtract=background_subtract),
+    )
 thresholder.fit_gmms() # gmm stands for Gaussian mixture model
 thresholder.overwrite_thresholds_to_yaml(folder)
 

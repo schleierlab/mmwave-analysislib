@@ -15,6 +15,9 @@ class TweezerFinder:
     def __init__(self, images: Sequence[Image]):
         self.images = images
         self.averaged_image = Image.mean(images)
+        self.avg_1st_img = Image.mean(images[::2])
+        self.avg_2nd_img = Image.mean(images[1::2])
+        # Need to include more images if we take more images per shot
 
     def detect_rois_by_roi_number(
         self,
@@ -47,8 +50,31 @@ class TweezerFinder:
             )
 
         print(f"Exactly {len(site_rois)} sites found")
+        site_rois = self.remove_overlapping_rois(site_rois, min_distance=roi_size)
 
         return site_rois
+
+    def remove_overlapping_rois(self, rois, min_distance):
+        """
+        Remove ROIs whose centers are closer than min_distance.
+        Args:
+            rois: list of ROI objects or tuples (x, y, ...)
+            min_distance: minimum allowed distance between ROI centers
+        Returns:
+            Filtered list of ROIs
+        """
+        filtered = []
+        centers = []
+        for roi in rois:
+            # Extract center coordinates depending on your ROI format
+            if hasattr(roi, 'x') and hasattr(roi, 'y'):
+                cx, cy = roi.x, roi.y
+            else:
+                cx, cy = roi[0], roi[1]  # adjust if your ROI is a tuple/list
+            if all(np.hypot(cx - x0, cy - y0) >= min_distance for x0, y0 in centers):
+                filtered.append(roi)
+                centers.append((cx, cy))
+        return filtered
 
     def detect_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
         return self.averaged_image.detect_site_rois(neighborhood_size, detection_threshold, roi_size)
@@ -61,7 +87,7 @@ class TweezerFinder:
         ]
 
     @classmethod
-    def load_from_h5(cls, h5_path: Union[str, PathLike], use_averaged_background = False):
+    def load_from_h5(cls, h5_path: Union[str, PathLike], use_averaged_background = False, include_2_images = False):
         sequence_dir = Path(h5_path)
         cls.folder = sequence_dir
         shots_h5s = sequence_dir.glob('20*.h5')
@@ -71,6 +97,8 @@ class TweezerFinder:
             print(shot)
             processor = TweezerPreprocessor(load_type='h5', h5_path=shot, use_averaged_background = use_averaged_background)
             images.append(processor.images[0])
+            if include_2_images:
+                images.append(processor.images[1])
 
         return cls(images)
 
@@ -122,7 +150,12 @@ class TweezerFinder:
         print(f'Site ROIs dumped to {output_path}')
 
 
+
     def plot_sites(self, rois: Sequence[ROI]):
+        '''
+        Plot the average of the 1st image taken from each shot
+        Include rois
+        '''
         fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
 
         rois_bbox = ROI.bounding_box(rois)
@@ -156,12 +189,49 @@ class TweezerFinder:
                     'fontsize':'small',
                     }
         [ax.annotate(
-            str(j),
-            xy = (roi.xmin, roi.ymin - 5),
+            str(j), # The site index to display
+            xy=(roi.xmin, roi.ymin - 5), # Position of the text
             **text_kwargs
             )
-            for j, roi in enumerate(rois)]
+        # Iterate through sites, but only annotate if j is a multiple of 5
+        for j, roi in enumerate(rois) if j % 5 == 0]
 
-        fig.savefig(f'{self.folder}/tweezers_roi_detection_sites.pdf')
+        fig.savefig(f'{self.folder}/tweezers_averaged_image_with_site_rois.pdf')
+
+    def plot_averaged_images(self, rois: Sequence[ROI]):
+        '''
+        Plot the average of the 1st and 2nd images taken from each shot seperately
+        Doesn't include rois for now
+        '''
+        fig, axs = plt.subplots(nrows=2, ncols=1, layout='constrained')
+
+        rois_bbox = ROI.bounding_box(rois)
+        padding = 50
+        atom_roi_xlims = [rois_bbox.xmin - padding, rois_bbox.xmax + padding]
+
+        fig.suptitle(f'Tweezer site detection ({len(self.images[::2])} shots averaged)')
+        raw_img_color_kw = dict(
+            cmap='viridis',
+            vmin=0,
+            vmax=np.max(self.averaged_image.subtracted_array),
+        )
+
+        full_ylims = (
+            self.averaged_image.yshift,
+            self.averaged_image.yshift + self.averaged_image.height,
+        )
+
+        im = self.avg_1st_img.imshow_view(
+            ROI.from_roi_xy(atom_roi_xlims, full_ylims),
+            ax=axs[0],
+            **raw_img_color_kw,
+        )
+        im = self.avg_2nd_img.imshow_view(
+            ROI.from_roi_xy(atom_roi_xlims, full_ylims),
+            ax=axs[1],
+            **raw_img_color_kw,
+        )
+        fig.colorbar(im, ax=axs)
+        fig.savefig(f'{self.folder}/tweezers_averaged_images.pdf')
 
 

@@ -17,7 +17,7 @@ class TweezerMultishotAnalysis():
     """
 
     def __init__(self, folder_path: Union[str, PathLike], use_averaged_background: bool = False):
-        self.tweezer_statistician, bkg_image_lst, self.atom_roi = self.analyze_the_folder(folder_path, use_averaged_background = use_averaged_background)
+        self.tweezer_statistician, bkg_image_lst, self.atom_roi, self.site_rois = self.analyze_the_folder(folder_path, use_averaged_background = use_averaged_background)
         self.averaged_background = self.averaged_background(bkg_image_lst)
 
     @classmethod
@@ -31,6 +31,7 @@ class TweezerMultishotAnalysis():
             print(shot)
             tweezer_preproc = TweezerPreprocessor(load_type='h5', h5_path=shot, use_averaged_background = use_averaged_background)
             atom_roi = tweezer_preproc.atom_roi
+            site_rois = tweezer_preproc.site_rois
             # print(f"{atom_roi = }")
             processed_results_fname = tweezer_preproc.process_shot(use_global_threshold=True)
             bkg_image_lst.append(tweezer_preproc.images[-1])
@@ -40,7 +41,8 @@ class TweezerMultishotAnalysis():
             shot_h5_path=tweezer_preproc.h5_path, # Used only for MLOOP
             plot_config=PlotConfig(),
         )
-        return tweezer_statistician, bkg_image_lst, atom_roi
+        return tweezer_statistician, bkg_image_lst, atom_roi, site_rois
+
 
 
     def averaged_background(self, bkg_image_lst):

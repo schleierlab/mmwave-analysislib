@@ -14,6 +14,8 @@ Load data directly from 'tweezer_preprocess.h5' (this is the file generated afte
 '''
 background_subtract = True
 USE_AVERAGED_BACKGROUND = True
+PLOT_AVERAGED_IMAGES = False # Show averaged image(s) but takes longer time because need to process through all h5 files
+PLOT_TWO_IMAGES = True # only matters if PLOT_AVERAGED_IMAGES is set to True. If set to False, only plot the first image.
 folder = select_data_directory()
 
 tweezer_preproc = TweezerPreprocessor(
@@ -22,6 +24,13 @@ tweezer_preproc = TweezerPreprocessor(
     )
 new_site_rois = tweezer_preproc.site_rois
 preproc_h5_path = Path(folder) / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
+
+if PLOT_AVERAGED_IMAGES:
+    finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAGED_BACKGROUND, include_2_images = PLOT_TWO_IMAGES)
+    if PLOT_TWO_IMAGES:
+        finder.plot_averaged_images(new_site_rois)
+    else:
+        finder.plot_sites(new_site_rois)
 
 tweezer_statistician = TweezerStatistician(
                 preproc_h5_path=preproc_h5_path,
@@ -45,6 +54,9 @@ thresholder.plot_spreads(ax=axs[0])
 thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
 tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
+tweezer_statistician.plot_survival_rate_by_site_2d()
+# tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d_old(group_size = 10, fit_type = 'lorentzian')
+
 axs[0].set_ylabel('Counts')
 axs[1].set_ylabel('Loading rate')
 axs[2].set_ylabel('Infidelity')
