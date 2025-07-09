@@ -6,13 +6,15 @@ from matplotlib.axes import Axes
 from matplotlib.ticker import MaxNLocator
 from scipy.stats import beta, norm
 from scipy.optimize import curve_fit
+
 import h5py
+
 import matplotlib.pyplot as plt
 import numpy as np
 import uncertainties
 from pathlib import Path
-import lyse
 import os
+
 
 # try:
 #     lyse
@@ -245,6 +247,7 @@ class TweezerStatistician(BaseStatistician):
         """
         # Save values for MLOOP
         # Save sequence analysis result in latest run
+        import lyse
         run = lyse.Run(h5_path=shot_h5_path)
         my_condition = True
         # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
@@ -730,13 +733,11 @@ class TweezerStatistician(BaseStatistician):
                 ax1, ax2 = fig.subplots(2, 1)
                 is_subfig = True
 
-            initial_atoms_sum =self.get_sum_of_unique_params(initial_atoms, loop_params, unique_params)
+            initial_atoms_sum = self.get_sum_of_unique_params(initial_atoms, loop_params, unique_params)
             surviving_atoms_sum = self.get_sum_of_unique_params(surviving_atoms, loop_params, unique_params)
 
-
             survival_rates = surviving_atoms_sum / initial_atoms_sum # simple survival rate
-            # sqrt of variance of the posterior beta distribution
-            sigma_beta = np.sqrt(survival_rates * (1 - survival_rates) )/ initial_atoms_sum # simple survival rate std
+            sigma_beta = np.sqrt(survival_rates * (1 - survival_rates)) / initial_atoms_sum # simple survival rate std
 
             x_params_index, y_params_index = self.get_params_order(unique_params)
 
@@ -755,19 +756,16 @@ class TweezerStatistician(BaseStatistician):
             )
 
             if plot_gaussian:
-                popt, perr = self.fit_gaussian_2d(x_params, y_params, survival_rates)
-
-
+                popt, pcov = self.fit_gaussian_2d(x_params, y_params, survival_rates)
+                perr = np.sqrt(np.diag(pcov))
 
             fig.colorbar(pcolor_survival_rate, ax=ax1)
 
-            pcolor_std =ax2.pcolormesh(
+            pcolor_std = ax2.pcolormesh(
                 x_params,
                 y_params,
                 sigma_beta,
             )
-
-
 
             fig.colorbar(pcolor_std, ax=ax2)
 
@@ -799,6 +797,12 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
         return unique_params, survival_rates, sigma_beta
+
+    # TODO: move this to parent class?
+    @staticmethod
+    def param_to_label(param_array):
+        param_name, param_unit, _ = param_array
+        return f'{param_name.decode("utf-8")} ({param_unit.decode("utf-8")})'
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
@@ -1010,8 +1014,7 @@ class TweezerStatistician(BaseStatistician):
         fig.supylabel('Population')
 
     def plot_avg_survival_rate_by_grouped_sites_1d_old(self, group_size, fit_type = None):
-
-        unique_params, data =  self.loop_param_and_site_survival_rate_matrix()
+        unique_params, data = self.loop_param_and_site_survival_rate_matrix()
         site_occupancies_matrix = self.site_occupancies
         file_path = os.path.join(f"{self.folder_path}/", 'survival_by_sites_matrix.npy')
         np.save(file_path, data)

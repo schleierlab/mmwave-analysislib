@@ -33,8 +33,8 @@ if PLOT_AVERAGED_IMAGES:
         finder.plot_sites(new_site_rois)
 
 tweezer_statistician = TweezerStatistician(
-                preproc_h5_path=preproc_h5_path,
-            )
+    preproc_h5_path=preproc_h5_path,
+)
 
 thresholder = TweezerThresholder(
     None,
