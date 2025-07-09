@@ -574,7 +574,7 @@ class TweezerStatistician(BaseStatistician):
 
         elif loop_params.ndim == 1:
             if fig is not None:
-                axs = fig.subplots(nrows=3,ncols=1)
+                axs = fig.subplots(nrows=3, ncols=1)
                 is_subfig = True
 
             initial_atoms_sum = np.array([
@@ -1042,7 +1042,7 @@ class TweezerStatistician(BaseStatistician):
                     f'p-p Ampl: {A_fit*2:.3f}\n'
                     f'$\Omega$: {Omega_fit / 1e6 / (2 * np.pi):.3f} MHz\n'
                     f'Phase: {phi_fit:.2f} rad\n'
-                    f'T₂*: {T2_fit * 1e6:.2f} µs\n'
+                    f'$T_2^*$: {T2_fit * 1e6:.2f} µs\n'
                     # f'Offset: {C_fit:.2f}'
                 )
                 # ax.annotate(annotation_text,
