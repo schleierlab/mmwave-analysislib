@@ -94,7 +94,6 @@ class BaseStatistician(ABC):
         """
         Fits a Lorentzian function to the atom number data.
         """
-
         # x0_guess = x_data[np.argmin(y_data)]
         x0_guess = x_data[np.argmax(y_data)]
         x_resolution = (x_data[1] - x_data[0])
