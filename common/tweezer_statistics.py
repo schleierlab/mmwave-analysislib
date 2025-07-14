@@ -76,6 +76,10 @@ class TweezerStatistician(BaseStatistician):
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
 
+    @property
+    def initial_atoms_array(self):
+        return self.site_occupancies[:, 0, :]
+
     def rearrange_success_rate(self, target_array):
 
         atom_number_target_array = np.zeros(len(self.site_occupancies[:,0,0]))
@@ -203,7 +207,7 @@ class TweezerStatistician(BaseStatistician):
 
     def plot_rearrange_site_success_rate(self, target_array, ax: Optional[Axes] = None):
         # Site success rate plot
-        _,_,n_rearrange_shots, avg_site_success_rate = self.rearragne_statistics(target_array)
+        _, _, n_rearrange_shots, avg_site_success_rate = self.rearragne_statistics(target_array)
 
         # n_sites = self.site_occupancies.shape[2]
         ax.plot(target_array, avg_site_success_rate, 'o')
@@ -490,12 +494,9 @@ class TweezerStatistician(BaseStatistician):
         fig : Optional[Figure]
             The figure to plot on. If None, a new figure is created.
         """
-        # Group data points by x-value and calculate statistics
-        if self.current_params.shape[1] == 1:
-            loop_params = self.current_params[:, 0]
-        else:
-            loop_params = self.current_params
-        unique_params = np.unique(loop_params, axis = 0)
+        loop_params = self._loop_params()
+        unique_params = self.unique_params()
+
         # Calculate survival rates
         initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1) # sum over all sites for each shot
 
@@ -1040,12 +1041,21 @@ class TweezerStatistician(BaseStatistician):
 
                 # Extract fit results
                 A_fit, Omega_fit, phi_fit, T2_fit, C_fit = params_opt
-                ax.plot(unique_params, self.rabi_model(unique_params, *params_opt), 'r-', label=rf'{i}Fit')
+
+                upopt = uncertainties.correlated_values(params_opt, params_cov)
+
+
+                x_plot = np.linspace(
+                    np.min(unique_params),
+                    np.max(unique_params),
+                    1000,
+                )
+                ax.plot(x_plot, self.rabi_model(x_plot, *params_opt), 'r-', label=rf'{i}Fit')
                 annotation_text = (
                     f'p-p Ampl: {A_fit*2:.3f}\n'
-                    f'$\Omega$: {Omega_fit / 1e6 / (2 * np.pi):.3f} MHz\n'
+                    f'$\Omega$: {upopt[1] / 1e6 / (2 * np.pi):S} MHz\n'
                     f'Phase: {phi_fit:.2f} rad\n'
-                    f'$T_2^*$: {T2_fit * 1e6:.2f} µs\n'
+                    f'$T_2^*$: {upopt[3] * 1e6 :S} µs\n'
                     # f'Offset: {C_fit:.2f}'
                 )
                 # ax.annotate(annotation_text,
@@ -1054,16 +1064,18 @@ class TweezerStatistician(BaseStatistician):
                 #             fontsize=9,
                 #             ha='left', va='top',
                 #             )
-                ax.annotate(annotation_text,
-                            xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
-                            xycoords='axes fraction',
-                            fontsize=9,
-                            ha='left', va='bottom',
-                            )
+                ax.annotate(
+                    annotation_text,
+                    xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
+                    xycoords='axes fraction',
+                    fontsize=9,
+                    ha='left',
+                    va='bottom',
+                )
 
                 ax.legend(loc='upper right')
             elif fit_type == 'lorentzian':
-                popt, pcov = self.fit_lorentzian(unique_params, averaged_data[i], sigma=None)
+                popt, pcov = self.fit_lorentzian(unique_params, averaged_data[i], sigma=None, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
 
                 x_plot = np.linspace(
@@ -1077,12 +1089,14 @@ class TweezerStatistician(BaseStatistician):
                     f'Center frequency: ${upopt[0]:SL}$ MHz\n'
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
                 )
-                ax.annotate(annotation_text,
-                            xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
-                            xycoords='axes fraction',
-                            fontsize=9,
-                            ha='left', va='bottom',
-                            )
+                ax.annotate(
+                    annotation_text,
+                    xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
+                    xycoords='axes fraction',
+                    fontsize=9,
+                    ha='left',
+                    va='bottom',
+                )
                 print(popt[0], pcov[0][0]) # print out value for plotting
                 ax.legend(loc='upper right')
         # fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')

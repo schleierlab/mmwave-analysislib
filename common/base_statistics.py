@@ -52,6 +52,28 @@ class BaseStatistician(ABC):
         new_fig.savefig(filename, bbox_inches='tight', pad_inches=0)
         plt.close(new_fig)
 
+    def _loop_params(self):
+        # Group data points by x-value and calculate statistics
+        if self.current_params.shape[1] == 1:
+            return self.current_params[:, 0]
+        else:
+            return self.current_params
+
+    def unique_params(self):
+        '''
+        Returns
+        -------
+        The unique (i.e. de-duplicated) swept parameter combinations.
+        For example, if we are scanning `foo` over [0, 1] and `bar` over [10, 20, 30],
+        with many repetitions,
+        unique_params() will only have six entries, each of length 2:
+        [[0, 10], [0, 20], [0, 30], ...]
+        '''
+        return np.unique(self._loop_params(), axis=0)
+
+    @property
+    def expansion_ndim(self):
+        return self._loop_params().ndim
 
     # TODO: maybe we can keep all of our fitting functions here, so that both child classes
     # have access to them and we keep fitting functionality in one place.
@@ -185,6 +207,35 @@ class BaseStatistician(ABC):
         return data_new
 
     def get_params_order(self, unique_params):
+        '''
+        Given an array of lattice points formed by some Cartesian product,
+        find the order of the Cartesian product.
+
+        Returns
+        -------
+        scan_order: list[int]
+            List of indices, such that params[scan_order[i]]
+            is the i-th innermost scanned parameter.
+        '''
+        unique_params = np.asarray(unique_params)
+        ndim = unique_params.ndim  # TODO make ndim a property of the statistician
+
+        scan_order = []
+        remaining_indices = list(range(ndim))
+
+        for i in range(ndim):
+            unique_params_remaining_dims = np.unique(unique_params[:, remaining_indices], axis=0)
+            site_difference = (unique_params_remaining_dims[1] != unique_params_remaining_dims[0])
+            if np.sum(site_difference) != 1:
+                print(site_difference)
+                raise ValueError
+            index_among_remaining = site_difference.argmax()
+            index = remaining_indices.pop(index_among_remaining)
+            scan_order.append(index)
+
+        return scan_order
+
+    def get_params_order_old(self, unique_params):
         """
         Function to find which parameters are the first to scan,
         only works for 2 parameters for now
@@ -204,7 +255,7 @@ class BaseStatistician(ABC):
         """
 
         if unique_params.shape[0] >= 2: # find difference when more than 2 shots in presence
-            params_dif = unique_params[1]- unique_params[0]
+            params_dif = unique_params[1] - unique_params[0]
             x_params_index = np.where(params_dif != 0)[0][0] # find index of difference
             y_params_index = np.delete(np.arange(2), x_params_index).item() # find the other index
         else: # default value with only 1 shot
