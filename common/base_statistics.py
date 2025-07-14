@@ -90,16 +90,19 @@ class BaseStatistician(ABC):
         detuning = x - x0
         return a * width / ((width / 2)**2 + detuning**2) + offset
 
-    def fit_lorentzian(self, x_data, y_data, sigma=None):
+    def fit_lorentzian(self, x_data, y_data, sigma=None, peak_direction=+1):
         """
         Fits a Lorentzian function to the atom number data.
         """
-        # x0_guess = x_data[np.argmin(y_data)]
-        x0_guess = x_data[np.argmax(y_data)]
+        if peak_direction > 0:
+            x0_guess = x_data[np.argmax(y_data)]
+        else:
+            x0_guess = x_data[np.argmin(y_data)]
+
         x_resolution = (x_data[1] - x_data[0])
         width_guess = 2*x_resolution
         y_data_range = np.max(y_data) - np.min(y_data)
-        a_guess = y_data_range / width_guess * (width_guess/2)**2
+        a_guess = np.sign(peak_direction) * y_data_range / width_guess * (width_guess/2)**2
 
         offset_guess = np.min(y_data)
         p0 = [x0_guess, width_guess, a_guess, offset_guess]
@@ -114,8 +117,6 @@ class BaseStatistician(ABC):
         x_shifted = np.asarray(x) - x0
         y_shifted = np.asarray(y) - y0
 
-        xo = float(x0)
-        yo = float(y0)
         a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
         b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
         c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
