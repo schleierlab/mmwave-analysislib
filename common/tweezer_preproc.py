@@ -285,8 +285,18 @@ class TweezerPreprocessor(ImagePreprocessor):
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
-                f.create_dataset('camera_counts', data=camera_counts[np.newaxis, ...], maxshape=(None, 10, 100))  # shape: (n_shots, n_images, n_sites)
-                f.create_dataset('site_occupancies', data=self.site_occupancies[np.newaxis, ...], maxshape=(None, 10, 100))
+                f.create_dataset(
+                    'camera_counts',
+                    data=camera_counts[np.newaxis, ...],
+                    maxshape=(None, 10, 100),
+                    fillvalue=float('nan'),
+                )  # shape: (n_shots, n_images, n_sites)
+                f.create_dataset(
+                    'site_occupancies',
+                    data=self.site_occupancies[np.newaxis, ...].astype(np.float_),
+                    maxshape=(None, 10, 100),
+                    fillvalue=float('nan'),
+                )
                 f['site_occupancies'].attrs['threshold'] = self.threshold
                 f.create_dataset('site_rois', data=ROI.toarray(self.site_rois))
                 f['site_rois'].attrs['fields'] = ['xmin', 'xmax', 'ymin', 'ymax']
