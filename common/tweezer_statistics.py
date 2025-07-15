@@ -1,30 +1,27 @@
+from __future__ import annotations
+
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal, Optional
 from typing_extensions import assert_never
 
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import uncertainties
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.ticker import MaxNLocator
+from numpy.typing import NDArray
 from scipy.stats import beta, norm
 from scipy.optimize import curve_fit
-
-import h5py
-
-import matplotlib.pyplot as plt
-import numpy as np
-import uncertainties
-from pathlib import Path
-import os
-
-
-# try:
-#     lyse
-# except NameError:
-#     import lyse # needed for MLOOP
 
 from .plot_config import PlotConfig
 from .image import ROI
 from .base_statistics import BaseStatistician
+
 
 @dataclass
 class ScanningParameter:
@@ -32,8 +29,16 @@ class ScanningParameter:
     unit: str
     friendly_name: Optional[str] = None
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
+    
+    @classmethod
+    def from_h5_tuple(cls, tup) -> ScanningParameter:
+        name: bytes
+        units: bytes
+        expr: bytes
+        name, units, expr = tup
+        return cls(name.decode('utf-8'), units.decode('utf-8'))
 
     @property
     def axis_label(self):
@@ -92,14 +97,47 @@ class TweezerStatistician(BaseStatistician):
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
 
-            self.params = [ScanningParameter(name, unit) for name, unit, _ in self.params_list]
+            self.params = [ScanningParameter.from_h5_tuple(tup) for tup in self.params_list]
 
     @property
     def initial_atoms_array(self):
         return self.site_occupancies[:, 0, :]
 
-    def rearrange_success_rate(self, target_array):
+    def dataframe(self) -> pd.DataFrame:
+        '''
+        Return dataframe of the form:
 
+                  mw_detuning  ryd_456_mirror_2_h  site  initial  survival
+            0             2.6                 3.0     0      1.0       1.0
+            1             2.6                 3.0     1      1.0       1.0
+            2             2.6                 3.0     2      0.0       0.0
+            3             2.6                 3.0     3      0.0       0.0
+            4             2.6                 3.0     4      1.0       0.0
+            ...           ...                 ...   ...      ...       ...
+
+        The columns are: [*scanned_globals, site index, initial, survival].
+        There are n_sites rows per shot, for a total of n_sites * n_shots rows.
+        This form is amenable to grouping (via `.groupby()`) and aggregation.
+        '''
+        index = pd.MultiIndex.from_arrays(
+            self.current_params.T,
+            names=[param.name for param in self.params],
+        )
+
+        def assemble_occupancy_df(array: NDArray, name: str):
+            df = pd.DataFrame(array, index=index)
+            df.columns.name = 'site'
+            df = df.stack()
+            df.name = name
+            return df
+        
+        df_initial = assemble_occupancy_df(self.site_occupancies[:, 0, :], name='initial')
+        df_survival = assemble_occupancy_df(self.site_occupancies[..., :2, :].prod(axis=-2), name='survival')
+        df = pd.concat([df_initial, df_survival], axis=1)
+
+        return df.reset_index()
+
+    def rearrange_success_rate(self, target_array):
         atom_number_target_array = np.zeros(len(self.site_occupancies[:,0,0]))
         rearrange_index = []
 
