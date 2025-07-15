@@ -1,8 +1,6 @@
 from abc import abstractmethod, ABC
 from os import PathLike
-from typing import Optional
-from matplotlib.figure import Figure
-import h5py
+
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import optimize
@@ -12,8 +10,6 @@ from scipy import optimize
 # except NameError:
 #     import lyse # needed for MLOOP
 
-from .plot_config import PlotConfig
-from .image import ROI
 from typing import Union
 
 class BaseStatistician(ABC):
@@ -72,7 +68,7 @@ class BaseStatistician(ABC):
         return np.unique(self._loop_params(), axis=0)
 
     @property
-    def expansion_ndim(self):
+    def expansion_ndim(self) -> int:
         return self._loop_params().ndim
 
     # TODO: maybe we can keep all of our fitting functions here, so that both child classes
@@ -218,21 +214,27 @@ class BaseStatistician(ABC):
             is the i-th innermost scanned parameter.
         '''
         unique_params = np.asarray(unique_params)
-        ndim = unique_params.ndim  # TODO make ndim a property of the statistician
+        ndim = self.expansion_ndim  # TODO make ndim a property of the statistician
+
+        if unique_params.shape[0] <= 1:
+            return list(range(ndim))
 
         scan_order = []
         remaining_indices = list(range(ndim))
 
-        for i in range(ndim):
+        for i in range(ndim - 1):
             unique_params_remaining_dims = np.unique(unique_params[:, remaining_indices], axis=0)
             site_difference = (unique_params_remaining_dims[1] != unique_params_remaining_dims[0])
             if np.sum(site_difference) != 1:
-                print(site_difference)
-                raise ValueError
+                # print(unique_params_remaining_dims)
+                # print(site_difference)
+                # raise ValueError
+                return list(range(ndim))
             index_among_remaining = site_difference.argmax()
             index = remaining_indices.pop(index_among_remaining)
             scan_order.append(index)
 
+        scan_order.append(remaining_indices[0])
         return scan_order
 
     def get_params_order_old(self, unique_params):
