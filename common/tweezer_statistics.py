@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Literal, Optional
 from typing_extensions import assert_never
 
@@ -24,6 +25,21 @@ import os
 from .plot_config import PlotConfig
 from .image import ROI
 from .base_statistics import BaseStatistician
+
+@dataclass
+class ScanningParameter:
+    name: str
+    unit: str
+    friendly_name: Optional[str] = None
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def axis_label(self):
+        namestr = self.friendly_name if self.friendly_name is not None else self.name
+        unitstr = f' ({self.unit})' if self.unit == '' else ''
+        return f'{namestr}{unitstr}'
 
 
 class TweezerStatistician(BaseStatistician):
@@ -75,6 +91,8 @@ class TweezerStatistician(BaseStatistician):
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
+
+            self.params = [ScanningParameter(name, unit) for name, unit, _ in self.params_list]
 
     @property
     def initial_atoms_array(self):
@@ -1036,7 +1054,7 @@ class TweezerStatistician(BaseStatistician):
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
-                initial_guess = [1, 2*np.pi*2e6, 0, 2e-6, 0.5]
+                initial_guess = [1, 2*np.pi*1.6e6, 0, 3e-6, 0.5]
                 params_opt, params_cov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
 
                 # Extract fit results
