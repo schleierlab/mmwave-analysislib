@@ -102,6 +102,13 @@ class TweezerStatistician(BaseStatistician):
     @property
     def initial_atoms_array(self):
         return self.site_occupancies[:, 0, :]
+    
+    @property
+    def surviving_atoms_array(self):
+        # site_occupancies is of shape (num_shots, num_images, num_atoms)
+        # axis=1 corresponds to the before/after tweezer images
+        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
+        return self.site_occupancies[:, :2, :].prod(axis=-2)
 
     def dataframe(self) -> pd.DataFrame:
         '''
@@ -541,6 +548,80 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
 
+    def plot_survival_rate_2d(
+            self,
+            fig: Optional[Figure] = None,
+            plot_gaussian: bool = False,
+    ):
+        if fig is not None:
+            ax1, ax2 = fig.subplots(2, 1)
+
+        loop_params = self._loop_params()
+        unique_params = self.unique_params()
+
+        # Calculate survival rates
+        initial_atoms = self.initial_atoms_array.sum(axis=-1) # sum over all sites for each shot
+        surviving_atoms = self.surviving_atoms_array.sum(axis=-1)
+
+        initial_atoms_sum = self.get_sum_of_unique_params(initial_atoms, loop_params, unique_params)
+        surviving_atoms_sum = self.get_sum_of_unique_params(surviving_atoms, loop_params, unique_params)
+
+        survival_rates = surviving_atoms_sum / initial_atoms_sum # simple survival rate
+        sigma_beta = np.sqrt(survival_rates * (1 - survival_rates)) / initial_atoms_sum # simple survival rate std
+
+        x_params_index, y_params_index = self.get_params_order(unique_params)
+
+        x_params = self.get_unique_params_along_axis(unique_params, x_params_index)
+        y_params = self.get_unique_params_along_axis(unique_params, y_params_index)
+
+        survival_rates = self.reshape_to_unique_params_dim(survival_rates, x_params, y_params)
+        sigma_beta = self.reshape_to_unique_params_dim(sigma_beta, x_params, y_params)
+
+        x_params, y_params = np.meshgrid(x_params, y_params)
+
+        pcolor_survival_rate = ax1.pcolormesh(
+            x_params,
+            y_params,
+            survival_rates,
+        )
+
+        if plot_gaussian:
+            popt, pcov = self.fit_gaussian_2d(x_params, y_params, survival_rates)
+            perr = np.sqrt(np.diag(pcov))
+
+        fig.colorbar(pcolor_survival_rate, ax=ax1)
+
+        pcolor_std = ax2.pcolormesh(
+            x_params,
+            y_params,
+            sigma_beta,
+        )
+
+        fig.colorbar(pcolor_std, ax=ax2)
+
+        for axs in [ax1, ax2]:
+            axs.set_xlabel(
+                f"{self.params_list[x_params_index][0].decode('utf-8')} [{self.params_list[x_params_index][1].decode('utf-8')}]",
+                fontsize=self.plot_config.label_font_size,
+            )
+            axs.set_ylabel(
+                f"{self.params_list[y_params_index][0].decode('utf-8')} [{self.params_list[y_params_index][1].decode('utf-8')}]",
+                fontsize=self.plot_config.label_font_size,
+            )
+            axs.tick_params(
+                axis='both',
+                which='major',
+                labelsize=self.plot_config.label_font_size,
+            )
+            axs.grid(color=self.plot_config.grid_color_major, which='major')
+            axs.grid(color=self.plot_config.grid_color_minor, which='minor')
+        ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+        ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
+        if plot_gaussian:
+            ax1.title.set_text(f'X waist = {popt[3]:.2f} +/- {perr[3]:.2f}, Y waist = {popt[4]:.2f} +/- {perr[4]:.2f}')
+
+        return unique_params, survival_rates, sigma_beta
+
     def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True, plot_gaussian: bool = False):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -561,6 +642,7 @@ class TweezerStatistician(BaseStatistician):
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
+        is_subfig: bool = True
         if fig is None:
             fig, axs = plt.subplots(
                 figsize=self.plot_config.figure_size,
@@ -572,7 +654,6 @@ class TweezerStatistician(BaseStatistician):
             print("loop_params is empty with dimension", loop_params.ndim)
             if fig is not None:
                 axs = fig.subplots(nrows=2,ncols=1)
-                is_subfig = True
 
             survival_rates = surviving_atoms / initial_atoms
             loading_rates = initial_atoms/self.site_occupancies.shape[2]
@@ -635,7 +716,6 @@ class TweezerStatistician(BaseStatistician):
         elif loop_params.ndim == 1:
             if fig is not None:
                 axs = fig.subplots(nrows=3, ncols=1)
-                is_subfig = True
 
             initial_atoms_sum = np.array([
                 np.sum(initial_atoms[loop_params == x])
@@ -786,67 +866,7 @@ class TweezerStatistician(BaseStatistician):
             return unique_params, survival_rates, sigma_beta
 
         elif loop_params.ndim == 2:
-            if fig is not None:
-                ax1, ax2 = fig.subplots(2, 1)
-                is_subfig = True
-
-            initial_atoms_sum = self.get_sum_of_unique_params(initial_atoms, loop_params, unique_params)
-            surviving_atoms_sum = self.get_sum_of_unique_params(surviving_atoms, loop_params, unique_params)
-
-            survival_rates = surviving_atoms_sum / initial_atoms_sum # simple survival rate
-            sigma_beta = np.sqrt(survival_rates * (1 - survival_rates)) / initial_atoms_sum # simple survival rate std
-
-            x_params_index, y_params_index = self.get_params_order(unique_params)
-
-            x_params = self.get_unique_params_along_axis(unique_params, x_params_index)
-            y_params = self.get_unique_params_along_axis(unique_params, y_params_index)
-
-            survival_rates = self.reshape_to_unique_params_dim(survival_rates, x_params, y_params)
-            sigma_beta = self.reshape_to_unique_params_dim(sigma_beta, x_params, y_params)
-
-            x_params, y_params = np.meshgrid(x_params, y_params)
-
-            pcolor_survival_rate = ax1.pcolormesh(
-                x_params,
-                y_params,
-                survival_rates,
-            )
-
-            if plot_gaussian:
-                popt, pcov = self.fit_gaussian_2d(x_params, y_params, survival_rates)
-                perr = np.sqrt(np.diag(pcov))
-
-            fig.colorbar(pcolor_survival_rate, ax=ax1)
-
-            pcolor_std = ax2.pcolormesh(
-                x_params,
-                y_params,
-                sigma_beta,
-            )
-
-            fig.colorbar(pcolor_std, ax=ax2)
-
-            for axs in [ax1, ax2]:
-                axs.set_xlabel(
-                    f"{self.params_list[x_params_index][0].decode('utf-8')} [{self.params_list[x_params_index][1].decode('utf-8')}]",
-                    fontsize=self.plot_config.label_font_size,
-                )
-                axs.set_ylabel(
-                    f"{self.params_list[y_params_index][0].decode('utf-8')} [{self.params_list[y_params_index][1].decode('utf-8')}]",
-                    fontsize=self.plot_config.label_font_size,
-                )
-                axs.tick_params(
-                    axis='both',
-                    which='major',
-                    labelsize=self.plot_config.label_font_size,
-                )
-                axs.grid(color=self.plot_config.grid_color_major, which='major')
-                axs.grid(color=self.plot_config.grid_color_minor, which='minor')
-            ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
-            ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
-            if plot_gaussian:
-                ax1.title.set_text(f'X waist = {popt[3]:.2f} +/- {perr[3]:.2f}, Y waist = {popt[4]:.2f} +/- {perr[4]:.2f}')
-
+            unique_params, survival_rates, sigma_beta = self.plot_survival_rate_2d(fig, plot_gaussian)
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
 
