@@ -43,7 +43,7 @@ class ScanningParameter:
     @property
     def axis_label(self):
         namestr = self.friendly_name if self.friendly_name is not None else self.name
-        unitstr = f' ({self.unit})' if self.unit == '' else ''
+        unitstr = f' ({self.unit})' if self.unit != '' else ''
         return f'{namestr}{unitstr}'
 
 
@@ -601,11 +601,11 @@ class TweezerStatistician(BaseStatistician):
 
         for axs in [ax1, ax2]:
             axs.set_xlabel(
-                f"{self.params_list[x_params_index][0].decode('utf-8')} [{self.params_list[x_params_index][1].decode('utf-8')}]",
+                self.params[x_params_index].axis_label,
                 fontsize=self.plot_config.label_font_size,
             )
             axs.set_ylabel(
-                f"{self.params_list[y_params_index][0].decode('utf-8')} [{self.params_list[y_params_index][1].decode('utf-8')}]",
+                self.params[y_params_index].axis_label,
                 fontsize=self.plot_config.label_font_size,
             )
             axs.tick_params(
@@ -751,7 +751,7 @@ class TweezerStatistician(BaseStatistician):
 
             for ax in axs:
                 ax.set_xlabel(
-                    f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
+                    self.params[0].axis_label,
                     fontsize=self.plot_config.label_font_size,
                 )
                 ax.set_ylim(bottom=0)
@@ -874,12 +874,6 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
         return unique_params, survival_rates, sigma_beta
-
-    # TODO: move this to parent class?
-    @staticmethod
-    def param_to_label(param_array):
-        param_name, param_unit, _ = param_array
-        return f'{param_name.decode("utf-8")} ({param_unit.decode("utf-8")})'
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
@@ -1007,7 +1001,7 @@ class TweezerStatistician(BaseStatistician):
                 survival_rates_matrix,
             )
 
-        ax.set_xlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
+        ax.set_xlabel(self.params[0].axis_label)
         ax.set_ylabel('Site index')
         cbar = fig.colorbar(pm, ax=ax)
 
@@ -1175,10 +1169,8 @@ class TweezerStatistician(BaseStatistician):
                 )
                 print(popt[0], pcov[0][0]) # print out value for plotting
                 ax.legend(loc='upper right')
-        # fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
-        # TODO change this to fit with whatever we are plotting
-        # fig.supxlabel('Time')
-        fig.supxlabel(f'{self.params_list[0][0].decode("utf-8")} ({self.params_list[0][1].decode("utf-8")})')
+
+        fig.supxlabel(self.params[0].axis_label)
         fig.supylabel('Population')
 
         # fig.suptitle("Rabi Oscillation Fits", fontsize=14)
