@@ -865,7 +865,7 @@ class TweezerStatistician(BaseStatistician):
         ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
         ax.legend()
 
-    def loop_param_and_site_survival_rate_matrix(self, num_time_groups = 1, method = 'laplace'):
+    def loop_param_and_site_survival_rate_matrix(self, num_time_groups = 1):
         '''
         return an array of loop parameters
         and a array of matrix with each row being the survival rate array of each site
@@ -901,10 +901,19 @@ class TweezerStatistician(BaseStatistician):
                 s_sum = np.sum(surviving_atoms[selected_idx], axis=0)
                 # survival_rates = surviving_atoms / initial_atoms
                 # survival rate using laplace rule of succession
-                if method == 'exact':
-                    survival_rates[:, i, g] = s_sum / i_sum
-                elif method == 'laplace':
-                    survival_rates[:, i, g] = (s_sum + 1) / (i_sum + 2)
+                # print('s_sum: ', s_sum)
+                # print('i_sum: ', i_sum)
+                zero_sites = np.where(i_sum == 0)[0]
+                if zero_sites.size > 0:
+                    print(f"Warning: No initial atoms detected at sites {zero_sites} for param {x}, group {g}")
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    rate = np.true_divide(s_sum, i_sum)
+                    rate[~np.isfinite(rate)] = np.nan
+                    survival_rates[:, i, g] = rate
+
+                # Laplace method
+                # One shouldn't use laplace method here, because the sums are still small for each site
+                # survival_rates[:, i, g] = (s_sum + 1) / (i_sum + 2)
 
         return unique_params, survival_rates
 
@@ -961,7 +970,8 @@ class TweezerStatistician(BaseStatistician):
         n_groups = data.shape[0]//group_size
         print('n_groups',n_groups)
         grouped_data = data[:data.shape[0]].reshape(n_groups, group_size, -1)
-        averaged_data = grouped_data.mean(axis = 1)
+        # averaged_data = grouped_data.mean(axis = 1)
+        averaged_data =np.nanmean(grouped_data, axis = 1)
 
         print('shape of data', data.shape)
         print('shape of averaged data', averaged_data.shape)
@@ -1050,7 +1060,8 @@ class TweezerStatistician(BaseStatistician):
         #1D plot, group averaged, separate plots with fit
         fig, axs = plt.subplots(nrows=n_groups, ncols=1, sharex=True, sharey= True, layout='constrained')
         for i in np.flip(np.arange(averaged_data.shape[0])):
-            ax = axs[-i-1]
+            # ax = axs[-i-1]
+            ax = axs
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
