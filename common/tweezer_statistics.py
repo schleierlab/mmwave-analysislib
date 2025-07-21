@@ -731,7 +731,7 @@ class TweezerStatistician(BaseStatistician):
 
             # doing the fit at the end of the run
             if self.is_final_shot and plot_lorentz:
-                popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta)
+                popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
 
                 x_plot = np.linspace(
@@ -1060,12 +1060,14 @@ class TweezerStatistician(BaseStatistician):
         #1D plot, group averaged, separate plots with fit
         fig, axs = plt.subplots(nrows=n_groups, ncols=1, sharex=True, sharey= True, layout='constrained')
         for i in np.flip(np.arange(averaged_data.shape[0])):
-            # ax = axs[-i-1]
-            ax = axs
+            if group_size == data.shape[0]:
+                 ax = axs
+            else:
+                ax = axs[-i-1]
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
-                initial_guess = [1, 2*np.pi*1.6e6, 0, 3e-6, 0.5]
+                initial_guess = [1, 2*np.pi*2e6, 0, 3.5e-6, 0.5]
                 params_opt, params_cov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
 
                 # Extract fit results
@@ -1082,7 +1084,8 @@ class TweezerStatistician(BaseStatistician):
                 ax.plot(x_plot, self.rabi_model(x_plot, *params_opt), 'r-', label=rf'{i}Fit')
                 annotation_text = (
                     f'p-p Ampl: {A_fit*2:.3f}\n'
-                    f'$\Omega$: {upopt[1] / 1e6 / (2 * np.pi):S} MHz\n'
+                    Rf'$\Omega$: $2\pi\times {upopt[1] / 1e6 / (2 * np.pi):SL}\,\mathrm{{MHz}}$'
+                    '\n'
                     f'Phase: {phi_fit:.2f} rad\n'
                     f'$T_2^*$: {upopt[3] * 1e6 :S} µs\n'
                     # f'Offset: {C_fit:.2f}'
