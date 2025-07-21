@@ -114,7 +114,22 @@ class BaseStatistician(ABC):
 
     def fit_lorentzian(self, x_data, y_data, sigma=None, peak_direction=+1):
         """
-        Fits a Lorentzian function to the atom number data.
+        Fits a Lorentzian function to provided data.
+
+        Parameters
+        ----------
+        x_data, y_data
+            Independent and dependent variables
+        sigma, optional
+            If provided, the uncertainties on the values in `y_data`
+        peak_direction: {-1, +1}
+            Direction of the peak being fit.
+
+        Returns
+        -------
+        popt, pcov
+            Optimal parameters fit and covariance matrix thereof.
+            Parameters are ordered as: [center, full-width-half-max, amplitude, offset]
         """
         if peak_direction > 0:
             x0_guess = x_data[np.argmax(y_data)]
