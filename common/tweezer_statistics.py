@@ -3,13 +3,14 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional
+from typing import ClassVar, Literal, Optional, overload
 from typing_extensions import assert_never
 
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pandas.api.typing as pdt
 import uncertainties
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
@@ -68,6 +69,13 @@ class TweezerStatistician(BaseStatistician):
     '''
     site_occupancies is of shape (num_shots, num_images, num_sites)
     '''
+
+    # TODO clean this up
+    KEY_SITE: ClassVar[str] = 'site'
+    KEY_INITIAL: ClassVar[str] = 'initial'
+    KEY_SURVIVAL: ClassVar[str] = 'survival'
+    KEY_SURVIVAL_RATE: ClassVar[str] = 'survival_rate'
+    KEY_SURVIVAL_RATE_STD: ClassVar[str] = 'survival_rate_std'
 
     def __init__(self,
                  preproc_h5_path: str,
@@ -133,16 +141,33 @@ class TweezerStatistician(BaseStatistician):
 
         def assemble_occupancy_df(array: NDArray, name: str):
             df = pd.DataFrame(array, index=index)
-            df.columns.name = 'site'
-            df = df.stack()
-            df.name = name
-            return df
+            df.columns.name = self.KEY_SITE
+            occupancy_df = df.stack()
+            occupancy_df.name = name
+            return occupancy_df
         
-        df_initial = assemble_occupancy_df(self.site_occupancies[:, 0, :], name='initial')
-        df_survival = assemble_occupancy_df(self.site_occupancies[..., :2, :].prod(axis=-2), name='survival')
+        df_initial = assemble_occupancy_df(self.site_occupancies[:, 0, :], name=self.KEY_INITIAL)
+        df_survival = assemble_occupancy_df(self.site_occupancies[..., :2, :].prod(axis=-2), name=self.KEY_SURVIVAL)
         df = pd.concat([df_initial, df_survival], axis=1)
 
         return df.reset_index()
+    
+    @overload
+    def dataframe_survival(self, data: pd.DataFrame) -> pd.Series: ...
+    @overload
+    def dataframe_survival(self, data: pdt.DataFrameGroupBy) -> pd.DataFrame: ...
+    
+    def dataframe_survival(self, data):
+        df = data[[self.KEY_INITIAL, self.KEY_SURVIVAL]].sum()
+
+        surv = df[self.KEY_SURVIVAL]
+        total = df[self.KEY_INITIAL]
+        df[self.KEY_SURVIVAL_RATE] = surv / total
+
+        laplace_p = (surv + 1) / (total + 2)
+        df[self.KEY_SURVIVAL_RATE_STD] = np.sqrt(laplace_p * (1 - laplace_p) / (total + 2))
+
+        return df
 
     def rearrange_success_rate(self, target_array):
         atom_number_target_array = np.zeros(len(self.site_occupancies[:,0,0]))
@@ -550,7 +575,7 @@ class TweezerStatistician(BaseStatistician):
 
     def plot_survival_rate_2d(
             self,
-            fig: Optional[Figure] = None,
+            fig: Figure,
             plot_gaussian: bool = False,
     ):
         if fig is not None:
@@ -558,6 +583,10 @@ class TweezerStatistician(BaseStatistician):
 
         loop_params = self._loop_params()
         unique_params = self.unique_params()
+
+        x_params_index, y_params_index = self.get_params_order(unique_params)
+        x_params = self.get_unique_params_along_axis(unique_params, x_params_index)
+        y_params = self.get_unique_params_along_axis(unique_params, y_params_index)
 
         # Calculate survival rates
         initial_atoms = self.initial_atoms_array.sum(axis=-1) # sum over all sites for each shot
@@ -569,34 +598,27 @@ class TweezerStatistician(BaseStatistician):
         survival_rates = surviving_atoms_sum / initial_atoms_sum # simple survival rate
         sigma_beta = np.sqrt(survival_rates * (1 - survival_rates)) / initial_atoms_sum # simple survival rate std
 
-        x_params_index, y_params_index = self.get_params_order(unique_params)
-
-        x_params = self.get_unique_params_along_axis(unique_params, x_params_index)
-        y_params = self.get_unique_params_along_axis(unique_params, y_params_index)
-
         survival_rates = self.reshape_to_unique_params_dim(survival_rates, x_params, y_params)
         sigma_beta = self.reshape_to_unique_params_dim(sigma_beta, x_params, y_params)
 
         x_params, y_params = np.meshgrid(x_params, y_params)
+        
+        df = self.dataframe()
+        groupby = df.groupby([param.name for param in self.params])
+        survival_df = self.dataframe_survival(groupby)
 
-        pcolor_survival_rate = ax1.pcolormesh(
-            x_params,
-            y_params,
-            survival_rates,
-        )
+        def plot_key_2d(df, ax):
+            unstack = df.unstack()
+            return ax.pcolormesh(
+                unstack.columns,
+                unstack.index,
+                unstack,
+            )
 
-        if plot_gaussian:
-            popt, pcov = self.fit_gaussian_2d(x_params, y_params, survival_rates)
-            perr = np.sqrt(np.diag(pcov))
+        pcolor_survival_rate = plot_key_2d(survival_df[self.KEY_SURVIVAL_RATE], ax1)
+        pcolor_std = plot_key_2d(survival_df[self.KEY_SURVIVAL_RATE_STD], ax2)
 
         fig.colorbar(pcolor_survival_rate, ax=ax1)
-
-        pcolor_std = ax2.pcolormesh(
-            x_params,
-            y_params,
-            sigma_beta,
-        )
-
         fig.colorbar(pcolor_std, ax=ax2)
 
         for axs in [ax1, ax2]:
@@ -618,6 +640,8 @@ class TweezerStatistician(BaseStatistician):
         ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
         ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
         if plot_gaussian:
+            popt, pcov = self.fit_gaussian_2d(x_params, y_params, survival_rates)
+            perr = np.sqrt(np.diag(pcov))
             ax1.title.set_text(f'X waist = {popt[3]:.2f} +/- {perr[3]:.2f}, Y waist = {popt[4]:.2f} +/- {perr[4]:.2f}')
 
         return unique_params, survival_rates, sigma_beta
