@@ -82,6 +82,10 @@ class BaseStatistician(ABC):
         else:
             return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C # gaussian decay
 
+    # @staticmethod
+    # def sinc_squared(x, A, B, x0, w):
+    #     return A-B * (np.sinc((x-x0)/w))**2
+
     @staticmethod
     def lorentzian(x, x0, width, a, offset):
         """
