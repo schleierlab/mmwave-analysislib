@@ -36,9 +36,10 @@ class TweezerPreprocessor(ImagePreprocessor):
         Path to H5 file for data loading
     """
 
+    USERLIB_PATH: ClassVar[Path] = Path('C:/Users/sslab/labscript-suite/userlib')
     ROI_CONFIG_PATH: ClassVar[Path] = importlib.resources.files(multishot) / 'roi_config.yml'
     PROCESSED_RESULTS_FNAME: ClassVar[str] = 'tweezer_preprocess.h5'
-    DEFAULT_PARAMS_PATH: ClassVar[Path] = Path('X:/userlib/labscriptlib/defaults.yml')
+    DEFAULT_PARAMS_PATH: ClassVar[Path] = USERLIB_PATH / Path('labscriptlib/defaults.yml')
 
     atom_roi: ROI
     background_roi: ROI
@@ -72,7 +73,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
         self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
         if use_averaged_background:
-            average_background_overwrite_path = Path(r'X:\userlib\analysislib\multishot\avg_shot_bkg.npy')
+            average_background_overwrite_path = self.USERLIB_PATH / Path('analysislib/multishot/avg_shot_bkg.npy')
             bkg = np.load(average_background_overwrite_path)
         else:
             bkg = self.exposures[-1]
@@ -285,8 +286,18 @@ class TweezerPreprocessor(ImagePreprocessor):
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
-                f.create_dataset('camera_counts', data=camera_counts[np.newaxis, ...], maxshape=(None, 10, 100))  # shape: (n_shots, n_images, n_sites)
-                f.create_dataset('site_occupancies', data=self.site_occupancies[np.newaxis, ...], maxshape=(None, 10, 100))
+                f.create_dataset(
+                    'camera_counts',
+                    data=camera_counts[np.newaxis, ...],
+                    maxshape=(None, 10, 100),
+                    fillvalue=float('nan'),
+                )  # shape: (n_shots, n_images, n_sites)
+                f.create_dataset(
+                    'site_occupancies',
+                    data=self.site_occupancies[np.newaxis, ...].astype(np.float_),
+                    maxshape=(None, 10, 100),
+                    fillvalue=float('nan'),
+                )
                 f['site_occupancies'].attrs['threshold'] = self.threshold
                 f.create_dataset('site_rois', data=ROI.toarray(self.site_rois))
                 f['site_rois'].attrs['fields'] = ['xmin', 'xmax', 'ymin', 'ymax']

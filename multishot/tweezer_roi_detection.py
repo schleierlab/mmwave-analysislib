@@ -15,7 +15,7 @@ USE_AVERAGED_BACKGROUND = True
 folder = select_data_directory()
 
 finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAGED_BACKGROUND)
-new_site_rois = finder.detect_rois_by_roi_number(roi_number= 50, neighborhood_size=5, detection_threshold = 35)
+new_site_rois = finder.detect_rois_by_roi_number(roi_number= 50, neighborhood_size=5, roi_size=5, detection_threshold = 30)
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
 # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
 # TODO: Include survival rate if taking two shots

@@ -1,7 +1,5 @@
 import matplotlib.pyplot as plt
-import csv
 import os
-import numpy as np
 
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
@@ -45,9 +43,12 @@ if not SHOW_IMG_ONLY:
         target_array = tweezer_preproc.target_array
         tweezer_statistician.plot_target_sites_success_rate(target_array, fig = subfigs[1])
     else:
-        unique_params, survival_rates, sigma_beta= tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
+        unique_params, survival_rates, sigma_beta = tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
 
-        np.savetxt(folder_path + "/data.csv", [unique_params, survival_rates, sigma_beta], delimiter=",")
+        # print(unique_params)
+        # print(survival_rates)
+        # print(sigma_beta)
+        # np.savetxt(folder_path + "/data.csv", [unique_params, survival_rates, sigma_beta], delimiter=",")
         # TODO: this function right now doesn't work with 2d parameter scan
 
 figname = folder_path + '/tweezer_single_shot.pdf'
