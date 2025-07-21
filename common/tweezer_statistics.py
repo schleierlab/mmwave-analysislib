@@ -873,7 +873,7 @@ class TweezerStatistician(BaseStatistician):
 
             # doing the fit at the end of the run
             if self.is_final_shot and plot_lorentz:
-                popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta)
+                popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
 
                 x_plot = np.linspace(
@@ -941,7 +941,7 @@ class TweezerStatistician(BaseStatistician):
         ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
         ax.legend()
 
-    def loop_param_and_site_survival_rate_matrix(self, num_time_groups = 1, method = 'laplace'):
+    def loop_param_and_site_survival_rate_matrix(self, num_time_groups = 1):
         '''
         return an array of loop parameters
         and a array of matrix with each row being the survival rate array of each site
@@ -977,10 +977,19 @@ class TweezerStatistician(BaseStatistician):
                 s_sum = np.sum(surviving_atoms[selected_idx], axis=0)
                 # survival_rates = surviving_atoms / initial_atoms
                 # survival rate using laplace rule of succession
-                if method == 'exact':
-                    survival_rates[:, i, g] = s_sum / i_sum
-                elif method == 'laplace':
-                    survival_rates[:, i, g] = (s_sum + 1) / (i_sum + 2)
+                # print('s_sum: ', s_sum)
+                # print('i_sum: ', i_sum)
+                zero_sites = np.where(i_sum == 0)[0]
+                if zero_sites.size > 0:
+                    print(f"Warning: No initial atoms detected at sites {zero_sites} for param {x}, group {g}")
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    rate = np.true_divide(s_sum, i_sum)
+                    rate[~np.isfinite(rate)] = np.nan
+                    survival_rates[:, i, g] = rate
+
+                # Laplace method
+                # One shouldn't use laplace method here, because the sums are still small for each site
+                # survival_rates[:, i, g] = (s_sum + 1) / (i_sum + 2)
 
         return unique_params, survival_rates
 
@@ -1037,7 +1046,8 @@ class TweezerStatistician(BaseStatistician):
         n_groups = data.shape[0]//group_size
         print('n_groups',n_groups)
         grouped_data = data[:data.shape[0]].reshape(n_groups, group_size, -1)
-        averaged_data = grouped_data.mean(axis = 1)
+        # averaged_data = grouped_data.mean(axis = 1)
+        averaged_data =np.nanmean(grouped_data, axis = 1)
 
         print('shape of data', data.shape)
         print('shape of averaged data', averaged_data.shape)
@@ -1126,11 +1136,14 @@ class TweezerStatistician(BaseStatistician):
         #1D plot, group averaged, separate plots with fit
         fig, axs = plt.subplots(nrows=n_groups, ncols=1, sharex=True, sharey= True, layout='constrained')
         for i in np.flip(np.arange(averaged_data.shape[0])):
-            ax = axs[-i-1]
+            if group_size == data.shape[0]:
+                 ax = axs
+            else:
+                ax = axs[-i-1]
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
-                initial_guess = [1, 2*np.pi*1.6e6, 0, 3e-6, 0.5]
+                initial_guess = [1, 2*np.pi*2e6, 0, 3.5e-6, 0.5]
                 params_opt, params_cov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
 
                 # Extract fit results
@@ -1147,7 +1160,8 @@ class TweezerStatistician(BaseStatistician):
                 ax.plot(x_plot, self.rabi_model(x_plot, *params_opt), 'r-', label=rf'{i}Fit')
                 annotation_text = (
                     f'p-p Ampl: {A_fit*2:.3f}\n'
-                    f'$\Omega$: {upopt[1] / 1e6 / (2 * np.pi):S} MHz\n'
+                    Rf'$\Omega$: $2\pi\times {upopt[1] / 1e6 / (2 * np.pi):SL}\,\mathrm{{MHz}}$'
+                    '\n'
                     f'Phase: {phi_fit:.2f} rad\n'
                     f'$T_2^*$: {upopt[3] * 1e6 :S} µs\n'
                     # f'Offset: {C_fit:.2f}'

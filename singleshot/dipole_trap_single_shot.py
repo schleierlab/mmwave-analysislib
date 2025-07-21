@@ -10,7 +10,7 @@ from analysislib.common.plot_config import PlotConfig
 analysis_config = BulkGasAnalysisConfig(
     imaging_system=kinetix_system,
     exposure_time=80e-3,
-    atoms_roi=ROI(xmin=800, xmax=1650, ymin=1000, ymax=1400),  # (xmin=800, xmax=1650, ymin=1000, ymax=1400)
+    atoms_roi=ROI(xmin=800, xmax=1650, ymin=1100, ymax=1300),  # (xmin=800, xmax=1650, ymin=1000, ymax=1400)
     bkg_roi=ROI(xmin=1900, xmax=2400, ymin=1900, ymax=2400),
 )
 
