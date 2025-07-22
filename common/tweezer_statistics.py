@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +47,32 @@ class ScanningParameter:
         namestr = self.friendly_name if self.friendly_name is not None else self.name
         unitstr = f' ({self.unit})' if self.unit != '' else ''
         return f'{namestr}{unitstr}'
+
+
+class ScanningParameters:
+    params: tuple[ScanningParameter, ...]
+    param_inds: dict[str, int]  # maybe just store dict[str, ScanningParameter]?
+
+    def __init__(self, params: Sequence[ScanningParameter]):
+        self.params = tuple(params)
+        self.param_inds = {
+            param.name: i
+            for i, param in enumerate(self.params)
+        }
+
+    def __getitem__(self, key: int | str) -> ScanningParameter:
+        if isinstance(key, int):
+            index = key
+            return self.params[index]
+        elif isinstance(key, str):
+            name = key
+            return self.params[self.param_inds[name]]
+        else:
+            assert_never(key)
+
+    @classmethod
+    def from_h5_tuples(cls, iterable: Iterable) -> ScanningParameters:
+        return cls([ScanningParameter.from_h5_tuple(tup) for tup in iterable])
 
 
 class TweezerStatistician(BaseStatistician):
@@ -105,7 +132,7 @@ class TweezerStatistician(BaseStatistician):
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
 
-            self.params = [ScanningParameter.from_h5_tuple(tup) for tup in self.params_list]
+            self.params = ScanningParameters.from_h5_tuples(self.params_list)
 
     @property
     def initial_atoms_array(self):
