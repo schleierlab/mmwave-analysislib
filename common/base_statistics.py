@@ -38,7 +38,7 @@ class BaseStatistician(ABC):
         bbox = bbox.transformed(subfig.figure.transFigure.inverted())
 
         # Create a new axes that fills the entire figure
-        new_axes = new_fig.add_axes([0, 0, 1, 1])
+        new_axes = new_fig.add_axes((0, 0, 1, 1))
 
         # Draw the subfigure content
         new_axes.set_facecolor(subfig.get_facecolor())
