@@ -50,7 +50,7 @@ class TweezerPreprocessor(ImagePreprocessor):
     def __init__(
             self,
             load_type: str = 'lyse',
-            h5_path: str = None,
+            h5_path: Optional[str] = None,
             use_averaged_background: bool = False
         ):
         """Initialize TweezerAnalysis with analysis configuration.
@@ -240,7 +240,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         atom_roi_ylims = [atom_roi.ymin, atom_roi.ymax]
 
         # Determine the output path
-        output_path = Path(output_path)
+        output_file = Path(output_path)
 
         # Format the YAML content manually to match the exact format of roi_config.yml
         yaml_content = "---\n"
@@ -265,11 +265,11 @@ class TweezerPreprocessor(ImagePreprocessor):
         yaml_content += "\n".join(yaml_lines)
 
         # Write the YAML file
-        with output_path.open('w') as stream:
+        with output_file.open('w') as stream:
             stream.write(yaml_content)
             stream.write('\n')  # trailing newline!
 
-        return str(output_path)
+        return str(output_file)
 
     def process_shot(self, use_global_threshold: bool = False):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
@@ -364,18 +364,19 @@ class TweezerPreprocessor(ImagePreprocessor):
                 text_kwargs = {
                     'color':'red',
                     'fontsize':'small',
-                    }
+                }
                 if site_index:
-                    [ax.annotate(
-                        str(j), # The site index to display
-                        xy=(roi.xmin, roi.ymin - 5), # Position of the text
-                        **text_kwargs
+                    [
+                        ax.annotate(
+                            str(j), # The site index to display
+                            xy=(roi.xmin, roi.ymin - 5), # Position of the text
+                            **text_kwargs,
                         )
-                    # Iterate through sites, but only annotate if j is a multiple of 5
-                    for j, roi in enumerate(self.site_rois) if j % 5 == 0]
+                        # Iterate through sites, but only annotate if j is a multiple of 5
+                        for j, roi in enumerate(self.site_rois)
+                        if j % 5 == 0
+                    ]
 
-            fig.suptitle(
-                self.h5_path,
-            )
+            fig.suptitle(str(self.h5_path))
 
         fig.colorbar(ScalarMappable(norm, cmap=cmap), ax=axs, label='Counts')
