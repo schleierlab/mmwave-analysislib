@@ -70,6 +70,12 @@ class ScanningParameters:
         else:
             assert_never(key)
 
+    def __len__(self) -> int:
+        return len(self.params)
+    
+    def __iter__(self):
+        return iter(self.params)
+
     @classmethod
     def from_h5_tuples(cls, iterable: Iterable) -> ScanningParameters:
         return cls([ScanningParameter.from_h5_tuple(tup) for tup in iterable])
@@ -145,6 +151,10 @@ class TweezerStatistician(BaseStatistician):
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         return self.site_occupancies[:, :2, :].prod(axis=-2)
 
+    @property
+    def n_sites(self) -> int:
+        return self.site_occupancies.shape[2]
+
     def dataframe(self) -> pd.DataFrame:
         '''
         Return dataframe of the form:
@@ -167,7 +177,7 @@ class TweezerStatistician(BaseStatistician):
         )
 
         def assemble_occupancy_df(array: NDArray, name: str):
-            df = pd.DataFrame(array, index=index)
+            df = pd.DataFrame(array, index=index, dtype=bool)
             df.columns.name = self.KEY_SITE
             occupancy_df = df.stack()
             occupancy_df.name = name
@@ -179,6 +189,27 @@ class TweezerStatistician(BaseStatistician):
 
         return df.reset_index()
     
+    def dataframe_binomial_error(
+            self,
+            data,
+            success_key: str,
+            total_key: str,
+            method: Literal['laplace'] = 'laplace',
+            name: str = 'binomial_error') -> None:
+        '''
+        Given a DataFrame-like object with columns summarizing the outcomes of Bernoulli trials
+        (that is, total samples "n" and successes "a"), produce a new column giving an uncertainty estimate
+        on the success rate.
+        '''
+        success = data[success_key]
+        total = data[total_key]
+
+        if method == 'laplace':
+            laplace_p = (success + 1) / (total + 2)
+            new_col = np.sqrt(laplace_p * (1 - laplace_p) / (total + 2))
+        
+        data[name] = new_col
+
     @overload
     def dataframe_survival(self, data: pd.DataFrame) -> pd.Series: ...
     @overload
@@ -191,9 +222,7 @@ class TweezerStatistician(BaseStatistician):
         total = df[self.KEY_INITIAL]
         df[self.KEY_SURVIVAL_RATE] = surv / total
 
-        laplace_p = (surv + 1) / (total + 2)
-        df[self.KEY_SURVIVAL_RATE_STD] = np.sqrt(laplace_p * (1 - laplace_p) / (total + 2))
-
+        self.dataframe_binomial_error(df, self.KEY_SURVIVAL, self.KEY_INITIAL, name=self.KEY_SURVIVAL_RATE_STD)
         return df
 
     def rearrange_success_rate(self, target_array):
@@ -630,7 +659,7 @@ class TweezerStatistician(BaseStatistician):
 
         first_img_atom_counts = self.site_occupancies[:,0,:].sum(axis =1)
         rearrange_shots = first_img_atom_counts >= (self.site_occupancies[0,0,:].shape[0]/2)
-        rearrange_shots_unique= np.array([
+        rearrange_shots_unique = np.array([
             np.sum(rearrange_shots[loop_params == x])
             for x in unique_params
         ])
@@ -782,7 +811,18 @@ class TweezerStatistician(BaseStatistician):
                 unstack,
             )
 
-        def plot_key_2d(df, ax):
+        def plot_key_2d(df: pd.Series | pd.DataFrame, ax: Axes):
+            '''
+            Produce a 2D plot of the data in a pandas dataframe,
+            provided in long format with a MultiIndex for the two independent variables.
+
+            Parameters
+            ----------
+            df: pd.DataFrame or pd.Series
+                DataFrame with one column (or Series) and a 2D MultiIndex
+            ax: Axes
+                Axes in which to plot the data.
+            '''
             cols, ind, data = df_to_pcolor_args(df)
             
             ax.set_xlabel(
