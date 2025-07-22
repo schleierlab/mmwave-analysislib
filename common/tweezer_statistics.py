@@ -665,9 +665,6 @@ class TweezerStatistician(BaseStatistician):
         ])
 
         n_rep = np.ceil(self.site_occupancies.shape[0]/unique_params.shape[0])
-        n_sites = self.site_occupancies.shape[2]
-        loading_rates = initial_atoms_sum/(n_rep*n_sites)
-        loading_rates_error = np.sqrt((1-loading_rates)*loading_rates / (n_rep*n_sites))
         rearrange_rates = rearrange_shots_unique / n_rep
         rearrange_rates_error = np.sqrt((1-rearrange_rates)*rearrange_rates/n_rep)
 
@@ -687,20 +684,31 @@ class TweezerStatistician(BaseStatistician):
             prior='uniform',
             interval_method='variance',
         )
+        
+        errorbar_kw = dict(
+            marker='.',
+            linestyle='-',
+            alpha=0.5,
+            capsize=3,
+        )
+
 
         fig.suptitle(
             str(self.folder_path),
             fontsize=8,
         )
 
+        df = self.dataframe()
+        if len(self.params) != 1:
+            raise ValueError
+        gb = df.groupby([param.name for param in self.params])
+        survival_df = self.dataframe_survival(gb)
+
         axs[0].errorbar(
-            unique_params,
-            survival_rates,
-            yerr=sigma_beta,
-            marker='.',
-            linestyle='-',
-            alpha=0.5,
-            capsize=3,
+            survival_df.index,
+            survival_df[self.KEY_SURVIVAL_RATE],
+            yerr=survival_df[self.KEY_SURVIVAL_RATE_STD],
+            **errorbar_kw,
         )
 
         axs[0].set_ylabel(
@@ -715,14 +723,14 @@ class TweezerStatistician(BaseStatistician):
 
         axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
 
+
+        initial_occupancy_df = gb[self.KEY_INITIAL].agg(['mean', 'sum', 'count'])
+        self.dataframe_binomial_error(initial_occupancy_df, 'sum', 'count', name='loading_rate_std')
         axs[1].errorbar(
-            unique_params,
-            loading_rates,
-            yerr=loading_rates_error,
-            marker='.',
-            linestyle='-',
-            alpha=0.5,
-            capsize=3,
+            initial_occupancy_df.index,
+            initial_occupancy_df['mean'],
+            yerr=initial_occupancy_df['loading_rate_std'],
+            **errorbar_kw,
         )
 
         axs[1].hlines(
@@ -746,10 +754,7 @@ class TweezerStatistician(BaseStatistician):
             unique_params,
             rearrange_rates,
             yerr=rearrange_rates_error,
-            marker='.',
-            linestyle='-',
-            alpha=0.5,
-            capsize=3,
+            **errorbar_kw,
         )
 
         axs[2].hlines(
@@ -1272,3 +1277,4 @@ class TweezerStatistician(BaseStatistician):
 
         fig.savefig(f"{self.folder_path}/grouped_survival_rate_by_site_1d.pdf")
         fig.suptitle(f"{self.folder_path}")
+
