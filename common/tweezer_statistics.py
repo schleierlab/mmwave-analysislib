@@ -7,12 +7,12 @@ from pathlib import Path
 from typing import ClassVar, Literal, Optional, overload
 from typing_extensions import assert_never
 
-import h5py
+import h5py  # type: ignore
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pandas.api.typing as pdt
-import uncertainties
+import uncertainties  # type: ignore
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.ticker import MaxNLocator
@@ -205,8 +205,9 @@ class TweezerStatistician(BaseStatistician):
     
     # this is intended to supersede the above dataframe() eventually, since it has shot number information
     def series(self) -> pd.Series:
+        # ignoring typechecker pending pandas-stubs#1285
         mi = pd.MultiIndex.from_product(
-            [range(self.shots_processed), range(self.n_images), range(self.n_sites)],
+            [range(self.shots_processed), range(self.n_images), range(self.n_sites)],  # type: ignore
             sortorder=0,
             names=[self.KEY_SHOT, self.KEY_IMAGE, self.KEY_SITE],
         )
@@ -427,7 +428,7 @@ class TweezerStatistician(BaseStatistician):
         # Save values for MLOOP
         # Save sequence analysis result in latest run
         import lyse
-        run = lyse.Run(h5_path=shot_h5_path)
+        run = lyse.Run(h5_path=shot_h5_path)  # type: ignore
         my_condition = True
         # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
         survival_rate = 0; survival_uncertainty = 0.1
