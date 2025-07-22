@@ -79,8 +79,8 @@ class TweezerStatistician(BaseStatistician):
 
     def __init__(self,
                  preproc_h5_path: str,
-                 shot_h5_path: Optional[str] = None,
-                 plot_config: PlotConfig = None,
+                 shot_h5_path: Optional[str | os.PathLike] = None,
+                 plot_config: Optional[PlotConfig] = None,
                  ):
         super().__init__()
         self.plot_config = plot_config or PlotConfig()
@@ -219,7 +219,7 @@ class TweezerStatistician(BaseStatistician):
         atom_count_in_target = [atom_count_in_target_all_shots, atom_count_in_target_rearrange_shots]
         return success_rearrange, atom_count_in_target, n_rearrange_shots, avg_site_success_rate
 
-    def plot_rearrange_histagram(self, target_array, ax: Optional[Axes] = None, plot_overlapping_histograms: bool = True):
+    def plot_rearrange_histagram(self, target_array, ax: Axes, plot_overlapping_histograms: bool = True):
         '''
         Plots a histogram of the number of sites in the taerget array after rearrangement.
 
@@ -227,8 +227,8 @@ class TweezerStatistician(BaseStatistician):
         ----------
         target_array : array_like
             Array of target sites.
-        ax : matplotlib.axes.Axes, optional
-            Axes object to plot on. If None, a new figure is created.
+        ax : matplotlib.axes.Axes,
+            Axes object to plot on.
         plot_overlapping_histograms : bool, optional
             Whether to plot overlapping histograms. The default is True.
             When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
@@ -293,7 +293,7 @@ class TweezerStatistician(BaseStatistician):
         print('success_rearrange', success_rearrange)
         print(f'Rearrange attempts with 0 loaded atoms: {(atom_count_in_target_list[1] == 0).sum()}')
 
-    def plot_rearrange_site_success_rate(self, target_array, ax: Optional[Axes] = None):
+    def plot_rearrange_site_success_rate(self, target_array, ax: Axes):
         # Site success rate plot
         _, _, n_rearrange_shots, avg_site_success_rate = self.rearragne_statistics(target_array)
 
@@ -308,7 +308,7 @@ class TweezerStatistician(BaseStatistician):
         # Make x-axis show only integers
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-    def plot_site_loading_rates(self, ax: Optional[Axes] = None):
+    def plot_site_loading_rates(self, ax: Axes):
         first_img_atoms_by_site = self.site_occupancies[:, 0, :].sum(axis=0) # sum over all shots for the first image, shape: (num_sites,)
         second_img_atoms_by_site = self.site_occupancies[:, 1, :].sum(axis=0) # sum over all shots for the second image
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
@@ -325,7 +325,7 @@ class TweezerStatistician(BaseStatistician):
         ax.set_title(f'Tweezer site loading rates, {n_shots} shots average')
         ax.legend()
 
-    def _save_mloop_params(self, shot_h5_path: str) -> None:
+    def _save_mloop_params(self, shot_h5_path: str | os.PathLike) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
         MLOOP reads the results of any experiment from the latest shot h5 file,
@@ -542,7 +542,7 @@ class TweezerStatistician(BaseStatistician):
             )
 
         ax.set_title(
-            self.folder_path,
+            str(self.folder_path),
             fontsize=8,
         )
 
@@ -1002,24 +1002,25 @@ class TweezerStatistician(BaseStatistician):
         return unique_params, survival_rates
 
     # TODO: merge this into plot_survival_rate_by_site
-    def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None, plot_grouped_averaged = False): #TODO: add grouped averaged option
+    def plot_survival_rate_by_site_2d(
+            self,
+            ax: Optional[Axes] = None,
+            plot_grouped_averaged: bool = False,
+    ): #TODO: add grouped averaged option
         """
         Plots the survival rate of atoms in the tweezers, site by site.
 
         Parameters
         ----------
-        fig : Optional[Figure]
-            The figure to plot on. If None, a new figure is created.
+        ax: Axes, optional
+            Axes to plot on. If not supplied, a new figure and axes are created.
         """
+        is_subfig = (ax is not None)
         if ax is None:
             fig, ax = plt.subplots(
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
-            is_subfig = False
-        else:
-            ax = ax
-            is_subfig = True
 
         unique_params, survival_rates_matrix = self.loop_param_and_site_survival_rate_matrix()
         survival_rates_matrix = survival_rates_matrix[:, :, 0]
@@ -1044,7 +1045,7 @@ class TweezerStatistician(BaseStatistician):
 
         ax.set_xlabel(self.params[0].axis_label)
         ax.set_ylabel('Site index')
-        cbar = fig.colorbar(pm, ax=ax)
+        fig.colorbar(pm, ax=ax)
 
         if not is_subfig:
             fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
