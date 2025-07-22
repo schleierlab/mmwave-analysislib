@@ -267,6 +267,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         # Write the YAML file
         with output_path.open('w') as stream:
             stream.write(yaml_content)
+            stream.write('\n')  # trailing newline!
 
         return str(output_path)
 
