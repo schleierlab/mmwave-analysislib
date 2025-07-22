@@ -233,7 +233,7 @@ class BaseStatistician(ABC):
             is the i-th innermost scanned parameter.
         '''
         unique_params = np.asarray(unique_params)
-        ndim = self.expansion_ndim  # TODO make ndim a property of the statistician
+        ndim = self.expansion_ndim
 
         if unique_params.shape[0] <= 1:
             return list(range(ndim))
@@ -241,19 +241,19 @@ class BaseStatistician(ABC):
         scan_order = []
         remaining_indices = list(range(ndim))
 
-        for i in range(ndim - 1):
+        for _ in range(ndim - 1):
             unique_params_remaining_dims = np.unique(unique_params[:, remaining_indices], axis=0)
             site_difference = (unique_params_remaining_dims[1] != unique_params_remaining_dims[0])
             if np.sum(site_difference) != 1:
                 # print(unique_params_remaining_dims)
                 # print(site_difference)
                 # raise ValueError
-                return list(range(ndim))
+                break
             index_among_remaining = site_difference.argmax()
             index = remaining_indices.pop(index_among_remaining)
             scan_order.append(index)
 
-        scan_order.append(remaining_indices[0])
+        scan_order.extend(remaining_indices)
         return scan_order
 
     def get_params_order_old(self, unique_params):
