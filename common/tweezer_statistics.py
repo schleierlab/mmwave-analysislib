@@ -364,7 +364,7 @@ class TweezerStatistician(BaseStatistician):
     def survival_fraction_bayesian(
             n_survived,
             n_total,
-            center_method: Literal['mean', 'median', 'mode'],
+            center_method: Literal['mean', 'median'],
             prior: Literal['uniform', 'jeffreys', 'haldane'],
             interval_method: Literal['centered', 'variance'],
             interval_sigmas: float = 1,
@@ -573,6 +573,164 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
 
+    def plot_survival_rate_1d(
+            self,
+            fig: Figure,
+            plot_lorentz: bool = False,
+    ):
+        loop_params = self._loop_params()
+        unique_params = self.unique_params()
+        
+        # Calculate survival rates
+        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1) # sum over all sites for each shot
+
+        # site_occupancies is of shape (num_shots, num_images, num_atoms)
+        # axis=1 corresponds to the before/after tweezer images
+        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
+        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
+
+        axs = fig.subplots(nrows=3, ncols=1)
+
+        initial_atoms_sum = np.array([
+            np.sum(initial_atoms[loop_params == x])
+            for x in unique_params
+        ])
+
+        surviving_atoms_sum = np.array([
+            np.sum(surviving_atoms[loop_params == x])
+            for x in unique_params
+        ])
+
+        first_img_atom_counts = self.site_occupancies[:,0,:].sum(axis =1)
+        rearrange_shots = first_img_atom_counts >= (self.site_occupancies[0,0,:].shape[0]/2)
+        rearrange_shots_unique= np.array([
+            np.sum(rearrange_shots[loop_params == x])
+            for x in unique_params
+        ])
+
+        n_rep = np.ceil(self.site_occupancies.shape[0]/unique_params.shape[0])
+        n_sites = self.site_occupancies.shape[2]
+        loading_rates = initial_atoms_sum/(n_rep*n_sites)
+        loading_rates_error = np.sqrt((1-loading_rates)*loading_rates / (n_rep*n_sites))
+        rearrange_rates = rearrange_shots_unique / n_rep
+        rearrange_rates_error = np.sqrt((1-rearrange_rates)*rearrange_rates/n_rep)
+
+        for ax in axs:
+            ax.set_xlabel(
+                self.params[0].axis_label,
+                fontsize=self.plot_config.label_font_size,
+            )
+            ax.set_ylim(bottom=0)
+            ax.grid(color=self.plot_config.grid_color_major, which='major')
+            ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+
+        survival_rates, sigma_beta = self.survival_fraction_bayesian(
+            surviving_atoms_sum,
+            initial_atoms_sum,
+            center_method='mean',
+            prior='uniform',
+            interval_method='variance',
+        )
+
+        fig.suptitle(
+            str(self.folder_path),
+            fontsize=8,
+        )
+
+        axs[0].errorbar(
+            unique_params,
+            survival_rates,
+            yerr=sigma_beta,
+            marker='.',
+            linestyle='-',
+            alpha=0.5,
+            capsize=3,
+        )
+
+        axs[0].set_ylabel(
+            'Survival rate',
+            fontsize=self.plot_config.label_font_size,
+        )
+        axs[0].tick_params(
+            axis='both',
+            which='major',
+            labelsize=self.plot_config.label_font_size,
+        )
+
+        axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+        axs[1].errorbar(
+            unique_params,
+            loading_rates,
+            yerr=loading_rates_error,
+            marker='.',
+            linestyle='-',
+            alpha=0.5,
+            capsize=3,
+        )
+
+        axs[1].hlines(
+            y = 0.5,
+            xmin = np.min(unique_params),
+            xmax = np.max(unique_params),
+            linestyle = '--',
+            color = 'r',
+            label = '50%'
+            )
+
+        axs[1].set_ylabel(
+            'Loading rate',
+            fontsize=self.plot_config.label_font_size,
+        )
+        axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
+        axs[1].legend()
+
+
+        axs[2].errorbar(
+            unique_params,
+            rearrange_rates,
+            yerr=rearrange_rates_error,
+            marker='.',
+            linestyle='-',
+            alpha=0.5,
+            capsize=3,
+        )
+
+        axs[2].hlines(
+            y = 0.5,
+            xmin = np.min(unique_params),
+            xmax = np.max(unique_params),
+            linestyle = '--',
+            color = 'r',
+            label = '50%'
+            )
+
+
+        axs[2].set_ylabel(
+            'Rearrange rate',
+            fontsize=self.plot_config.label_font_size,
+        )
+        axs[2].set_title(f'Rearrange rate over all shots = {np.mean(rearrange_rates):.2}', fontsize=self.plot_config.title_font_size)
+        axs[2].legend()
+
+        # doing the fit at the end of the run
+        if self.is_final_shot and plot_lorentz:
+            popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta, peak_direction=-1)
+            upopt = uncertainties.correlated_values(popt, pcov)
+
+            x_plot = np.linspace(
+                np.min(unique_params),
+                np.max(unique_params),
+                1000,
+            )
+
+            axs[0].plot(x_plot, self.lorentzian(x_plot, *popt))
+            fig.suptitle(
+                f'Center frequency: ${upopt[0]:SL}$ MHz; '
+                f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+            )
+        return unique_params, survival_rates, sigma_beta
+
     def plot_survival_rate_2d(
             self,
             fig: Figure,
@@ -738,157 +896,7 @@ class TweezerStatistician(BaseStatistician):
             axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
 
         elif loop_params.ndim == 1:
-            if fig is not None:
-                axs = fig.subplots(nrows=3, ncols=1)
-
-            initial_atoms_sum = np.array([
-                np.sum(initial_atoms[loop_params == x])
-                for x in unique_params
-            ])
-
-            surviving_atoms_sum = np.array([
-                np.sum(surviving_atoms[loop_params == x])
-                for x in unique_params
-            ])
-
-            first_img_atom_counts = self.site_occupancies[:,0,:].sum(axis =1)
-            rearrange_shots = first_img_atom_counts >= (self.site_occupancies[0,0,:].shape[0]/2)
-            rearrange_shots_unique= np.array([
-                np.sum(rearrange_shots[loop_params == x])
-                for x in unique_params
-                ])
-
-
-            #survival_rates = surviving_atoms / initial_atoms
-            # survival rate using laplace rule of succession
-            survival_rates = (surviving_atoms_sum + 1) / (initial_atoms_sum + 2)
-            # sqrt of variance of the posterior beta distribution
-            sigma_beta = np.sqrt((surviving_atoms_sum + 1) * (initial_atoms_sum - surviving_atoms_sum + 1) / ((initial_atoms_sum + 3) * (initial_atoms_sum + 2) ** 2))
-
-
-            n_rep = np.ceil(self.site_occupancies.shape[0]/unique_params.shape[0])
-            n_sites = self.site_occupancies.shape[2]
-            loading_rates = initial_atoms_sum/(n_rep*n_sites)
-            loading_rates_error = np.sqrt((1-loading_rates)*loading_rates / (n_rep*n_sites))
-            rearrange_rates = rearrange_shots_unique / n_rep
-            rearrange_rates_error = np.sqrt((1-rearrange_rates)*rearrange_rates/n_rep)
-
-            for ax in axs:
-                ax.set_xlabel(
-                    self.params[0].axis_label,
-                    fontsize=self.plot_config.label_font_size,
-                )
-                ax.set_ylim(bottom=0)
-                ax.grid(color=self.plot_config.grid_color_major, which='major')
-                ax.grid(color=self.plot_config.grid_color_minor, which='minor')
-
-            survival_rates, sigma_beta = self.survival_fraction_bayesian(
-                surviving_atoms_sum,
-                initial_atoms_sum,
-                center_method='mean',
-                prior='uniform',
-                interval_method='variance',
-            )
-
-            fig.suptitle(
-                self.folder_path,
-                fontsize=8,
-            )
-
-            axs[0].errorbar(
-                unique_params,
-                survival_rates,
-                yerr=sigma_beta,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-            )
-
-            axs[0].set_ylabel(
-                'Survival rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[0].tick_params(
-                axis='both',
-                which='major',
-                labelsize=self.plot_config.label_font_size,
-            )
-
-            axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
-
-            axs[1].errorbar(
-                unique_params,
-                loading_rates,
-                yerr=loading_rates_error,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-            )
-
-            axs[1].hlines(
-                y = 0.5,
-                xmin = np.min(unique_params),
-                xmax = np.max(unique_params),
-                linestyle = '--',
-                color = 'r',
-                label = '50%'
-                )
-
-            axs[1].set_ylabel(
-                'Loading rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
-            axs[1].legend()
-
-
-            axs[2].errorbar(
-                unique_params,
-                rearrange_rates,
-                yerr=rearrange_rates_error,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-            )
-
-            axs[2].hlines(
-                y = 0.5,
-                xmin = np.min(unique_params),
-                xmax = np.max(unique_params),
-                linestyle = '--',
-                color = 'r',
-                label = '50%'
-                )
-
-
-            axs[2].set_ylabel(
-                'Rearrange rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[2].set_title(f'Rearrange rate over all shots = {np.mean(rearrange_rates):.2}', fontsize=self.plot_config.title_font_size)
-            axs[2].legend()
-
-            # doing the fit at the end of the run
-            if self.is_final_shot and plot_lorentz:
-                popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta, peak_direction=-1)
-                upopt = uncertainties.correlated_values(popt, pcov)
-
-                x_plot = np.linspace(
-                    np.min(unique_params),
-                    np.max(unique_params),
-                    1000,
-                )
-
-                axs[0].plot(x_plot, self.lorentzian(x_plot, *popt))
-                fig.suptitle(
-                    f'Center frequency: ${upopt[0]:SL}$ MHz; '
-                    f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
-                )
-            return unique_params, survival_rates, sigma_beta
-
+            unique_params, survival_rates, sigma_beta = self.plot_survival_rate_1d(fig, plot_lorentz)
         elif loop_params.ndim == 2:
             unique_params, survival_rates, sigma_beta = self.plot_survival_rate_2d(fig, plot_gaussian)
         else:
