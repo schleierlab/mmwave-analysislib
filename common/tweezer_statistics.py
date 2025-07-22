@@ -104,6 +104,8 @@ class TweezerStatistician(BaseStatistician):
     '''
 
     # TODO clean this up
+    KEY_SHOT: ClassVar[str] = 'shot'
+    KEY_IMAGE: ClassVar[str] = 'image'
     KEY_SITE: ClassVar[str] = 'site'
     KEY_INITIAL: ClassVar[str] = 'initial'
     KEY_SURVIVAL: ClassVar[str] = 'survival'
@@ -136,9 +138,25 @@ class TweezerStatistician(BaseStatistician):
             self.site_rois = ROI.fromarray(f['site_rois'])
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
-            self.current_params = f['current_params'][:]
+            self.current_params = np.asarray(f['current_params'], dtype=bool)
 
             self.params = ScanningParameters.from_h5_tuples(self.params_list)
+
+    @property
+    def shots_processed(self) -> int:
+        return self.site_occupancies.shape[0]
+
+    @property
+    def is_final_shot(self) -> bool:
+        return self.shots_processed == self.n_runs
+
+    @property
+    def n_images(self) -> int:
+        return self.site_occupancies.shape[1]
+
+    @property
+    def n_sites(self) -> int:
+        return self.site_occupancies.shape[2]
 
     @property
     def initial_atoms_array(self):
@@ -150,10 +168,6 @@ class TweezerStatistician(BaseStatistician):
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         return self.site_occupancies[:, :2, :].prod(axis=-2)
-
-    @property
-    def n_sites(self) -> int:
-        return self.site_occupancies.shape[2]
 
     def dataframe(self) -> pd.DataFrame:
         '''
@@ -189,6 +203,23 @@ class TweezerStatistician(BaseStatistician):
 
         return df.reset_index()
     
+    # this is intended to supersede the above dataframe() eventually, since it has shot number information
+    def series(self) -> pd.Series:
+        mi = pd.MultiIndex.from_product(
+            [range(self.shots_processed), range(self.n_images), range(self.n_sites)],
+            sortorder=0,
+            names=[self.KEY_SHOT, self.KEY_IMAGE, self.KEY_SITE],
+        )
+        return pd.Series(data=self.site_occupancies.flatten(), index=mi, name='occupancy', dtype=bool)
+    
+    def scan_param_df(self) -> pd.DataFrame:
+        index = pd.RangeIndex(self.shots_processed, name=self.KEY_SHOT)
+        return pd.DataFrame(
+            self.current_params,
+            index=index,
+            columns=[param.name for param in self.params],
+        )
+
     def dataframe_binomial_error(
             self,
             data,
@@ -407,14 +438,6 @@ class TweezerStatistician(BaseStatistician):
             },
             uncertainties=True,
         )
-
-    @property
-    def shots_processed(self) -> int:
-        return self.site_occupancies.shape[0]
-
-    @property
-    def is_final_shot(self) -> bool:
-        return self.shots_processed == self.n_runs
 
     @staticmethod
     def survival_fraction_bayesian(
@@ -657,14 +680,14 @@ class TweezerStatistician(BaseStatistician):
             for x in unique_params
         ])
 
-        first_img_atom_counts = self.site_occupancies[:,0,:].sum(axis =1)
-        rearrange_shots = first_img_atom_counts >= (self.site_occupancies[0,0,:].shape[0]/2)
+        first_img_atom_counts = self.site_occupancies[:, 0, :].sum(axis=1)
+        rearrange_shots = first_img_atom_counts >= self.n_sites / 2
         rearrange_shots_unique = np.array([
             np.sum(rearrange_shots[loop_params == x])
             for x in unique_params
         ])
 
-        n_rep = np.ceil(self.site_occupancies.shape[0]/unique_params.shape[0])
+        n_rep = np.ceil(self.site_occupancies.shape[0] / unique_params.shape[0])
         rearrange_rates = rearrange_shots_unique / n_rep
         rearrange_rates_error = np.sqrt((1-rearrange_rates)*rearrange_rates/n_rep)
 
