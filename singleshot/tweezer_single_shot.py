@@ -43,7 +43,8 @@ if not SHOW_IMG_ONLY:
         target_array = tweezer_preproc.target_array
         tweezer_statistician.plot_target_sites_success_rate(target_array, fig = subfigs[1])
     else:
-        unique_params, survival_rates, sigma_beta = tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
+        # unique_params, survival_rates, sigma_beta = 
+        tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
 
         # print(unique_params)
         # print(survival_rates)
