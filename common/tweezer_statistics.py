@@ -678,7 +678,7 @@ class TweezerStatistician(BaseStatistician):
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
 
-        axs = fig.subplots(nrows=3, ncols=1)
+        axs = fig.subplots(nrows=2, ncols=1)
 
         initial_atoms_sum = np.array([
             np.sum(initial_atoms[loop_params == x])
@@ -748,41 +748,15 @@ class TweezerStatistician(BaseStatistician):
 
         axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
 
-
-        initial_occupancy_df = gb[self.KEY_INITIAL].agg(['mean', 'sum', 'count'])
-        self.dataframe_binomial_error(initial_occupancy_df, 'sum', 'count', name='loading_rate_std')
-        axs[1].errorbar(
-            initial_occupancy_df.index,
-            initial_occupancy_df['mean'],
-            yerr=initial_occupancy_df['loading_rate_std'],
-            **self.plot_config.errorbar_kw,
-        )
-
-        axs[1].hlines(
-            y = 0.5,
-            xmin = np.min(unique_params),
-            xmax = np.max(unique_params),
-            linestyle = '--',
-            color = 'r',
-            label = '50%'
-            )
-
-        axs[1].set_ylabel(
-            'Loading rate',
-            fontsize=self.plot_config.label_font_size,
-        )
-        axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
-        axs[1].legend()
-
-
-        axs[2].errorbar(
+        rearrange_ax = axs[1]
+        rearrange_ax.errorbar(
             unique_params,
             rearrange_rates,
             yerr=rearrange_rates_error,
             **self.plot_config.errorbar_kw,
         )
 
-        axs[2].hlines(
+        rearrange_ax.hlines(
             y = 0.5,
             xmin = np.min(unique_params),
             xmax = np.max(unique_params),
@@ -792,12 +766,12 @@ class TweezerStatistician(BaseStatistician):
             )
 
 
-        axs[2].set_ylabel(
+        rearrange_ax.set_ylabel(
             'Rearrange rate',
             fontsize=self.plot_config.label_font_size,
         )
-        axs[2].set_title(f'Rearrange rate over all shots = {np.mean(rearrange_rates):.2}', fontsize=self.plot_config.title_font_size)
-        axs[2].legend()
+        rearrange_ax.set_title(f'Rearrange rate over all shots = {np.mean(rearrange_rates):.2}', fontsize=self.plot_config.title_font_size)
+        rearrange_ax.legend()
 
         # doing the fit at the end of the run
         if self.is_final_shot and plot_lorentz:
