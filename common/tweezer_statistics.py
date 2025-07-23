@@ -134,11 +134,11 @@ class TweezerStatistician(BaseStatistician):
         """
         with h5py.File(preproc_h5_path, 'r') as f:
             self.camera_counts = f['camera_counts'][:]
-            self.site_occupancies = f['site_occupancies'][:]
+            self.site_occupancies = np.asarray(f['site_occupancies'][:], dtype=bool)
             self.site_rois = ROI.fromarray(f['site_rois'])
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
-            self.current_params = np.asarray(f['current_params'], dtype=bool)
+            self.current_params = f['current_params'][:]
 
             self.params = ScanningParameters.from_h5_tuples(self.params_list)
 
