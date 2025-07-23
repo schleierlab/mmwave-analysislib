@@ -1,7 +1,7 @@
 """Configuration class for plotting parameters used across different plotters."""
 
 from dataclasses import dataclass
-from typing import Literal, Optional, Tuple, TypedDict
+from typing import Literal, Tuple, TypedDict, Union
 
 from matplotlib.typing import ColorType, LineStyleType, MarkerType
 
@@ -15,7 +15,7 @@ class ErrorbarKwarg(TypedDict, total=False):
 
 
 class TextKwarg(TypedDict, total=False):
-    fontsize: int | Literal['x-small', 'small', 'medium']
+    fontsize: Union[int, Literal['x-small', 'small', 'medium']]
     color: ColorType
 
 

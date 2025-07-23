@@ -301,7 +301,7 @@ class TweezerPreprocessor(ImagePreprocessor):
                     'site_occupancies',
                     data=self.site_occupancies[np.newaxis, ...].astype(bool),
                     maxshape=(None, 10, 100),
-                    fillvalue=float('nan'),
+                    fillvalue=False,
                 )
                 f['site_occupancies'].attrs['threshold'] = self.threshold
                 f.create_dataset('site_rois', data=ROI.toarray(self.site_rois))
