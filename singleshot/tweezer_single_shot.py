@@ -39,6 +39,7 @@ if not SHOW_IMG_ONLY:
         do_rearrangement = bool(tweezer_preproc.globals['do_rearrangement'])
     except KeyError:
         do_rearrangement = bool(tweezer_preproc.default_params['do_rearrangement'])
+
     if do_rearrangement:
         target_array = tweezer_preproc.target_array
         tweezer_statistician.plot_target_sites_success_rate(target_array, fig = subfigs[1])

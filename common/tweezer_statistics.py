@@ -789,7 +789,6 @@ class TweezerStatistician(BaseStatistician):
                 f'Center frequency: ${upopt[0]:SL}$ MHz; '
                 f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
             )
-        return unique_params, survival_rates, sigma_beta
 
     # REFACTORED
 
@@ -889,12 +888,10 @@ class TweezerStatistician(BaseStatistician):
             )
 
         if loop_params.size == 0:
-            print("loop_params is empty with dimension", loop_params.ndim)
             axs = fig.subplots(nrows=2, ncols=1)
 
             survival_rates = surviving_atoms / initial_atoms
             loading_rates = initial_atoms/self.site_occupancies.shape[2]
-            print("survival rate is", survival_rates)
 
             error = np.sqrt((survival_rates * (1 - survival_rates)) / self.site_occupancies.shape[2])
             loading_rates_error = np.sqrt((loading_rates * (1 - loading_rates)) / self.site_occupancies.shape[2])
@@ -951,7 +948,7 @@ class TweezerStatistician(BaseStatistician):
             axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
 
         elif loop_params.ndim == 1:
-            unique_params, survival_rates, sigma_beta = self.plot_survival_rate_1d(fig, plot_lorentz)
+            self.plot_survival_rate_1d(fig, plot_lorentz)
         elif loop_params.ndim == 2:
             self.plot_survival_rate_2d(fig, plot_gaussian)
         else:
