@@ -8,14 +8,15 @@ from typing import ClassVar, Literal, Optional, overload
 from typing_extensions import assert_never
 
 import h5py  # type: ignore
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pandas.api.typing as pdt
 import uncertainties  # type: ignore
 import uncertainties.unumpy as unp  # type: ignore
-from matplotlib.figure import Figure
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 from numpy.typing import NDArray
 from scipy.stats import beta, norm
@@ -976,8 +977,11 @@ class TweezerStatistician(BaseStatistician):
 
         agg = gb.agg(binomial_rate_uncert)
 
+        run_time_series = self.run_time_series()
+        '''index: shot number; values: run times'''
+
         ax.errorbar(
-            self.run_time_series(),
+            run_time_series,
             unp.nominal_values(agg),
             yerr=unp.std_devs(agg),
             **self.plot_config.errorbar_kw,
@@ -987,6 +991,34 @@ class TweezerStatistician(BaseStatistician):
         ax.set_ylabel('Loading rate')
         ax.set_ylim(0, 1)
         ax.axhline(0.5, color='red', linestyle='dashed')
+
+        run_time_nums = mdates.date2num(run_time_series)
+        run_time_nums_interp = np.empty((self.shots_processed + 2,))
+        run_time_nums_interp[1:-1] = run_time_nums
+        time_range = max(1, run_time_nums[-1] - run_time_nums[0])  # in case run_time_nums is len 1
+        run_time_nums_interp[0] = run_time_nums[0] - time_range
+        run_time_nums_interp[-1] = run_time_nums[-1] + time_range
+        # [A, time0, time1, time2, time(n-1), B]
+        # where A, time0, time(n-1), B are in arithmetic sequence
+
+        shot_indices_interp = np.arange(-1, self.shots_processed + 1, dtype=np.float64)
+        eps = 0.1
+        shot_indices_interp[0] = -eps
+        shot_indices_interp[-1] = shot_indices_interp[-2] + eps
+        # [-0.1, 0, 1, 2, ..., n-1, n-1 + 0.1]
+        # endpoints are so things at the far end don't look wrong
+
+        def time_to_index(datenum):
+            retval = np.interp(datenum, run_time_nums_interp, shot_indices_interp)
+            return retval
+
+        def index_to_time(index):
+            time_num = np.interp(index, shot_indices_interp, run_time_nums_interp)
+            return time_num
+        
+        secax = ax.secondary_xaxis(location='top', functions=(time_to_index, index_to_time))
+        secax.xaxis.set_major_locator(MaxNLocator(steps=[1, 2, 4, 5, 10], integer=True))
+        secax.set_xlabel('Shot number')
 
     def plot_tweezing_statistics(self, fig: Optional[Figure] = None):
         if fig is None:
