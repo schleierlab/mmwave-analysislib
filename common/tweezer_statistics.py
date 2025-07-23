@@ -986,6 +986,7 @@ class TweezerStatistician(BaseStatistician):
             **self.plot_config.errorbar_kw,
         )
 
+        ax.set_xlabel('Shot time')
         ax.set_ylabel('Loading rate')
         ax.set_ylim(0, 1)
         ax.axhline(0.5, color='red', linestyle='dashed')
@@ -998,6 +999,7 @@ class TweezerStatistician(BaseStatistician):
 
         fig.suptitle('Tweezing statistics')
         self.plot_loading_rate(ax)
+        fig.autofmt_xdate()
 
     # LEGACY CODE
 
