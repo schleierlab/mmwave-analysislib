@@ -23,7 +23,7 @@ processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = Tr
 if SHOW_IMG_ONLY:
     tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=fig, vmax=80)
 else:
-    subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
+    subfigs = fig.subfigures(nrows=1, ncols=3, wspace=0.07)
     tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=subfigs[0], vmax=80)
 
 # Initialize statistician with consistent styling
@@ -45,6 +45,7 @@ if not SHOW_IMG_ONLY:
     else:
         # unique_params, survival_rates, sigma_beta = 
         tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
+        tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2])
 
         # print(unique_params)
         # print(survival_rates)

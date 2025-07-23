@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import pandas.api.typing as pdt
 import uncertainties  # type: ignore
+import uncertainties.unumpy as unp  # type: ignore
 from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 from matplotlib.ticker import MaxNLocator
@@ -139,6 +140,7 @@ class TweezerStatistician(BaseStatistician):
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
+            self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
 
             self.params = ScanningParameters.from_h5_tuples(self.params_list)
 
@@ -203,6 +205,9 @@ class TweezerStatistician(BaseStatistician):
 
         return df.reset_index()
     
+    def run_time_series(self) -> pd.Series:
+        return pd.Series(self.run_times_strs, dtype='datetime64[ns]')
+
     # this is intended to supersede the above dataframe() eventually, since it has shot number information
     def series(self) -> pd.Series:
         # ignoring typechecker pending pandas-stubs#1285
@@ -212,7 +217,7 @@ class TweezerStatistician(BaseStatistician):
             names=[self.KEY_SHOT, self.KEY_IMAGE, self.KEY_SITE],
         )
         return pd.Series(data=self.site_occupancies.flatten(), index=mi, name='occupancy', dtype=bool)
-    
+
     def scan_param_df(self) -> pd.DataFrame:
         index = pd.RangeIndex(self.shots_processed, name=self.KEY_SHOT)
         return pd.DataFrame(
@@ -256,6 +261,8 @@ class TweezerStatistician(BaseStatistician):
 
         self.dataframe_binomial_error(df, self.KEY_SURVIVAL, self.KEY_INITIAL, name=self.KEY_SURVIVAL_RATE_STD)
         return df
+
+    # LEGACY CODE
 
     def rearrange_success_rate(self, target_array):
         atom_number_target_array = np.zeros(len(self.site_occupancies[:,0,0]))
@@ -653,6 +660,8 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
 
+    # BEING REFACTORED
+
     def plot_survival_rate_1d(
             self,
             fig: Figure,
@@ -807,6 +816,8 @@ class TweezerStatistician(BaseStatistician):
                 f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
             )
         return unique_params, survival_rates, sigma_beta
+
+    # REFACTORED
 
     def plot_survival_rate_2d(
             self,
@@ -975,6 +986,46 @@ class TweezerStatistician(BaseStatistician):
         figname = self.folder_path / 'survival_rate_vs_param.pdf'
         if not is_subfig:
             fig.savefig(figname)
+
+    def plot_loading_rate(self, ax: Axes):
+        series = self.series()
+        gb = series.xs(0, level=self.KEY_IMAGE).groupby(self.KEY_SHOT)
+
+        # TODO this should be refactored with the other pandas-based
+        # binomial error uncertainty implementations...
+        # need to figure out best way to do this
+        def binomial_rate_uncert(arr):
+            trues = arr.sum()
+            total = len(arr)
+            mean = trues / total
+
+            laplace_p = (trues + 1) / (total + 2)
+            uncert = np.sqrt(laplace_p * (1 - laplace_p) / total)
+            return uncertainties.ufloat(mean, uncert)
+
+        agg = gb.agg(binomial_rate_uncert)
+
+        ax.errorbar(
+            self.run_time_series(),
+            unp.nominal_values(agg),
+            yerr=unp.std_devs(agg),
+            **self.plot_config.errorbar_kw,
+        )
+
+        ax.set_ylabel('Loading rate')
+        ax.set_ylim(0, 1)
+        ax.axhline(0.5, color='red', linestyle='dashed')
+
+    def plot_tweezing_statistics(self, fig: Optional[Figure] = None):
+        if fig is None:
+            fig, ax = plt.subplots()
+        else:
+            ax = fig.subplots()
+
+        fig.suptitle('Tweezing statistics')
+        self.plot_loading_rate(ax)
+
+    # LEGACY CODE
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
