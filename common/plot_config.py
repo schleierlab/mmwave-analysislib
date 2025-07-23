@@ -40,3 +40,10 @@ class PlotConfig:
     constrained_layout: bool = True
     raw_image_scale: float = 100
     roi_image_scale: float = 100
+
+    errorbar_kw = dict(
+        marker='.',
+        linestyle='-',
+        alpha=0.5,
+        capsize=3,
+    )

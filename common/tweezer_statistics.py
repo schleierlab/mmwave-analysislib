@@ -708,14 +708,6 @@ class TweezerStatistician(BaseStatistician):
             prior='uniform',
             interval_method='variance',
         )
-        
-        errorbar_kw = dict(
-            marker='.',
-            linestyle='-',
-            alpha=0.5,
-            capsize=3,
-        )
-
 
         fig.suptitle(
             str(self.folder_path),
@@ -732,7 +724,7 @@ class TweezerStatistician(BaseStatistician):
             survival_df.index,
             survival_df[self.KEY_SURVIVAL_RATE],
             yerr=survival_df[self.KEY_SURVIVAL_RATE_STD],
-            **errorbar_kw,
+            **self.plot_config.errorbar_kw,
         )
 
         axs[0].set_ylabel(
@@ -754,7 +746,7 @@ class TweezerStatistician(BaseStatistician):
             initial_occupancy_df.index,
             initial_occupancy_df['mean'],
             yerr=initial_occupancy_df['loading_rate_std'],
-            **errorbar_kw,
+            **self.plot_config.errorbar_kw,
         )
 
         axs[1].hlines(
@@ -778,7 +770,7 @@ class TweezerStatistician(BaseStatistician):
             unique_params,
             rearrange_rates,
             yerr=rearrange_rates_error,
-            **errorbar_kw,
+            **self.plot_config.errorbar_kw,
         )
 
         axs[2].hlines(
