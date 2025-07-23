@@ -1,7 +1,18 @@
 """Configuration class for plotting parameters used across different plotters."""
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TypedDict
+
+from matplotlib.typing import ColorType, LineStyleType, MarkerType
+
+
+class ErrorbarKwarg(TypedDict, total=False):
+    marker: MarkerType
+    linestyle: LineStyleType
+    alpha: float
+    capsize: float
+    color: ColorType
+
 
 @dataclass
 class PlotConfig:
@@ -41,7 +52,7 @@ class PlotConfig:
     raw_image_scale: float = 100
     roi_image_scale: float = 100
 
-    errorbar_kw = dict(
+    errorbar_kw = ErrorbarKwarg(
         marker='.',
         linestyle='-',
         alpha=0.5,
