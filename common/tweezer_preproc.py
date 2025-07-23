@@ -351,7 +351,7 @@ class TweezerPreprocessor(ImagePreprocessor):
                 ncols=1,
             )
         else:
-            axs = fig.subplots(nrows=2, ncols=1)
+            axs = fig.subplots(nrows=len(self.images), ncols=1)
 
         norm = Normalize(vmin=0, vmax=vmax)
         for i, image in enumerate(self.images):
