@@ -37,10 +37,13 @@ class ImagePreprocessor(ABC):
     n_runs: int
     '''Total number of runs for this runmanager expansion.'''
 
+    run_time: str
+    '''Time of the run, as a string of the form 20250722T153214 (strftime format %Y%m%dT%H%M%S)'''
+
     def __init__(
             self,
             imaging_setup: ImagingSystem,
-            load_type: str = 'lyse',
+            load_type: Literal['lyse', 'h5'] = 'lyse',
             h5_path: Optional[str] = None):
         """Initialize image preprocessing.
 
@@ -61,6 +64,7 @@ class ImagePreprocessor(ABC):
 
         with h5py.File(self.h5_path, mode='r') as f:
             self.n_runs = f.attrs['n_runs']
+            self.run_time = f.attrs['run time']
 
     # TODO migrate to using pathlib Paths instead
     def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[str] = None) -> Path:

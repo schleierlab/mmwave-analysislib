@@ -314,6 +314,12 @@ class TweezerPreprocessor(ImagePreprocessor):
                 for key in self.params.keys():
                     param_list.append([key, self.params[key][1], self.params[key][0]])
                 f.create_dataset('params', data=param_list)
+
+                f.create_dataset(
+                    'run_times',
+                    data=[self.run_time],
+                    maxshape=(None,),
+                )
         else:
             with h5py.File(fname, 'a') as f:
                 f['camera_counts'].resize(run_number + 1, axis=0)
@@ -325,6 +331,9 @@ class TweezerPreprocessor(ImagePreprocessor):
                 # save parameters from runmanager globals
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
+
+                f['run_times'].resize(run_number + 1, axis=0)
+                f['run_times'][run_number] = self.run_time
 
         return fname
 
