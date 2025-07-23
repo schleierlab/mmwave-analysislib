@@ -1,7 +1,7 @@
 """Configuration class for plotting parameters used across different plotters."""
 
 from dataclasses import dataclass
-from typing import Optional, Tuple, TypedDict
+from typing import Literal, Optional, Tuple, TypedDict
 
 from matplotlib.typing import ColorType, LineStyleType, MarkerType
 
@@ -11,6 +11,11 @@ class ErrorbarKwarg(TypedDict, total=False):
     linestyle: LineStyleType
     alpha: float
     capsize: float
+    color: ColorType
+
+
+class TextKwarg(TypedDict, total=False):
+    fontsize: int | Literal['x-small', 'small', 'medium']
     color: ColorType
 
 
@@ -57,4 +62,9 @@ class PlotConfig:
         linestyle='-',
         alpha=0.5,
         capsize=3,
+    )
+
+    tweezer_index_label_kw = TextKwarg(
+        color='red',
+        fontsize='small',
     )

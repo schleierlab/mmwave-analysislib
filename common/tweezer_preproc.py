@@ -1,7 +1,7 @@
 import importlib.resources
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar, Optional, cast
+from typing import ClassVar, Literal, Optional, cast
 
 import h5py
 import numpy as np
@@ -17,6 +17,7 @@ from .image_preprocessor import ImagePreprocessor
 from .analysis_config import kinetix_system
 from .image import Image, ROI
 from analysislib import multishot
+from analysislib.common.plot_config import PlotConfig
 
 
 class TweezerPreprocessor(ImagePreprocessor):
@@ -49,9 +50,10 @@ class TweezerPreprocessor(ImagePreprocessor):
 
     def __init__(
             self,
-            load_type: str = 'lyse',
+            load_type: Literal['lyse', 'h5'] = 'lyse',
             h5_path: Optional[str] = None,
-            use_averaged_background: bool = False
+            use_averaged_background: bool = False,
+            plot_config: Optional[PlotConfig] = None,
         ):
         """Initialize TweezerAnalysis with analysis configuration.
 
@@ -69,6 +71,8 @@ class TweezerPreprocessor(ImagePreprocessor):
             load_type=load_type,
             h5_path=h5_path
         )
+
+        self.plot_config = plot_config or PlotConfig()
 
         self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
         self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
@@ -295,7 +299,7 @@ class TweezerPreprocessor(ImagePreprocessor):
                 )  # shape: (n_shots, n_images, n_sites)
                 f.create_dataset(
                     'site_occupancies',
-                    data=self.site_occupancies[np.newaxis, ...].astype(np.float_),
+                    data=self.site_occupancies[np.newaxis, ...].astype(bool),
                     maxshape=(None, 10, 100),
                     fillvalue=float('nan'),
                 )
@@ -370,16 +374,12 @@ class TweezerPreprocessor(ImagePreprocessor):
                 )
                 collection = PatchCollection(patches, match_original=True)
                 ax.add_collection(collection)
-                text_kwargs = {
-                    'color':'red',
-                    'fontsize':'small',
-                }
                 if site_index:
                     [
                         ax.annotate(
                             str(j), # The site index to display
                             xy=(roi.xmin, roi.ymin - 5), # Position of the text
-                            **text_kwargs,
+                            **self.plot_config.tweezer_index_label_kw,
                         )
                         # Iterate through sites, but only annotate if j is a multiple of 5
                         for j, roi in enumerate(self.site_rois)
