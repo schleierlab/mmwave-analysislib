@@ -42,7 +42,8 @@ if not SHOW_IMG_ONLY:
     else:
         # unique_params, survival_rates, sigma_beta = 
         tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
-        tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2])
+
+    tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2])
 
         # print(unique_params)
         # print(survival_rates)
