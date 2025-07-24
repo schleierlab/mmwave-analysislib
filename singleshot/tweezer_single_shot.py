@@ -17,6 +17,7 @@ tweezer_preproc = TweezerPreprocessor(
     h5_path=None,
     use_averaged_background = USE_AVERAGED_BACKGROUND
 )
+doing_rearrangement = bool(tweezer_preproc.parameters['do_rearrangement'])
 
 fig = plt.figure(layout='constrained')
 processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = True)
@@ -35,12 +36,7 @@ tweezer_statistician = TweezerStatistician(
 
 folder_path = os.path.dirname(tweezer_preproc.h5_path)
 if not SHOW_IMG_ONLY:
-    try:
-        do_rearrangement = bool(tweezer_preproc.globals['do_rearrangement'])
-    except KeyError:
-        do_rearrangement = bool(tweezer_preproc.default_params['do_rearrangement'])
-
-    if do_rearrangement:
+    if doing_rearrangement:
         target_array = tweezer_preproc.target_array
         tweezer_statistician.plot_target_sites_success_rate(target_array, fig = subfigs[1])
     else:

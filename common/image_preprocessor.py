@@ -33,6 +33,7 @@ class ImagePreprocessor(ABC):
     run_number: int
     h5_path: Path
     exposures: tuple[np.ndarray, ...]
+    parameters: dict[str, Any]
 
     n_runs: int
     '''Total number of runs for this runmanager expansion.'''
@@ -61,6 +62,7 @@ class ImagePreprocessor(ABC):
         self.exposures, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
+        self.parameters = self.default_params | self.globals
 
         with h5py.File(self.h5_path, mode='r') as f:
             self.n_runs = f.attrs['n_runs']
@@ -193,35 +195,35 @@ class ImagePreprocessor(ABC):
 
         return params, n_rep
 
-    def load_images(self,) -> tuple[tuple[np.ndarray, ...], int, dict[str, Any]]:
+    def load_images(self,) -> tuple[tuple[np.ndarray, ...], int, dict[str, Any], dict[str, Any]]:
         """
         load image inside the h5 file, return current run number and globals
 
         Returns
         -------
-            images: dictionary with keys based on different imaging cameras used
-                images.keys(): list of all keys of images, which is based on different imaging cameras
-                images.values(): list of all values of images, array like, shape [n_px, n_px]
-            run_number: int
-                current run number
-            globals: dictionary with keys based on different global variables used
-
+        images: dictionary with keys based on different imaging cameras used
+            images.keys(): list of all keys of images, which is based on different imaging cameras
+            images.values(): list of all values of images, array like, shape [n_px, n_px]
+        run_number: int
+            current run number
+        globals, default_params: dict
+            Dicts for runmanager-set and default parameter values.
         """
         with h5py.File(self.h5_path, mode='r+') as f:
-            globals = hz.getGlobalsFromFile(self.h5_path)
+            globals_dict = hz.getGlobalsFromFile(self.h5_path)
             hz.getDefaultParamsFromFile
             images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
             run_number = f.attrs['run number']
             try:
                 default_params = hz.getDefaultParamsFromFile(self.h5_path)
             except KeyError:
-                pass
+                default_params = dict()
 
         images_list = tuple(
             images[self.imaging_setup.camera.image_name_stem + str(i)]
             for i in range(len(images))
         )
-        return images_list, run_number, globals, default_params
+        return images_list, run_number, globals_dict, default_params
 
     @abstractmethod
     def process_shot(self,) -> None:
