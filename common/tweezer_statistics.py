@@ -540,50 +540,6 @@ class TweezerStatistician(BaseStatistician):
 
         return center, yerr
 
-    # @staticmethod
-    # def survival_fraction(
-    #     n_survived,
-    #     n_total,
-    #     method: Literal['exact', 'laplace'],
-    #     uncertainty_method: Literal['wald', 'jeffreys', 'clopperpearson'],
-    # ):
-    #     if method == 'exact':
-    #         survival_rate = n_survived / n_total
-    #     elif method == 'laplace':
-    #         survival_rate = (n_survived + 1) / (n_total + 2)
-    #     elif method == 'median':
-    #         survival_rate = beta(0.5, 0.5).median()
-    #     else:
-    #         assert_never(method)
-
-    #     if uncertainty_method == 'wald':
-    #         uncertainty = np.sqrt(survival_rate * (1 - survival_rate) / n_total)
-    #         return survival_rate, uncertainty
-    #     elif uncertainty_method == 'jeffreys':
-    #         uncertainty = np.sqrt((n_survived + 1) / (n_total + 2)) / (n_total + 2)
-    #     elif uncertainty_method == 'clopperpearson':
-    #         tail_probability = norm.cdf(-1)  # 1-sigma 1-sided tail probability ~ (100% - 68%) / 2
-    #         lolim = beta.ppf(tail_probability, n_survived, n_total - n_survived + 1)
-    #         uplim = beta.ppf(1 - tail_probability, n_survived + 1, n_total - n_survived)
-    #         return survival_rate, (survival_rate - lolim, uplim - survival_rate)
-    #     else:
-    #         assert_never(uncertainty_method)
-
-    #     return survival_rate, uncertainty
-
-    # @staticmethod
-    # def survival_fraction_uncertainty(n_survived, n_total, method: Literal['frequentist', 'beta']):
-    #     '''
-    #     https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
-    #     '''
-    #     if method == 'frequentist':
-    #         p = n_survived / n_total
-    #         return np.sqrt(p * (1 - p) / n_total)
-    #     elif method == 'laplace':
-    #         return np.sqrt((n_survived + 1) / (n_total + 2)) / (n_total + 2)
-    #     else:
-    #         assert_never(method)
-
     def plot_target_sites_success_rate(self, target_array, fig: Optional[Figure] = None):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -610,7 +566,7 @@ class TweezerStatistician(BaseStatistician):
 
         error = np.sqrt(
             (target_sites_success_rate * (1 - target_sites_success_rate))
-            / atom_number_target_array[atom_number_target_array!=0].shape[0]
+            / atom_number_target_array[atom_number_target_array != 0].shape[0]
             )
 
         ax.set_title(
@@ -622,10 +578,7 @@ class TweezerStatistician(BaseStatistician):
             x = np.arange(self.site_occupancies.shape[0]),
             y = target_sites_success_rate,
             yerr=error,
-            marker='.',
-            linestyle='-',
-            alpha=0.5,
-            capsize=3,
+            **self.plot_config.errorbar_kw,
         )
         ax.set_ylabel(
             'Target sites success rate',
@@ -637,8 +590,7 @@ class TweezerStatistician(BaseStatistician):
             labelsize=self.plot_config.label_font_size,
         )
         ax.set_ylim(bottom=0)
-        ax.grid(color=self.plot_config.grid_color_major, which='major')
-        ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+        self.plot_config.configure_grids(ax)
         ax.set_title('Target sites success rate over all sites', fontsize=self.plot_config.title_font_size)
 
         figname = self.folder_path / 'target_sites_success_rate.pdf'
@@ -692,8 +644,7 @@ class TweezerStatistician(BaseStatistician):
                 fontsize=self.plot_config.label_font_size,
             )
             ax.set_ylim(bottom=0)
-            ax.grid(color=self.plot_config.grid_color_major, which='major')
-            ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+            self.plot_config.configure_grids(ax)
 
         survival_rates, sigma_beta = self.survival_fraction_bayesian(
             surviving_atoms_sum,
@@ -837,8 +788,7 @@ class TweezerStatistician(BaseStatistician):
                 which='major',
                 labelsize=self.plot_config.label_font_size,
             )
-            ax.grid(color=self.plot_config.grid_color_major, which='major')
-            ax.grid(color=self.plot_config.grid_color_minor, which='minor')
+            self.plot_config.configure_grids(ax)
         ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
         ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
         if plot_gaussian:
@@ -912,8 +862,6 @@ class TweezerStatistician(BaseStatistician):
                 labelsize=self.plot_config.label_font_size,
             )
             axs[0].set_ylim(bottom=0)
-            axs[0].grid(color=self.plot_config.grid_color_major, which='major')
-            axs[0].grid(color=self.plot_config.grid_color_minor, which='minor')
             axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
 
             axs[1].errorbar(
@@ -935,9 +883,10 @@ class TweezerStatistician(BaseStatistician):
                 labelsize=self.plot_config.label_font_size,
             )
             axs[1].set_ylim(bottom=0)
-            axs[1].grid(color=self.plot_config.grid_color_major, which='major')
-            axs[1].grid(color=self.plot_config.grid_color_minor, which='minor')
             axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
+
+            for ax in axs:
+                self.plot_config.configure_grids(ax)
 
         elif loop_params.ndim == 1:
             self.plot_survival_rate_1d(fig, plot_lorentz)

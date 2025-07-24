@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal, Tuple, TypedDict, Union
 
+from matplotlib.axes import Axes
 from matplotlib.typing import ColorType, LineStyleType, MarkerType
 
 
@@ -68,3 +69,7 @@ class PlotConfig:
         color='red',
         fontsize='small',
     )
+
+    def configure_grids(self, ax: Axes):
+        ax.grid(color=self.grid_color_major, which='major')
+        ax.grid(color=self.grid_color_minor, which='minor')
