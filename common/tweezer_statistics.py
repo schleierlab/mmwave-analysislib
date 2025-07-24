@@ -529,35 +529,14 @@ class TweezerStatistician(BaseStatistician):
 
         return center, yerr
 
-    # BEING REFACTORED
+    # REFACTORED
 
     def plot_survival_rate_1d(
             self,
             fig: Figure,
             plot_lorentz: bool = False,
     ):
-        loop_params = self._loop_params()
-        unique_params = self.unique_params()
-        
-        # Calculate survival rates
-        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1) # sum over all sites for each shot
-
-        # site_occupancies is of shape (num_shots, num_images, num_atoms)
-        # axis=1 corresponds to the before/after tweezer images
-        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
-
         axs = fig.subplots(nrows=2, ncols=1)
-
-        initial_atoms_sum = np.array([
-            np.sum(initial_atoms[loop_params == x])
-            for x in unique_params
-        ])
-
-        surviving_atoms_sum = np.array([
-            np.sum(surviving_atoms[loop_params == x])
-            for x in unique_params
-        ])
 
         for ax in axs:
             ax.set_xlabel(
@@ -566,14 +545,6 @@ class TweezerStatistician(BaseStatistician):
             )
             ax.set_ylim(bottom=0)
             self.plot_config.configure_grids(ax)
-
-        survival_rates, sigma_beta = self.survival_fraction_bayesian(
-            surviving_atoms_sum,
-            initial_atoms_sum,
-            center_method='mean',
-            prior='uniform',
-            interval_method='variance',
-        )
 
         fig.suptitle(
             str(self.folder_path),
@@ -586,10 +557,13 @@ class TweezerStatistician(BaseStatistician):
         gb = df.groupby([param.name for param in self.params])
         survival_df = self.dataframe_survival(gb)
 
+        indep_var = survival_df.index
+        survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
+        survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
         axs[0].errorbar(
-            survival_df.index,
-            survival_df[self.KEY_SURVIVAL_RATE],
-            yerr=survival_df[self.KEY_SURVIVAL_RATE_STD],
+            indep_var,
+            survival_rates,
+            yerr=survival_rate_errs,
             **self.plot_config.errorbar_kw,
         )
 
@@ -607,12 +581,12 @@ class TweezerStatistician(BaseStatistician):
 
         # doing the fit at the end of the run
         if self.is_final_shot and plot_lorentz:
-            popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta, peak_direction=-1)
+            popt, pcov = self.fit_lorentzian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
             upopt = uncertainties.correlated_values(popt, pcov)
 
             x_plot = np.linspace(
-                np.min(unique_params),
-                np.max(unique_params),
+                np.min(indep_var),
+                np.max(indep_var),
                 1000,
             )
 
@@ -621,8 +595,6 @@ class TweezerStatistician(BaseStatistician):
                 f'Center frequency: ${upopt[0]:SL}$ MHz; '
                 f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
             )
-
-    # REFACTORED
 
     def plot_survival_rate_2d(
             self,
