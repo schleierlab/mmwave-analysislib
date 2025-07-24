@@ -285,27 +285,6 @@ class TweezerStatistician(BaseStatistician):
 
     # LEGACY CODE
 
-    def rearrange_success_rate(self, target_array):
-        atom_number_target_array = np.zeros(len(self.site_occupancies[:,0,0]))
-        rearrange_index = []
-
-        for i in np.arange(atom_number_target_array.shape[0]):
-            first_shot = self.site_occupancies[i,0,:]
-            second_shot = self.site_occupancies[i,1,:]
-            second_shot_target_array = second_shot[target_array]
-            # use only the targe indexs
-            if np.sum(first_shot) >= len(target_array):
-                # print("Occupy >= 50%, starting rearrange")
-                rearrange_index.append(i)
-                atom_number_target_array[i] = np.sum(second_shot_target_array)
-                if atom_number_target_array[i] == 0:
-                    print("Warning, the rearrangement happens but 0 atom left in the target array, something is wrong!")
-
-        # second_shot_target_array_lst = self.site_occupancies[rearrange_index,1,target_array]
-        # print(second_shot_target_array_lst.shape)
-
-        return atom_number_target_array
-
     def rearragne_statistics(self, target_array):
         n_target = len(target_array)
         # Sum over atoms for each shot, for the first image (axis=1 is atoms)
@@ -550,63 +529,6 @@ class TweezerStatistician(BaseStatistician):
 
         return center, yerr
 
-    def plot_target_sites_success_rate(self, target_array, fig: Optional[Figure] = None):
-        """
-        Plots the total survival rate of atoms in the tweezers, summed over all sites.
-
-        Parameters
-        ----------
-        fig : Optional[Figure]
-            The figure to plot on. If None, a new figure is created.
-        """
-        # Calculate survival rates
-        if fig is None:
-            fig, ax = plt.subplots(
-                figsize=self.plot_config.figure_size,
-                constrained_layout=self.plot_config.constrained_layout,
-            )
-            is_subfig = False
-        else:
-            ax = fig.subplots()
-            is_subfig = True
-
-        atom_number_target_array = self.rearrange_success_rate(target_array)
-
-        target_sites_success_rate =  atom_number_target_array/target_array.shape[0]
-
-        error = np.sqrt(
-            (target_sites_success_rate * (1 - target_sites_success_rate))
-            / atom_number_target_array[atom_number_target_array != 0].shape[0]
-            )
-
-        ax.set_title(
-            str(self.folder_path),
-            fontsize=8,
-        )
-
-        ax.errorbar(
-            x = np.arange(self.site_occupancies.shape[0]),
-            y = target_sites_success_rate,
-            yerr=error,
-            **self.plot_config.errorbar_kw,
-        )
-        ax.set_ylabel(
-            'Target sites success rate',
-            fontsize=self.plot_config.label_font_size,
-        )
-        ax.tick_params(
-            axis='both',
-            which='major',
-            labelsize=self.plot_config.label_font_size,
-        )
-        ax.set_ylim(bottom=0)
-        self.plot_config.configure_grids(ax)
-        ax.set_title('Target sites success rate over all sites', fontsize=self.plot_config.title_font_size)
-
-        figname = self.folder_path / 'target_sites_success_rate.pdf'
-        if not is_subfig:
-            fig.savefig(figname)
-
     # BEING REFACTORED
 
     def plot_survival_rate_1d(
@@ -636,17 +558,6 @@ class TweezerStatistician(BaseStatistician):
             np.sum(surviving_atoms[loop_params == x])
             for x in unique_params
         ])
-
-        first_img_atom_counts = self.site_occupancies[:, 0, :].sum(axis=1)
-        rearrange_shots = first_img_atom_counts >= self.n_sites / 2
-        rearrange_shots_unique = np.array([
-            np.sum(rearrange_shots[loop_params == x])
-            for x in unique_params
-        ])
-
-        n_rep = np.ceil(self.site_occupancies.shape[0] / unique_params.shape[0])
-        rearrange_rates = rearrange_shots_unique / n_rep
-        rearrange_rates_error = np.sqrt((1-rearrange_rates)*rearrange_rates/n_rep)
 
         for ax in axs:
             ax.set_xlabel(
@@ -693,31 +604,6 @@ class TweezerStatistician(BaseStatistician):
         )
 
         axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
-
-        rearrange_ax = axs[1]
-        rearrange_ax.errorbar(
-            unique_params,
-            rearrange_rates,
-            yerr=rearrange_rates_error,
-            **self.plot_config.errorbar_kw,
-        )
-
-        rearrange_ax.hlines(
-            y = 0.5,
-            xmin = np.min(unique_params),
-            xmax = np.max(unique_params),
-            linestyle = '--',
-            color = 'r',
-            label = '50%'
-            )
-
-
-        rearrange_ax.set_ylabel(
-            'Rearrange rate',
-            fontsize=self.plot_config.label_font_size,
-        )
-        rearrange_ax.set_title(f'Rearrange rate over all shots = {np.mean(rearrange_rates):.2}', fontsize=self.plot_config.title_font_size)
-        rearrange_ax.legend()
 
         # doing the fit at the end of the run
         if self.is_final_shot and plot_lorentz:
