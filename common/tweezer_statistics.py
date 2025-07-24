@@ -1021,7 +1021,9 @@ class TweezerStatistician(BaseStatistician):
 
         fig.suptitle('Tweezing statistics')
         self.plot_loading_rate(ax)
-        fig.autofmt_xdate()
+
+        # https://stackoverflow.com/a/56139690
+        ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=45, ha='right')  # type: ignore
 
     # LEGACY CODE
 
