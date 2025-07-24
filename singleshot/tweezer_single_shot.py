@@ -32,6 +32,8 @@ tweezer_statistician = TweezerStatistician(
     preproc_h5_path=processed_results_fname,
     shot_h5_path=tweezer_preproc.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
+    rearrangement=doing_rearrangement,
+    target_sites=tweezer_preproc.target_array,
 )
 
 folder_path = os.path.dirname(tweezer_preproc.h5_path)

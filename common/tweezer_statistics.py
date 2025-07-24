@@ -100,10 +100,16 @@ class TweezerStatistician(BaseStatistician):
         Configuration object for plot styling
     """
 
+    rearrangement: bool
+    '''Whether data being analyzed uses tweezer rearrangement'''
+    # TODO: rearrangement-related functionality should probably be handled by a subclass?
+
     site_occupancies: np.ndarray
     '''
     site_occupancies is of shape (num_shots, num_images, num_sites)
     '''
+
+    target_sites: Sequence[int]
 
     # TODO clean this up
     KEY_SHOT: ClassVar[str] = 'shot'
@@ -120,9 +126,13 @@ class TweezerStatistician(BaseStatistician):
             shot_h5_path: Optional[str | os.PathLike] = None,
             plot_config: Optional[PlotConfig] = None,
             *,
+            rearrangement: bool = False,
             shot_index: int = -1,
+            target_sites: Sequence[int] = [],
     ):
         super().__init__(shot_index=shot_index)
+        self.rearrangement = rearrangement
+        self.target_sites = target_sites
 
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
@@ -929,12 +939,12 @@ class TweezerStatistician(BaseStatistician):
             **self.plot_config.errorbar_kw,
         )
 
-        ax.set_xlabel('Shot time')
         ax.set_ylabel('Loading rate')
         ax.set_ylim(0, 1)
         ax.axhline(0.5, color='red', linestyle='dashed')
 
-        run_time_nums = mdates.date2num(run_time_series)
+    def _setup_shot_index_secax(self, ax: Axes):
+        run_time_nums = mdates.date2num(self.run_time_series())
         run_time_nums_interp = np.empty((self.shots_processed + 2,))
         run_time_nums_interp[1:-1] = run_time_nums
         time_range = max(1, run_time_nums[-1] - run_time_nums[0])  # in case run_time_nums is len 1
@@ -959,20 +969,45 @@ class TweezerStatistician(BaseStatistician):
             return time_num
         
         secax = ax.secondary_xaxis(location='top', functions=(time_to_index, index_to_time))
-        secax.xaxis.set_major_locator(MaxNLocator(steps=[1, 2, 4, 5, 10], integer=True))
+        secax.xaxis.set_major_locator(MaxNLocator(steps=[1, 2, 5, 10], integer=True))
         secax.set_xlabel('Shot number')
 
+    def plot_rearrangement_performance(self, ax: Axes):
+        if not self.rearrangement:
+            raise ValueError
+        
+        REARRANGED_IMG_INDEX = 1
+        occupancies_rearr = self.series().xs(REARRANGED_IMG_INDEX, level='image')
+        target_sites_filter = occupancies_rearr.index.isin(self.target_sites, level=self.KEY_SITE)
+        target_loading_rates = occupancies_rearr[target_sites_filter].groupby(self.KEY_SHOT).mean()
+        
+        ax.plot(
+            self.run_time_series(),
+            target_loading_rates,
+            marker='.',
+            linestyle='',
+        )
+
     def plot_tweezing_statistics(self, fig: Optional[Figure] = None):
+        rows = 2 if self.rearrangement else 1
+
         if fig is None:
-            fig, ax = plt.subplots()
+            fig, axs = plt.subplots(nrows=rows, ncols=1, sharex=True)
         else:
-            ax = fig.subplots()
+            axs = fig.subplots(nrows=rows, ncols=1, sharex=True)
+        axs = np.atleast_1d(axs)
 
         fig.suptitle('Tweezing statistics')
-        self.plot_loading_rate(ax)
+        self.plot_loading_rate(axs[0])
 
+        if self.rearrangement:
+            self.plot_rearrangement_performance(axs[1])
+
+        self._setup_shot_index_secax(axs[0])
+        last_ax = axs[-1]
         # https://stackoverflow.com/a/56139690
-        ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=45, ha='right')  # type: ignore
+        last_ax.set_xticks(last_ax.get_xticks(), last_ax.get_xticklabels(), rotation=45, ha='right')  # type: ignore    
+        last_ax.set_xlabel('Shot time')
 
     # LEGACY CODE
 
