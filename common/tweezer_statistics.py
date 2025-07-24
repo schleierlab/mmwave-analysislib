@@ -114,12 +114,16 @@ class TweezerStatistician(BaseStatistician):
     KEY_SURVIVAL_RATE: ClassVar[str] = 'survival_rate'
     KEY_SURVIVAL_RATE_STD: ClassVar[str] = 'survival_rate_std'
 
-    def __init__(self,
-                 preproc_h5_path: str,
-                 shot_h5_path: Optional[str | os.PathLike] = None,
-                 plot_config: Optional[PlotConfig] = None,
-                 ):
-        super().__init__()
+    def __init__(
+            self,
+            preproc_h5_path: str,
+            shot_h5_path: Optional[str | os.PathLike] = None,
+            plot_config: Optional[PlotConfig] = None,
+            *,
+            shot_index: int = -1,
+    ):
+        super().__init__(shot_index=shot_index)
+
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
         if shot_h5_path is not None:
@@ -144,6 +148,12 @@ class TweezerStatistician(BaseStatistician):
             self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
 
             self.params = ScanningParameters.from_h5_tuples(self.params_list)
+
+    @property
+    def shot_index(self) -> int:
+        if self._shot_index == -1:
+            return self.shots_processed - 1
+        return self._shot_index
 
     @property
     def shots_processed(self) -> int:
@@ -574,32 +584,6 @@ class TweezerStatistician(BaseStatistician):
     #     else:
     #         assert_never(method)
 
-    def get_sum_of_unique_params(self, data, loop_params, unique_params):
-        """
-        Returns the sum of the data for each unique parameter combination.
-
-        Parameters
-        ----------
-        data : array_like
-            The data to sum.
-        loop_params : array_like
-            The parameters to loop over.
-        unique_params : array_like
-            The unique parameter combinations.
-
-        Returns
-        -------
-        data_sum : array_like
-            The sum of the data for each unique parameter combination.
-        """
-
-        data_sum = np.array([
-            np.sum(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
-            for x in unique_params
-        ])
-
-        return data_sum
-
     def plot_target_sites_success_rate(self, target_array, fig: Optional[Figure] = None):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -862,7 +846,14 @@ class TweezerStatistician(BaseStatistician):
             perr = np.sqrt(np.diag(pcov))
             ax1.title.set_text(f'X waist = {popt[3]:.2f} +/- {perr[3]:.2f}, Y waist = {popt[4]:.2f} +/- {perr[4]:.2f}')
 
-    def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True, plot_gaussian: bool = False):
+    # BEING REFACTORED
+
+    def plot_survival_rate(
+            self,
+            fig: Optional[Figure] = None,
+            plot_lorentz: bool = True,
+            plot_gaussian: bool = False,
+    ):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
 
@@ -958,6 +949,8 @@ class TweezerStatistician(BaseStatistician):
         figname = self.folder_path / 'survival_rate_vs_param.pdf'
         if not is_subfig:
             fig.savefig(figname)
+
+    # REFACTORED
 
     def plot_loading_rate(self, ax: Axes):
         series = self.series()
@@ -1349,4 +1342,3 @@ class TweezerStatistician(BaseStatistician):
 
         fig.savefig(f"{self.folder_path}/grouped_survival_rate_by_site_1d.pdf")
         fig.suptitle(f"{self.folder_path}")
-

@@ -13,10 +13,13 @@ from scipy import optimize
 from typing import Union
 
 class BaseStatistician(ABC):
+    _shot_index: int
+    '''Shot index, but can be -1'''
+
     """Base class for statistical analysis of tweezer or bulk gas imaging data."""
-    def __init__(self):
+    def __init__(self, *, shot_index: int = -1):
         # TODO: move common init tasks here from child classes
-        pass
+        self._shot_index = shot_index
 
     @abstractmethod
     def _load_processed_quantities(self, preproc_h5_path: str) -> None:
