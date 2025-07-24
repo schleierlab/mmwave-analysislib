@@ -37,8 +37,10 @@ tweezer_statistician = TweezerStatistician(
 folder_path = os.path.dirname(tweezer_preproc.h5_path)
 if not SHOW_IMG_ONLY:
     if doing_rearrangement:
-        target_array = tweezer_preproc.target_array
-        tweezer_statistician.plot_target_sites_success_rate(target_array, fig = subfigs[1])
+        tweezer_statistician.plot_target_sites_success_rate(
+            tweezer_preproc.target_array,
+            fig=subfigs[1],
+        )
     else:
         # unique_params, survival_rates, sigma_beta = 
         tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)

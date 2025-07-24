@@ -118,14 +118,7 @@ class TweezerPreprocessor(ImagePreprocessor):
 
     @property
     def target_array(self):
-        try:
-            target_array = self.globals['TW_target_array']
-        except KeyError:
-            try:
-                target_array = self.default_params['TW_target_array']
-            except KeyError:
-                raise KeyError('no TW_target_array find in both globals and default values')
-        return target_array
+        return self.parameters['TW_target_array']
 
     @staticmethod
     def _load_default_params_from_yaml(defaul_params_path: Path):
@@ -280,10 +273,8 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         # Implement the thresholding to determine site occupancy
         if use_global_threshold: # means we use the same threshold for all sites
-            print("Using global threshold =", self.threshold)
             self.site_occupancies = camera_counts > self.threshold
         else:
-            print("Using site-specific thresholds...")
             self.site_occupancies = camera_counts > self.site_thresholds
 
         run_number = self.run_number
