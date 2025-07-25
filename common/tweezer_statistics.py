@@ -183,14 +183,16 @@ class TweezerStatistician(BaseStatistician):
 
     @property
     def initial_atoms_array(self):
-        return self.site_occupancies[:, 0, :]
+        ind = 1 if self.rearrangement else 0
+        return self.site_occupancies[:, ind, :]
     
     @property
     def surviving_atoms_array(self):
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        return self.site_occupancies[:, :2, :].prod(axis=-2)
+        inds = slice(1, 3) if self.rearrangement else slice(0, 2)
+        return self.site_occupancies[:, inds, :].prod(axis=-2)
 
     def dataframe(self) -> pd.DataFrame:
         '''
@@ -219,9 +221,9 @@ class TweezerStatistician(BaseStatistician):
             occupancy_df = df.stack()
             occupancy_df.name = name
             return occupancy_df
-        
-        df_initial = assemble_occupancy_df(self.site_occupancies[:, 0, :], name=self.KEY_INITIAL)
-        df_survival = assemble_occupancy_df(self.site_occupancies[..., :2, :].prod(axis=-2), name=self.KEY_SURVIVAL)
+
+        df_initial = assemble_occupancy_df(self.initial_atoms_array, name=self.KEY_INITIAL)
+        df_survival = assemble_occupancy_df(self.surviving_atoms_array, name=self.KEY_SURVIVAL)
         df = pd.concat([df_initial, df_survival], axis=1)
 
         return df.reset_index()
@@ -446,88 +448,6 @@ class TweezerStatistician(BaseStatistician):
             },
             uncertainties=True,
         )
-
-    @staticmethod
-    def survival_fraction_bayesian(
-            n_survived,
-            n_total,
-            center_method: Literal['mean', 'median'],
-            prior: Literal['uniform', 'jeffreys', 'haldane'],
-            interval_method: Literal['centered', 'variance'],
-            interval_sigmas: float = 1,
-    ) -> tuple[float, tuple[float, float]]:
-        '''
-        Estimate a survival rate and errorbars for same
-        by Bayesian inference, assuming a beta distribution prior
-        (the conjugate prior for the Bernoulli distribution);
-        the prior is specified by the caller.
-        The survival rate is a measure of central tendency on the posterior distribution
-        specified by the caller; the errorbars subtend the credible interval
-        of user-specified width.
-
-        Parameters
-        ----------
-        n_survived, n_total: int
-            Number of survived and total atoms, respectively.
-        center_method: {'mean', 'median'}
-            Method for determining the center of the posterior distribution.
-        prior: {'uniform', 'jeffreys', 'haldane'}
-            Prior distribution for the beta distribution.
-                * 'uniform' gives a uniform prior, Beta(1, 1).
-                * 'jeffreys' gives the Jeffreys prior, which is just the arcsine distribution Beta(0.5, 0.5)
-                * 'haldane' gives the (improper) Haldane prior, Beta(0, 0).
-            See https://en.wikipedia.org/wiki/Beta_distribution#Bayesian_inference
-        interval_method: {'centered', 'variance'}
-            Method for determining the credible interval.
-        interval_sigmas: float
-            Probability mass enclosed in the credible interval,
-            parametrized by the number of standard deviations
-            from the center of a Gaussian distribution that would enclose the same probability mass.
-            Thus, interval_sigmas=1 corresponds to a ~68% credible interval.
-
-        Returns
-        -------
-        center: float
-            Center of the posterior distribution, calculated per `center_method`.
-        yerr: tuple[float, float]
-            Distance of the credible interval from the center.
-
-        Notes
-        -----
-        mean, haldane recovers the naive estimate successes/total
-        mean, uniform recovers Laplace's rule of succession.
-
-        '''
-        prior_shape_param: float
-        if prior == 'uniform':
-            prior_shape_param = 1
-        elif prior == 'jeffreys':
-            prior_shape_param = 0.5
-        elif prior == 'haldane':
-            prior_shape_param = 0
-
-        posterior_beta = beta(
-            n_survived + prior_shape_param,
-            n_total - n_survived + prior_shape_param,
-        )
-
-        if center_method == 'mean':
-            center = posterior_beta.mean()
-        elif center_method == 'median':
-            center = posterior_beta.median()
-        else:
-            assert_never(center_method)
-
-        if interval_method == 'centered':
-            tail_prob = norm.cdf(-interval_sigmas)
-            credible_interval = posterior_beta.ppf([tail_prob, 1 - tail_prob])
-            yerr = (credible_interval - center) * [-1, 1]
-        elif interval_method == 'variance':
-            yerr = posterior_beta.std() * interval_sigmas
-        else:
-            assert_never(interval_method)
-
-        return center, yerr
 
     # REFACTORED
 
