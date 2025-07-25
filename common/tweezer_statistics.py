@@ -536,15 +536,9 @@ class TweezerStatistician(BaseStatistician):
             fig: Figure,
             plot_lorentz: bool = False,
     ):
-        axs = fig.subplots(nrows=2, ncols=1)
-
-        for ax in axs:
-            ax.set_xlabel(
-                self.params[0].axis_label,
-                fontsize=self.plot_config.label_font_size,
-            )
-            ax.set_ylim(bottom=0)
-            self.plot_config.configure_grids(ax)
+        ax = fig.subplots()
+        ax.set_ylim(bottom=0)
+        self.plot_config.configure_grids(ax)
 
         fig.suptitle(
             str(self.folder_path),
@@ -552,32 +546,39 @@ class TweezerStatistician(BaseStatistician):
         )
 
         df = self.dataframe()
+        gb: pd.DataFrame | pdt.DataFrameGroupBy
         if len(self.params) != 1:
             raise ValueError
-        gb = df.groupby([param.name for param in self.params])
+        elif len(self.params) == 1:
+            gb = df.groupby([param.name for param in self.params])
+            xlabel = self.params[0].axis_label
+        elif len(self.params) == 0:
+            gb = df
+            xlabel = 'Shot number'
+        ax.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
         survival_df = self.dataframe_survival(gb)
 
         indep_var = survival_df.index
         survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
         survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
-        axs[0].errorbar(
+        ax.errorbar(
             indep_var,
             survival_rates,
             yerr=survival_rate_errs,
             **self.plot_config.errorbar_kw,
         )
 
-        axs[0].set_ylabel(
+        ax.set_ylabel(
             'Survival rate',
             fontsize=self.plot_config.label_font_size,
         )
-        axs[0].tick_params(
+        ax.tick_params(
             axis='both',
             which='major',
             labelsize=self.plot_config.label_font_size,
         )
 
-        axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+        ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
 
         # doing the fit at the end of the run
         if self.is_final_shot and plot_lorentz:
@@ -590,7 +591,7 @@ class TweezerStatistician(BaseStatistician):
                 1000,
             )
 
-            axs[0].plot(x_plot, self.lorentzian(x_plot, *popt))
+            ax.plot(x_plot, self.lorentzian(x_plot, *popt))
             fig.suptitle(
                 f'Center frequency: ${upopt[0]:SL}$ MHz; '
                 f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
@@ -664,8 +665,6 @@ class TweezerStatistician(BaseStatistician):
             perr = np.sqrt(np.diag(pcov))
             ax1.title.set_text(f'X waist = {popt[3]:.2f} +/- {perr[3]:.2f}, Y waist = {popt[4]:.2f} +/- {perr[4]:.2f}')
 
-    # BEING REFACTORED
-
     def plot_survival_rate(
             self,
             fig: Optional[Figure] = None,
@@ -682,14 +681,6 @@ class TweezerStatistician(BaseStatistician):
         """
         loop_params = self._loop_params()
 
-        # Calculate survival rates
-        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1) # sum over all sites for each shot
-
-        # site_occupancies is of shape (num_shots, num_images, num_atoms)
-        # axis=1 corresponds to the before/after tweezer images
-        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
-
         is_subfig = (fig is not None)
         if fig is None:
             fig = plt.figure(
@@ -697,66 +688,7 @@ class TweezerStatistician(BaseStatistician):
                 constrained_layout=self.plot_config.constrained_layout,
             )
 
-        if loop_params.size == 0:
-            axs = fig.subplots(nrows=2, ncols=1)
-
-            survival_rates = surviving_atoms / initial_atoms
-            loading_rates = initial_atoms/self.site_occupancies.shape[2]
-
-            error = np.sqrt((survival_rates * (1 - survival_rates)) / self.site_occupancies.shape[2])
-            loading_rates_error = np.sqrt((loading_rates * (1 - loading_rates)) / self.site_occupancies.shape[2])
-
-            axs.set_title(
-                str(self.folder_path),
-                fontsize=8,
-            )
-
-            axs[0].errorbar(
-                0,
-                survival_rates,
-                yerr=error,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-            )
-            axs[0].set_ylabel(
-                'Survival rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[0].tick_params(
-                axis='both',
-                which='major',
-                labelsize=self.plot_config.label_font_size,
-            )
-            axs[0].set_ylim(bottom=0)
-            axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
-
-            axs[1].errorbar(
-                0,
-                loading_rates,
-                yerr = loading_rates_error,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-                )
-            axs[1].set_ylabel(
-                'Loading rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[1].tick_params(
-                axis='both',
-                which='major',
-                labelsize=self.plot_config.label_font_size,
-            )
-            axs[1].set_ylim(bottom=0)
-            axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
-
-            for ax in axs:
-                self.plot_config.configure_grids(ax)
-
-        elif loop_params.ndim == 1:
+        if loop_params.ndim in [0, 1]:
             self.plot_survival_rate_1d(fig, plot_lorentz)
         elif loop_params.ndim == 2:
             self.plot_survival_rate_2d(fig, plot_gaussian)
@@ -766,8 +698,6 @@ class TweezerStatistician(BaseStatistician):
         figname = self.folder_path / 'survival_rate_vs_param.pdf'
         if not is_subfig:
             fig.savefig(figname)
-
-    # REFACTORED
 
     def plot_loading_rate(self, ax: Axes):
         series = self.series()
