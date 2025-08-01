@@ -1,7 +1,24 @@
 """Configuration class for plotting parameters used across different plotters."""
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Literal, Tuple, TypedDict, Union
+
+from matplotlib.axes import Axes
+from matplotlib.typing import ColorType, LineStyleType, MarkerType
+
+
+class ErrorbarKwarg(TypedDict, total=False):
+    marker: MarkerType
+    linestyle: LineStyleType
+    alpha: float
+    capsize: float
+    color: ColorType
+
+
+class TextKwarg(TypedDict, total=False):
+    fontsize: Union[int, Literal['x-small', 'small', 'medium']]
+    color: ColorType
+
 
 @dataclass
 class PlotConfig:
@@ -40,3 +57,19 @@ class PlotConfig:
     constrained_layout: bool = True
     raw_image_scale: float = 100
     roi_image_scale: float = 100
+
+    errorbar_kw = ErrorbarKwarg(
+        marker='.',
+        linestyle='-',
+        alpha=0.5,
+        capsize=3,
+    )
+
+    tweezer_index_label_kw = TextKwarg(
+        color='red',
+        fontsize='small',
+    )
+
+    def configure_grids(self, ax: Axes):
+        ax.grid(color=self.grid_color_major, which='major')
+        ax.grid(color=self.grid_color_minor, which='minor')
