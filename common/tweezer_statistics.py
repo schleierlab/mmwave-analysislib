@@ -32,7 +32,7 @@ class ScanningParameter:
 
     def __str__(self) -> str:
         return self.name
-    
+
     @classmethod
     def from_h5_tuple(cls, tup) -> ScanningParameter:
         name: bytes
@@ -110,7 +110,7 @@ class TweezerStatistician(BaseStatistician):
     @property
     def initial_atoms_array(self):
         return self.site_occupancies[:, 0, :]
-    
+
     @property
     def surviving_atoms_array(self):
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
@@ -145,18 +145,18 @@ class TweezerStatistician(BaseStatistician):
             occupancy_df = df.stack()
             occupancy_df.name = name
             return occupancy_df
-        
+
         df_initial = assemble_occupancy_df(self.site_occupancies[:, 0, :], name=self.KEY_INITIAL)
         df_survival = assemble_occupancy_df(self.site_occupancies[..., :2, :].prod(axis=-2), name=self.KEY_SURVIVAL)
         df = pd.concat([df_initial, df_survival], axis=1)
 
         return df.reset_index()
-    
+
     @overload
     def dataframe_survival(self, data: pd.DataFrame) -> pd.Series: ...
     @overload
     def dataframe_survival(self, data: pdt.DataFrameGroupBy) -> pd.DataFrame: ...
-    
+
     def dataframe_survival(self, data):
         df = data[[self.KEY_INITIAL, self.KEY_SURVIVAL]].sum()
 
@@ -602,7 +602,7 @@ class TweezerStatistician(BaseStatistician):
         sigma_beta = self.reshape_to_unique_params_dim(sigma_beta, x_params, y_params)
 
         x_params, y_params = np.meshgrid(x_params, y_params)
-        
+
         df = self.dataframe()
         groupby = df.groupby([param.name for param in self.params])
         survival_df = self.dataframe_survival(groupby)
@@ -1141,6 +1141,8 @@ class TweezerStatistician(BaseStatistician):
             else:
                 ax = axs[-i-1]
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
+            path = os.path.join(f"{self.folder_path}/", f"data_multishot_{i}.csv")
+            np.savetxt(path, [unique_params, averaged_data[i]], delimiter=",")
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
                 initial_guess = [1, 2*np.pi*2e6, 0, 3.5e-6, 0.5]
