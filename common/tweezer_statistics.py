@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, overload
 from typing_extensions import assert_never
 
-import h5py
+import h5py  # type: ignore
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pandas.api.typing as pdt
-import uncertainties
-from matplotlib.figure import Figure
+import uncertainties  # type: ignore
+import uncertainties.unumpy as unp  # type: ignore
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 from numpy.typing import NDArray
 from scipy.stats import beta, norm
@@ -32,7 +35,7 @@ class ScanningParameter:
 
     def __str__(self) -> str:
         return self.name
-    
+
     @classmethod
     def from_h5_tuple(cls, tup) -> ScanningParameter:
         name: bytes
@@ -46,6 +49,38 @@ class ScanningParameter:
         namestr = self.friendly_name if self.friendly_name is not None else self.name
         unitstr = f' ({self.unit})' if self.unit != '' else ''
         return f'{namestr}{unitstr}'
+
+
+class ScanningParameters:
+    params: tuple[ScanningParameter, ...]
+    param_inds: dict[str, int]  # maybe just store dict[str, ScanningParameter]?
+
+    def __init__(self, params: Sequence[ScanningParameter]):
+        self.params = tuple(params)
+        self.param_inds = {
+            param.name: i
+            for i, param in enumerate(self.params)
+        }
+
+    def __getitem__(self, key: int | str) -> ScanningParameter:
+        if isinstance(key, int):
+            index = key
+            return self.params[index]
+        elif isinstance(key, str):
+            name = key
+            return self.params[self.param_inds[name]]
+        else:
+            assert_never(key)
+
+    def __len__(self) -> int:
+        return len(self.params)
+
+    def __iter__(self):
+        return iter(self.params)
+
+    @classmethod
+    def from_h5_tuples(cls, iterable: Iterable) -> ScanningParameters:
+        return cls([ScanningParameter.from_h5_tuple(tup) for tup in iterable])
 
 
 class TweezerStatistician(BaseStatistician):
@@ -65,24 +100,40 @@ class TweezerStatistician(BaseStatistician):
         Configuration object for plot styling
     """
 
+    rearrangement: bool
+    '''Whether data being analyzed uses tweezer rearrangement'''
+    # TODO: rearrangement-related functionality should probably be handled by a subclass?
+
     site_occupancies: np.ndarray
     '''
     site_occupancies is of shape (num_shots, num_images, num_sites)
     '''
 
+    target_sites: Sequence[int]
+
     # TODO clean this up
+    KEY_SHOT: ClassVar[str] = 'shot'
+    KEY_IMAGE: ClassVar[str] = 'image'
     KEY_SITE: ClassVar[str] = 'site'
     KEY_INITIAL: ClassVar[str] = 'initial'
     KEY_SURVIVAL: ClassVar[str] = 'survival'
     KEY_SURVIVAL_RATE: ClassVar[str] = 'survival_rate'
     KEY_SURVIVAL_RATE_STD: ClassVar[str] = 'survival_rate_std'
 
-    def __init__(self,
-                 preproc_h5_path: str,
-                 shot_h5_path: Optional[str] = None,
-                 plot_config: PlotConfig = None,
-                 ):
-        super().__init__()
+    def __init__(
+            self,
+            preproc_h5_path: str,
+            shot_h5_path: Optional[str | os.PathLike] = None,
+            plot_config: Optional[PlotConfig] = None,
+            *,
+            rearrangement: bool = False,
+            shot_index: int = -1,
+            target_sites: Sequence[int] = [],
+    ):
+        super().__init__(shot_index=shot_index)
+        self.rearrangement = rearrangement
+        self.target_sites = target_sites
+
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
         if shot_h5_path is not None:
@@ -99,24 +150,49 @@ class TweezerStatistician(BaseStatistician):
         """
         with h5py.File(preproc_h5_path, 'r') as f:
             self.camera_counts = f['camera_counts'][:]
-            self.site_occupancies = f['site_occupancies'][:]
+            self.site_occupancies = np.asarray(f['site_occupancies'][:], dtype=bool)
             self.site_rois = ROI.fromarray(f['site_rois'])
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
+            self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
 
-            self.params = [ScanningParameter.from_h5_tuple(tup) for tup in self.params_list]
+            self.params = ScanningParameters.from_h5_tuples(self.params_list)
+
+    @property
+    def shot_index(self) -> int:
+        if self._shot_index == -1:
+            return self.shots_processed - 1
+        return self._shot_index
+
+    @property
+    def shots_processed(self) -> int:
+        return self.site_occupancies.shape[0]
+
+    @property
+    def is_final_shot(self) -> bool:
+        return self.shots_processed == self.n_runs
+
+    @property
+    def n_images(self) -> int:
+        return self.site_occupancies.shape[1]
+
+    @property
+    def n_sites(self) -> int:
+        return self.site_occupancies.shape[2]
 
     @property
     def initial_atoms_array(self):
-        return self.site_occupancies[:, 0, :]
-    
+        ind = 1 if self.rearrangement else 0
+        return self.site_occupancies[:, ind, :]
+
     @property
     def surviving_atoms_array(self):
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        return self.site_occupancies[:, :2, :].prod(axis=-2)
+        inds = slice(1, 3) if self.rearrangement else slice(0, 2)
+        return self.site_occupancies[:, inds, :].prod(axis=-2)
 
     def dataframe(self) -> pd.DataFrame:
         '''
@@ -140,23 +216,65 @@ class TweezerStatistician(BaseStatistician):
         )
 
         def assemble_occupancy_df(array: NDArray, name: str):
-            df = pd.DataFrame(array, index=index)
+            df = pd.DataFrame(array, index=index, dtype=bool)
             df.columns.name = self.KEY_SITE
             occupancy_df = df.stack()
             occupancy_df.name = name
             return occupancy_df
-        
-        df_initial = assemble_occupancy_df(self.site_occupancies[:, 0, :], name=self.KEY_INITIAL)
-        df_survival = assemble_occupancy_df(self.site_occupancies[..., :2, :].prod(axis=-2), name=self.KEY_SURVIVAL)
+
+        df_initial = assemble_occupancy_df(self.initial_atoms_array, name=self.KEY_INITIAL)
+        df_survival = assemble_occupancy_df(self.surviving_atoms_array, name=self.KEY_SURVIVAL)
         df = pd.concat([df_initial, df_survival], axis=1)
 
         return df.reset_index()
-    
+
+    def run_time_series(self) -> pd.Series:
+        return pd.Series(self.run_times_strs, dtype='datetime64[ns]')
+
+    # this is intended to supersede the above dataframe() eventually, since it has shot number information
+    def series(self) -> pd.Series:
+        # ignoring typechecker pending pandas-stubs#1285
+        mi = pd.MultiIndex.from_product(
+            [range(self.shots_processed), range(self.n_images), range(self.n_sites)],  # type: ignore
+            sortorder=0,
+            names=[self.KEY_SHOT, self.KEY_IMAGE, self.KEY_SITE],
+        )
+        return pd.Series(data=self.site_occupancies.flatten(), index=mi, name='occupancy', dtype=bool)
+
+    def scan_param_df(self) -> pd.DataFrame:
+        index = pd.RangeIndex(self.shots_processed, name=self.KEY_SHOT)
+        return pd.DataFrame(
+            self.current_params,
+            index=index,
+            columns=[param.name for param in self.params],
+        )
+
+    def dataframe_binomial_error(
+            self,
+            data,
+            success_key: str,
+            total_key: str,
+            method: Literal['laplace'] = 'laplace',
+            name: str = 'binomial_error') -> None:
+        '''
+        Given a DataFrame-like object with columns summarizing the outcomes of Bernoulli trials
+        (that is, total samples "n" and successes "a"), produce a new column giving an uncertainty estimate
+        on the success rate.
+        '''
+        success = data[success_key]
+        total = data[total_key]
+
+        if method == 'laplace':
+            laplace_p = (success + 1) / (total + 2)
+            new_col = np.sqrt(laplace_p * (1 - laplace_p) / (total + 2))
+
+        data[name] = new_col
+
     @overload
     def dataframe_survival(self, data: pd.DataFrame) -> pd.Series: ...
     @overload
     def dataframe_survival(self, data: pdt.DataFrameGroupBy) -> pd.DataFrame: ...
-    
+
     def dataframe_survival(self, data):
         df = data[[self.KEY_INITIAL, self.KEY_SURVIVAL]].sum()
 
@@ -164,31 +282,10 @@ class TweezerStatistician(BaseStatistician):
         total = df[self.KEY_INITIAL]
         df[self.KEY_SURVIVAL_RATE] = surv / total
 
-        laplace_p = (surv + 1) / (total + 2)
-        df[self.KEY_SURVIVAL_RATE_STD] = np.sqrt(laplace_p * (1 - laplace_p) / (total + 2))
-
+        self.dataframe_binomial_error(df, self.KEY_SURVIVAL, self.KEY_INITIAL, name=self.KEY_SURVIVAL_RATE_STD)
         return df
 
-    def rearrange_success_rate(self, target_array):
-        atom_number_target_array = np.zeros(len(self.site_occupancies[:,0,0]))
-        rearrange_index = []
-
-        for i in np.arange(atom_number_target_array.shape[0]):
-            first_shot = self.site_occupancies[i,0,:]
-            second_shot = self.site_occupancies[i,1,:]
-            second_shot_target_array = second_shot[target_array]
-            # use only the targe indexs
-            if np.sum(first_shot) >= len(target_array):
-                # print("Occupy >= 50%, starting rearrange")
-                rearrange_index.append(i)
-                atom_number_target_array[i] = np.sum(second_shot_target_array)
-                if atom_number_target_array[i] == 0:
-                    print("Warning, the rearrangement happens but 0 atom left in the target array, something is wrong!")
-
-        # second_shot_target_array_lst = self.site_occupancies[rearrange_index,1,target_array]
-        # print(second_shot_target_array_lst.shape)
-
-        return atom_number_target_array
+    # LEGACY CODE
 
     def rearragne_statistics(self, target_array):
         n_target = len(target_array)
@@ -219,7 +316,7 @@ class TweezerStatistician(BaseStatistician):
         atom_count_in_target = [atom_count_in_target_all_shots, atom_count_in_target_rearrange_shots]
         return success_rearrange, atom_count_in_target, n_rearrange_shots, avg_site_success_rate
 
-    def plot_rearrange_histagram(self, target_array, ax: Optional[Axes] = None, plot_overlapping_histograms: bool = True):
+    def plot_rearrange_histagram(self, target_array, ax: Axes, plot_overlapping_histograms: bool = True):
         '''
         Plots a histogram of the number of sites in the taerget array after rearrangement.
 
@@ -227,8 +324,8 @@ class TweezerStatistician(BaseStatistician):
         ----------
         target_array : array_like
             Array of target sites.
-        ax : matplotlib.axes.Axes, optional
-            Axes object to plot on. If None, a new figure is created.
+        ax : matplotlib.axes.Axes,
+            Axes object to plot on.
         plot_overlapping_histograms : bool, optional
             Whether to plot overlapping histograms. The default is True.
             When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
@@ -293,7 +390,7 @@ class TweezerStatistician(BaseStatistician):
         print('success_rearrange', success_rearrange)
         print(f'Rearrange attempts with 0 loaded atoms: {(atom_count_in_target_list[1] == 0).sum()}')
 
-    def plot_rearrange_site_success_rate(self, target_array, ax: Optional[Axes] = None):
+    def plot_rearrange_site_success_rate(self, target_array, ax: Axes):
         # Site success rate plot
         _, _, n_rearrange_shots, avg_site_success_rate = self.rearragne_statistics(target_array)
 
@@ -308,7 +405,7 @@ class TweezerStatistician(BaseStatistician):
         # Make x-axis show only integers
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-    def plot_site_loading_rates(self, ax: Optional[Axes] = None):
+    def plot_site_loading_rates(self, ax: Axes):
         first_img_atoms_by_site = self.site_occupancies[:, 0, :].sum(axis=0) # sum over all shots for the first image, shape: (num_sites,)
         second_img_atoms_by_site = self.site_occupancies[:, 1, :].sum(axis=0) # sum over all shots for the second image
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
@@ -325,7 +422,7 @@ class TweezerStatistician(BaseStatistician):
         ax.set_title(f'Tweezer site loading rates, {n_shots} shots average')
         ax.legend()
 
-    def _save_mloop_params(self, shot_h5_path: str) -> None:
+    def _save_mloop_params(self, shot_h5_path: str | os.PathLike) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
         MLOOP reads the results of any experiment from the latest shot h5 file,
@@ -340,7 +437,7 @@ class TweezerStatistician(BaseStatistician):
         # Save values for MLOOP
         # Save sequence analysis result in latest run
         import lyse
-        run = lyse.Run(h5_path=shot_h5_path)
+        run = lyse.Run(h5_path=shot_h5_path)  # type: ignore
         my_condition = True
         # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
         survival_rate = 0; survival_uncertainty = 0.1
@@ -352,211 +449,47 @@ class TweezerStatistician(BaseStatistician):
             uncertainties=True,
         )
 
-    @property
-    def shots_processed(self) -> int:
-        return self.site_occupancies.shape[0]
+    # REFACTORED
 
-    @property
-    def is_final_shot(self) -> bool:
-        return self.shots_processed == self.n_runs
+    def plot_survival_rate_1d(
+            self,
+            fig: Figure,
+            plot_lorentz: bool = False,
+    ):
+        ax = fig.subplots()
+        ax.set_ylim(bottom=0)
+        self.plot_config.configure_grids(ax)
 
-    @staticmethod
-    def survival_fraction_bayesian(
-            n_survived,
-            n_total,
-            center_method: Literal['mean', 'median', 'mode'],
-            prior: Literal['uniform', 'jeffreys', 'haldane'],
-            interval_method: Literal['centered', 'variance'],
-            interval_sigmas: float = 1,
-    ) -> tuple[float, tuple[float, float]]:
-        '''
-        Estimate a survival rate and errorbars for same
-        by Bayesian inference, assuming a beta distribution prior
-        (the conjugate prior for the Bernoulli distribution);
-        the prior is specified by the caller.
-        The survival rate is a measure of central tendency on the posterior distribution
-        specified by the caller; the errorbars subtend the credible interval
-        of user-specified width.
-
-        Parameters
-        ----------
-        n_survived, n_total: int
-            Number of survived and total atoms, respectively.
-        center_method: {'mean', 'median'}
-            Method for determining the center of the posterior distribution.
-        prior: {'uniform', 'jeffreys', 'haldane'}
-            Prior distribution for the beta distribution.
-                * 'uniform' gives a uniform prior, Beta(1, 1).
-                * 'jeffreys' gives the Jeffreys prior, which is just the arcsine distribution Beta(0.5, 0.5)
-                * 'haldane' gives the (improper) Haldane prior, Beta(0, 0).
-            See https://en.wikipedia.org/wiki/Beta_distribution#Bayesian_inference
-        interval_method: {'centered', 'variance'}
-            Method for determining the credible interval.
-        interval_sigmas: float
-            Probability mass enclosed in the credible interval,
-            parametrized by the number of standard deviations
-            from the center of a Gaussian distribution that would enclose the same probability mass.
-            Thus, interval_sigmas=1 corresponds to a ~68% credible interval.
-
-        Returns
-        -------
-        center: float
-            Center of the posterior distribution, calculated per `center_method`.
-        yerr: tuple[float, float]
-            Distance of the credible interval from the center.
-
-        Notes
-        -----
-        mean, haldane recovers the naive estimate successes/total
-        mean, uniform recovers Laplace's rule of succession.
-
-        '''
-        prior_shape_param: float
-        if prior == 'uniform':
-            prior_shape_param = 1
-        elif prior == 'jeffreys':
-            prior_shape_param = 0.5
-        elif prior == 'haldane':
-            prior_shape_param = 0
-
-        posterior_beta = beta(
-            n_survived + prior_shape_param,
-            n_total - n_survived + prior_shape_param,
-        )
-
-        if center_method == 'mean':
-            center = posterior_beta.mean()
-        elif center_method == 'median':
-            center = posterior_beta.median()
-        else:
-            assert_never(center_method)
-
-        if interval_method == 'centered':
-            tail_prob = norm.cdf(-interval_sigmas)
-            credible_interval = posterior_beta.ppf([tail_prob, 1 - tail_prob])
-            yerr = (credible_interval - center) * [-1, 1]
-        elif interval_method == 'variance':
-            yerr = posterior_beta.std() * interval_sigmas
-        else:
-            assert_never(interval_method)
-
-        return center, yerr
-
-    # @staticmethod
-    # def survival_fraction(
-    #     n_survived,
-    #     n_total,
-    #     method: Literal['exact', 'laplace'],
-    #     uncertainty_method: Literal['wald', 'jeffreys', 'clopperpearson'],
-    # ):
-    #     if method == 'exact':
-    #         survival_rate = n_survived / n_total
-    #     elif method == 'laplace':
-    #         survival_rate = (n_survived + 1) / (n_total + 2)
-    #     elif method == 'median':
-    #         survival_rate = beta(0.5, 0.5).median()
-    #     else:
-    #         assert_never(method)
-
-    #     if uncertainty_method == 'wald':
-    #         uncertainty = np.sqrt(survival_rate * (1 - survival_rate) / n_total)
-    #         return survival_rate, uncertainty
-    #     elif uncertainty_method == 'jeffreys':
-    #         uncertainty = np.sqrt((n_survived + 1) / (n_total + 2)) / (n_total + 2)
-    #     elif uncertainty_method == 'clopperpearson':
-    #         tail_probability = norm.cdf(-1)  # 1-sigma 1-sided tail probability ~ (100% - 68%) / 2
-    #         lolim = beta.ppf(tail_probability, n_survived, n_total - n_survived + 1)
-    #         uplim = beta.ppf(1 - tail_probability, n_survived + 1, n_total - n_survived)
-    #         return survival_rate, (survival_rate - lolim, uplim - survival_rate)
-    #     else:
-    #         assert_never(uncertainty_method)
-
-    #     return survival_rate, uncertainty
-
-    # @staticmethod
-    # def survival_fraction_uncertainty(n_survived, n_total, method: Literal['frequentist', 'beta']):
-    #     '''
-    #     https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
-    #     '''
-    #     if method == 'frequentist':
-    #         p = n_survived / n_total
-    #         return np.sqrt(p * (1 - p) / n_total)
-    #     elif method == 'laplace':
-    #         return np.sqrt((n_survived + 1) / (n_total + 2)) / (n_total + 2)
-    #     else:
-    #         assert_never(method)
-
-    def get_sum_of_unique_params(self, data, loop_params, unique_params):
-        """
-        Returns the sum of the data for each unique parameter combination.
-
-        Parameters
-        ----------
-        data : array_like
-            The data to sum.
-        loop_params : array_like
-            The parameters to loop over.
-        unique_params : array_like
-            The unique parameter combinations.
-
-        Returns
-        -------
-        data_sum : array_like
-            The sum of the data for each unique parameter combination.
-        """
-
-        data_sum = np.array([
-            np.sum(data[np.where((loop_params == tuple(x)).all(axis=1))[0]])
-            for x in unique_params
-        ])
-
-        return data_sum
-
-    def plot_target_sites_success_rate(self, target_array, fig: Optional[Figure] = None):
-        """
-        Plots the total survival rate of atoms in the tweezers, summed over all sites.
-
-        Parameters
-        ----------
-        fig : Optional[Figure]
-            The figure to plot on. If None, a new figure is created.
-        """
-        # Calculate survival rates
-        if fig is None:
-            fig, ax = plt.subplots(
-                figsize=self.plot_config.figure_size,
-                constrained_layout=self.plot_config.constrained_layout,
-            )
-            is_subfig = False
-        else:
-            ax = fig.subplots()
-            is_subfig = True
-
-        atom_number_target_array = self.rearrange_success_rate(target_array)
-
-        target_sites_success_rate =  atom_number_target_array/target_array.shape[0]
-
-        error = np.sqrt(
-            (target_sites_success_rate * (1 - target_sites_success_rate))
-            / atom_number_target_array[atom_number_target_array!=0].shape[0]
-            )
-
-        ax.set_title(
-            self.folder_path,
+        fig.suptitle(
+            str(self.folder_path),
             fontsize=8,
         )
 
+        df = self.dataframe()
+        gb: pd.DataFrame | pdt.DataFrameGroupBy
+        if len(self.params) != 1:
+            raise ValueError
+        elif len(self.params) == 1:
+            gb = df.groupby([param.name for param in self.params])
+            xlabel = self.params[0].axis_label
+        elif len(self.params) == 0:
+            gb = df
+            xlabel = 'Shot number'
+        ax.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
+        survival_df = self.dataframe_survival(gb)
+
+        indep_var = survival_df.index
+        survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
+        survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
         ax.errorbar(
-            x = np.arange(self.site_occupancies.shape[0]),
-            y = target_sites_success_rate,
-            yerr=error,
-            marker='.',
-            linestyle='-',
-            alpha=0.5,
-            capsize=3,
+            indep_var,
+            survival_rates,
+            yerr=survival_rate_errs,
+            **self.plot_config.errorbar_kw,
         )
+
         ax.set_ylabel(
-            'Target sites success rate',
+            'Survival rate',
             fontsize=self.plot_config.label_font_size,
         )
         ax.tick_params(
@@ -564,56 +497,73 @@ class TweezerStatistician(BaseStatistician):
             which='major',
             labelsize=self.plot_config.label_font_size,
         )
-        ax.set_ylim(bottom=0)
-        ax.grid(color=self.plot_config.grid_color_major, which='major')
-        ax.grid(color=self.plot_config.grid_color_minor, which='minor')
-        ax.set_title('Target sites success rate over all sites', fontsize=self.plot_config.title_font_size)
 
-        figname = self.folder_path / 'target_sites_success_rate.pdf'
-        if not is_subfig:
-            fig.savefig(figname)
+        ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+        # doing the fit at the end of the run
+        if self.is_final_shot and plot_lorentz:
+            popt, pcov = self.fit_lorentzian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
+            upopt = uncertainties.correlated_values(popt, pcov)
+
+            x_plot = np.linspace(
+                np.min(indep_var),
+                np.max(indep_var),
+                1000,
+            )
+
+            ax.plot(x_plot, self.lorentzian(x_plot, *popt))
+            fig.suptitle(
+                f'Center frequency: ${upopt[0]:SL}$ MHz; '
+                f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+            )
 
     def plot_survival_rate_2d(
             self,
             fig: Figure,
             plot_gaussian: bool = False,
     ):
-        if fig is not None:
-            ax1, ax2 = fig.subplots(2, 1)
+        ax1, ax2 = fig.subplots(nrows=2, ncols=1)
 
-        loop_params = self._loop_params()
-        unique_params = self.unique_params()
+        # unique_params = self.unique_params()
+        # x_params_index, y_params_index = self.get_params_order(unique_params)
 
-        x_params_index, y_params_index = self.get_params_order(unique_params)
-        x_params = self.get_unique_params_along_axis(unique_params, x_params_index)
-        y_params = self.get_unique_params_along_axis(unique_params, y_params_index)
-
-        # Calculate survival rates
-        initial_atoms = self.initial_atoms_array.sum(axis=-1) # sum over all sites for each shot
-        surviving_atoms = self.surviving_atoms_array.sum(axis=-1)
-
-        initial_atoms_sum = self.get_sum_of_unique_params(initial_atoms, loop_params, unique_params)
-        surviving_atoms_sum = self.get_sum_of_unique_params(surviving_atoms, loop_params, unique_params)
-
-        survival_rates = surviving_atoms_sum / initial_atoms_sum # simple survival rate
-        sigma_beta = np.sqrt(survival_rates * (1 - survival_rates)) / initial_atoms_sum # simple survival rate std
-
-        survival_rates = self.reshape_to_unique_params_dim(survival_rates, x_params, y_params)
-        sigma_beta = self.reshape_to_unique_params_dim(sigma_beta, x_params, y_params)
-
-        x_params, y_params = np.meshgrid(x_params, y_params)
-        
         df = self.dataframe()
         groupby = df.groupby([param.name for param in self.params])
         survival_df = self.dataframe_survival(groupby)
 
-        def plot_key_2d(df, ax):
+        def df_to_pcolor_args(df: pd.Series | pd.DataFrame):
             unstack = df.unstack()
-            return ax.pcolormesh(
+            if not isinstance(unstack, pd.DataFrame):
+                raise ValueError('df must have a MultiIndex')
+            return (
                 unstack.columns,
                 unstack.index,
                 unstack,
             )
+
+        def plot_key_2d(df: pd.Series | pd.DataFrame, ax: Axes):
+            '''
+            Produce a 2D plot of the data in a pandas dataframe,
+            provided in long format with a MultiIndex for the two independent variables.
+
+            Parameters
+            ----------
+            df: pd.DataFrame or pd.Series
+                DataFrame with one column (or Series) and a 2D MultiIndex
+            ax: Axes
+                Axes in which to plot the data.
+            '''
+            cols, ind, data = df_to_pcolor_args(df)
+
+            ax.set_xlabel(
+                self.params[cols.name].axis_label,
+                fontsize=self.plot_config.label_font_size,
+            )
+            ax.set_ylabel(
+                self.params[ind.name].axis_label,
+                fontsize=self.plot_config.label_font_size,
+            )
+            return ax.pcolormesh(cols, ind, data, shading='nearest')
 
         pcolor_survival_rate = plot_key_2d(survival_df[self.KEY_SURVIVAL_RATE], ax1)
         pcolor_std = plot_key_2d(survival_df[self.KEY_SURVIVAL_RATE_STD], ax2)
@@ -621,32 +571,26 @@ class TweezerStatistician(BaseStatistician):
         fig.colorbar(pcolor_survival_rate, ax=ax1)
         fig.colorbar(pcolor_std, ax=ax2)
 
-        for axs in [ax1, ax2]:
-            axs.set_xlabel(
-                self.params[x_params_index].axis_label,
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs.set_ylabel(
-                self.params[y_params_index].axis_label,
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs.tick_params(
+        for ax in [ax1, ax2]:
+            ax.tick_params(
                 axis='both',
                 which='major',
                 labelsize=self.plot_config.label_font_size,
             )
-            axs.grid(color=self.plot_config.grid_color_major, which='major')
-            axs.grid(color=self.plot_config.grid_color_minor, which='minor')
+            self.plot_config.configure_grids(ax)
         ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
         ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
         if plot_gaussian:
-            popt, pcov = self.fit_gaussian_2d(x_params, y_params, survival_rates)
+            popt, pcov = self.fit_gaussian_2d(*df_to_pcolor_args(survival_df[self.KEY_SURVIVAL_RATE]))
             perr = np.sqrt(np.diag(pcov))
             ax1.title.set_text(f'X waist = {popt[3]:.2f} +/- {perr[3]:.2f}, Y waist = {popt[4]:.2f} +/- {perr[4]:.2f}')
 
-        return unique_params, survival_rates, sigma_beta
-
-    def plot_survival_rate(self, fig: Optional[Figure] = None, plot_lorentz: bool = True, plot_gaussian: bool = False):
+    def plot_survival_rate(
+            self,
+            fig: Optional[Figure] = None,
+            plot_lorentz: bool = True,
+            plot_gaussian: bool = False,
+    ):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
 
@@ -656,248 +600,124 @@ class TweezerStatistician(BaseStatistician):
             The figure to plot on. If None, a new figure is created.
         """
         loop_params = self._loop_params()
-        unique_params = self.unique_params()
 
-        # Calculate survival rates
-        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=-1) # sum over all sites for each shot
-
-        # site_occupancies is of shape (num_shots, num_images, num_atoms)
-        # axis=1 corresponds to the before/after tweezer images
-        # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=-1)
-
-        is_subfig: bool = True
+        is_subfig = (fig is not None)
         if fig is None:
-            fig, axs = plt.subplots(
+            fig = plt.figure(
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
-            is_subfig = False
 
-        if loop_params.size == 0:
-            print("loop_params is empty with dimension", loop_params.ndim)
-            if fig is not None:
-                axs = fig.subplots(nrows=2,ncols=1)
-
-            survival_rates = surviving_atoms / initial_atoms
-            loading_rates = initial_atoms/self.site_occupancies.shape[2]
-            print("survival rate is", survival_rates)
-
-            error = np.sqrt((survival_rates * (1 - survival_rates)) / self.site_occupancies.shape[2])
-            loading_rates_error = np.sqrt((loading_rates * (1 - loading_rates)) / self.site_occupancies.shape[2])
-
-            axs.set_title(
-                self.folder_path,
-                fontsize=8,
-            )
-
-            axs[0].errorbar(
-                0,
-                survival_rates,
-                yerr=error,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-            )
-            axs[0].set_ylabel(
-                'Survival rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[0].tick_params(
-                axis='both',
-                which='major',
-                labelsize=self.plot_config.label_font_size,
-            )
-            axs[0].set_ylim(bottom=0)
-            axs[0].grid(color=self.plot_config.grid_color_major, which='major')
-            axs[0].grid(color=self.plot_config.grid_color_minor, which='minor')
-            axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
-
-            axs[1].errorbar(
-                0,
-                loading_rates,
-                yerr = loading_rates_error,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-                )
-            axs[1].set_ylabel(
-                'Loading rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[1].tick_params(
-                axis='both',
-                which='major',
-                labelsize=self.plot_config.label_font_size,
-            )
-            axs[1].set_ylim(bottom=0)
-            axs[1].grid(color=self.plot_config.grid_color_major, which='major')
-            axs[1].grid(color=self.plot_config.grid_color_minor, which='minor')
-            axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
-
-        elif loop_params.ndim == 1:
-            if fig is not None:
-                axs = fig.subplots(nrows=3, ncols=1)
-
-            initial_atoms_sum = np.array([
-                np.sum(initial_atoms[loop_params == x])
-                for x in unique_params
-            ])
-
-            surviving_atoms_sum = np.array([
-                np.sum(surviving_atoms[loop_params == x])
-                for x in unique_params
-            ])
-
-            first_img_atom_counts = self.site_occupancies[:,0,:].sum(axis =1)
-            rearrange_shots = first_img_atom_counts >= (self.site_occupancies[0,0,:].shape[0]/2)
-            rearrange_shots_unique= np.array([
-                np.sum(rearrange_shots[loop_params == x])
-                for x in unique_params
-                ])
-
-
-            #survival_rates = surviving_atoms / initial_atoms
-            # survival rate using laplace rule of succession
-            survival_rates = (surviving_atoms_sum + 1) / (initial_atoms_sum + 2)
-            # sqrt of variance of the posterior beta distribution
-            sigma_beta = np.sqrt((surviving_atoms_sum + 1) * (initial_atoms_sum - surviving_atoms_sum + 1) / ((initial_atoms_sum + 3) * (initial_atoms_sum + 2) ** 2))
-
-
-            n_rep = np.ceil(self.site_occupancies.shape[0]/unique_params.shape[0])
-            n_sites = self.site_occupancies.shape[2]
-            loading_rates = initial_atoms_sum/(n_rep*n_sites)
-            loading_rates_error = np.sqrt((1-loading_rates)*loading_rates / (n_rep*n_sites))
-            rearrange_rates = rearrange_shots_unique / n_rep
-            rearrange_rates_error = np.sqrt((1-rearrange_rates)*rearrange_rates/n_rep)
-
-            for ax in axs:
-                ax.set_xlabel(
-                    self.params[0].axis_label,
-                    fontsize=self.plot_config.label_font_size,
-                )
-                ax.set_ylim(bottom=0)
-                ax.grid(color=self.plot_config.grid_color_major, which='major')
-                ax.grid(color=self.plot_config.grid_color_minor, which='minor')
-
-            survival_rates, sigma_beta = self.survival_fraction_bayesian(
-                surviving_atoms_sum,
-                initial_atoms_sum,
-                center_method='mean',
-                prior='uniform',
-                interval_method='variance',
-            )
-
-            fig.suptitle(
-                self.folder_path,
-                fontsize=8,
-            )
-
-            axs[0].errorbar(
-                unique_params,
-                survival_rates,
-                yerr=sigma_beta,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-            )
-
-            axs[0].set_ylabel(
-                'Survival rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[0].tick_params(
-                axis='both',
-                which='major',
-                labelsize=self.plot_config.label_font_size,
-            )
-
-            axs[0].set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
-
-            axs[1].errorbar(
-                unique_params,
-                loading_rates,
-                yerr=loading_rates_error,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-            )
-
-            axs[1].hlines(
-                y = 0.5,
-                xmin = np.min(unique_params),
-                xmax = np.max(unique_params),
-                linestyle = '--',
-                color = 'r',
-                label = '50%'
-                )
-
-            axs[1].set_ylabel(
-                'Loading rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[1].set_title('Loading rate over all sites', fontsize=self.plot_config.title_font_size)
-            axs[1].legend()
-
-
-            axs[2].errorbar(
-                unique_params,
-                rearrange_rates,
-                yerr=rearrange_rates_error,
-                marker='.',
-                linestyle='-',
-                alpha=0.5,
-                capsize=3,
-            )
-
-            axs[2].hlines(
-                y = 0.5,
-                xmin = np.min(unique_params),
-                xmax = np.max(unique_params),
-                linestyle = '--',
-                color = 'r',
-                label = '50%'
-                )
-
-
-            axs[2].set_ylabel(
-                'Rearrange rate',
-                fontsize=self.plot_config.label_font_size,
-            )
-            axs[2].set_title(f'Rearrange rate over all shots = {np.mean(rearrange_rates):.2}', fontsize=self.plot_config.title_font_size)
-            axs[2].legend()
-
-            # doing the fit at the end of the run
-            if self.is_final_shot and plot_lorentz:
-                popt, pcov = self.fit_lorentzian(unique_params, survival_rates, sigma=sigma_beta, peak_direction=-1)
-                upopt = uncertainties.correlated_values(popt, pcov)
-
-                x_plot = np.linspace(
-                    np.min(unique_params),
-                    np.max(unique_params),
-                    1000,
-                )
-
-                axs[0].plot(x_plot, self.lorentzian(x_plot, *popt))
-                fig.suptitle(
-                    f'Center frequency: ${upopt[0]:SL}$ MHz; '
-                    f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
-                )
-            return unique_params, survival_rates, sigma_beta
-
+        if loop_params.ndim in [0, 1]:
+            self.plot_survival_rate_1d(fig, plot_lorentz)
         elif loop_params.ndim == 2:
-            unique_params, survival_rates, sigma_beta = self.plot_survival_rate_2d(fig, plot_gaussian)
+            self.plot_survival_rate_2d(fig, plot_gaussian)
         else:
             raise NotImplementedError("I only know how to plot 1d and 2d scans")
 
         figname = self.folder_path / 'survival_rate_vs_param.pdf'
         if not is_subfig:
             fig.savefig(figname)
-        return unique_params, survival_rates, sigma_beta
+
+    def plot_loading_rate(self, ax: Axes):
+        series = self.series()
+        gb = series.xs(0, level=self.KEY_IMAGE).groupby(self.KEY_SHOT)
+
+        # TODO this should be refactored with the other pandas-based
+        # binomial error uncertainty implementations...
+        # need to figure out best way to do this
+        def binomial_rate_uncert(arr):
+            trues = arr.sum()
+            total = len(arr)
+            mean = trues / total
+
+            laplace_p = (trues + 1) / (total + 2)
+            uncert = np.sqrt(laplace_p * (1 - laplace_p) / total)
+            return uncertainties.ufloat(mean, uncert)
+
+        agg = gb.agg(binomial_rate_uncert)
+
+        run_time_series = self.run_time_series()
+        '''index: shot number; values: run times'''
+
+        ax.errorbar(
+            run_time_series,
+            unp.nominal_values(agg),
+            yerr=unp.std_devs(agg),
+            **self.plot_config.errorbar_kw,
+        )
+
+        ax.set_ylabel('Loading rate')
+        ax.set_ylim(0, 1)
+        ax.axhline(0.5, color='red', linestyle='dashed')
+
+    def _setup_shot_index_secax(self, ax: Axes):
+        run_time_nums = mdates.date2num(self.run_time_series())
+        run_time_nums_interp = np.empty((self.shots_processed + 2,))
+        run_time_nums_interp[1:-1] = run_time_nums
+        time_range = max(1, run_time_nums[-1] - run_time_nums[0])  # in case run_time_nums is len 1
+        run_time_nums_interp[0] = run_time_nums[0] - time_range
+        run_time_nums_interp[-1] = run_time_nums[-1] + time_range
+        # [A, time0, time1, time2, time(n-1), B]
+        # where A, time0, time(n-1), B are in arithmetic sequence
+
+        shot_indices_interp = np.arange(-1, self.shots_processed + 1, dtype=np.float64)
+        eps = 0.1
+        shot_indices_interp[0] = -eps
+        shot_indices_interp[-1] = shot_indices_interp[-2] + eps
+        # [-0.1, 0, 1, 2, ..., n-1, n-1 + 0.1]
+        # endpoints are so things at the far end don't look wrong
+
+        def time_to_index(datenum):
+            retval = np.interp(datenum, run_time_nums_interp, shot_indices_interp)
+            return retval
+
+        def index_to_time(index):
+            time_num = np.interp(index, shot_indices_interp, run_time_nums_interp)
+            return time_num
+
+        secax = ax.secondary_xaxis(location='top', functions=(time_to_index, index_to_time))
+        secax.xaxis.set_major_locator(MaxNLocator(steps=[1, 2, 5, 10], integer=True))
+        secax.set_xlabel('Shot number')
+
+    def plot_rearrangement_performance(self, ax: Axes):
+        if not self.rearrangement:
+            raise ValueError
+
+        REARRANGED_IMG_INDEX = 1
+        occupancies_rearr = self.series().xs(REARRANGED_IMG_INDEX, level='image')
+        target_sites_filter = occupancies_rearr.index.isin(self.target_sites, level=self.KEY_SITE)
+        target_loading_rates = occupancies_rearr[target_sites_filter].groupby(self.KEY_SHOT).mean()
+
+        ax.plot(
+            self.run_time_series(),
+            target_loading_rates,
+            marker='.',
+            linestyle='',
+        )
+
+    def plot_tweezing_statistics(self, fig: Optional[Figure] = None):
+        rows = 2 if self.rearrangement else 1
+
+        if fig is None:
+            fig, axs = plt.subplots(nrows=rows, ncols=1, sharex=True)
+        else:
+            axs = fig.subplots(nrows=rows, ncols=1, sharex=True)
+        axs = np.atleast_1d(axs)
+
+        fig.suptitle('Tweezing statistics')
+        self.plot_loading_rate(axs[0])
+
+        if self.rearrangement:
+            self.plot_rearrangement_performance(axs[1])
+
+        self._setup_shot_index_secax(axs[0])
+        last_ax = axs[-1]
+        # https://stackoverflow.com/a/56139690
+        last_ax.set_xticks(last_ax.get_xticks(), last_ax.get_xticklabels(), rotation=45, ha='right')  # type: ignore
+        last_ax.set_xlabel('Shot time')
+
+    # LEGACY CODE
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
@@ -994,24 +814,25 @@ class TweezerStatistician(BaseStatistician):
         return unique_params, survival_rates
 
     # TODO: merge this into plot_survival_rate_by_site
-    def plot_survival_rate_by_site_2d(self, ax: Optional[Figure] = None, plot_grouped_averaged = False): #TODO: add grouped averaged option
+    def plot_survival_rate_by_site_2d(
+            self,
+            ax: Optional[Axes] = None,
+            plot_grouped_averaged: bool = False,
+    ): #TODO: add grouped averaged option
         """
         Plots the survival rate of atoms in the tweezers, site by site.
 
         Parameters
         ----------
-        fig : Optional[Figure]
-            The figure to plot on. If None, a new figure is created.
+        ax: Axes, optional
+            Axes to plot on. If not supplied, a new figure and axes are created.
         """
+        is_subfig = (ax is not None)
         if ax is None:
             fig, ax = plt.subplots(
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
-            is_subfig = False
-        else:
-            ax = ax
-            is_subfig = True
 
         unique_params, survival_rates_matrix = self.loop_param_and_site_survival_rate_matrix()
         survival_rates_matrix = survival_rates_matrix[:, :, 0]
@@ -1036,7 +857,7 @@ class TweezerStatistician(BaseStatistician):
 
         ax.set_xlabel(self.params[0].axis_label)
         ax.set_ylabel('Site index')
-        cbar = fig.colorbar(pm, ax=ax)
+        fig.colorbar(pm, ax=ax)
 
         if not is_subfig:
             fig.savefig(f"{self.folder_path}/survival_rate_by_site_2d.pdf")
@@ -1141,6 +962,8 @@ class TweezerStatistician(BaseStatistician):
             else:
                 ax = axs[-i-1]
             ax.plot(unique_params, averaged_data[i],'.-',label = rf'group {i} data')
+            path = os.path.join(f"{self.folder_path}/", f"data_multishot_{i}.csv")
+            np.savetxt(path, [unique_params, averaged_data[i]], delimiter=",")
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
                 initial_guess = [1, 2*np.pi*2e6, 0, 3.5e-6, 0.5]

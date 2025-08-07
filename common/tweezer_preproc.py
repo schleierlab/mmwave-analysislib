@@ -1,7 +1,7 @@
 import importlib.resources
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar, Optional, cast
+from typing import ClassVar, Literal, Optional, cast
 
 import h5py
 import numpy as np
@@ -17,6 +17,7 @@ from .image_preprocessor import ImagePreprocessor
 from .analysis_config import kinetix_system
 from .image import Image, ROI
 from analysislib import multishot
+from analysislib.common.plot_config import PlotConfig
 
 
 class TweezerPreprocessor(ImagePreprocessor):
@@ -49,9 +50,10 @@ class TweezerPreprocessor(ImagePreprocessor):
 
     def __init__(
             self,
-            load_type: str = 'lyse',
-            h5_path: str = None,
-            use_averaged_background: bool = False
+            load_type: Literal['lyse', 'h5'] = 'lyse',
+            h5_path: Optional[str] = None,
+            use_averaged_background: bool = False,
+            plot_config: Optional[PlotConfig] = None,
         ):
         """Initialize TweezerAnalysis with analysis configuration.
 
@@ -69,6 +71,8 @@ class TweezerPreprocessor(ImagePreprocessor):
             load_type=load_type,
             h5_path=h5_path
         )
+
+        self.plot_config = plot_config or PlotConfig()
 
         self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
         self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
@@ -114,14 +118,7 @@ class TweezerPreprocessor(ImagePreprocessor):
 
     @property
     def target_array(self):
-        try:
-            target_array = self.globals['TW_target_array']
-        except KeyError:
-            try:
-                target_array = self.default_params['TW_target_array']
-            except KeyError:
-                raise KeyError('no TW_target_array find in both globals and default values')
-        return target_array
+        return self.parameters['TW_target_array']
 
     @staticmethod
     def _load_default_params_from_yaml(defaul_params_path: Path):
@@ -240,7 +237,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         atom_roi_ylims = [atom_roi.ymin, atom_roi.ymax]
 
         # Determine the output path
-        output_path = Path(output_path)
+        output_file = Path(output_path)
 
         # Format the YAML content manually to match the exact format of roi_config.yml
         yaml_content = "---\n"
@@ -265,20 +262,19 @@ class TweezerPreprocessor(ImagePreprocessor):
         yaml_content += "\n".join(yaml_lines)
 
         # Write the YAML file
-        with output_path.open('w') as stream:
+        with output_file.open('w') as stream:
             stream.write(yaml_content)
+            stream.write('\n')  # trailing newline!
 
-        return str(output_path)
+        return str(output_file)
 
     def process_shot(self, use_global_threshold: bool = False):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
 
         # Implement the thresholding to determine site occupancy
         if use_global_threshold: # means we use the same threshold for all sites
-            print("Using global threshold =", self.threshold)
             self.site_occupancies = camera_counts > self.threshold
         else:
-            print("Using site-specific thresholds...")
             self.site_occupancies = camera_counts > self.site_thresholds
 
         run_number = self.run_number
@@ -294,9 +290,9 @@ class TweezerPreprocessor(ImagePreprocessor):
                 )  # shape: (n_shots, n_images, n_sites)
                 f.create_dataset(
                     'site_occupancies',
-                    data=self.site_occupancies[np.newaxis, ...].astype(np.float_),
+                    data=self.site_occupancies[np.newaxis, ...].astype(bool),
                     maxshape=(None, 10, 100),
-                    fillvalue=float('nan'),
+                    fillvalue=False,
                 )
                 f['site_occupancies'].attrs['threshold'] = self.threshold
                 f.create_dataset('site_rois', data=ROI.toarray(self.site_rois))
@@ -313,6 +309,12 @@ class TweezerPreprocessor(ImagePreprocessor):
                 for key in self.params.keys():
                     param_list.append([key, self.params[key][1], self.params[key][0]])
                 f.create_dataset('params', data=param_list)
+
+                f.create_dataset(
+                    'run_times',
+                    data=[self.run_time],
+                    maxshape=(None,),
+                )
         else:
             with h5py.File(fname, 'a') as f:
                 f['camera_counts'].resize(run_number + 1, axis=0)
@@ -324,6 +326,9 @@ class TweezerPreprocessor(ImagePreprocessor):
                 # save parameters from runmanager globals
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
+
+                f['run_times'].resize(run_number + 1, axis=0)
+                f['run_times'][run_number] = self.run_time
 
         return fname
 
@@ -341,7 +346,7 @@ class TweezerPreprocessor(ImagePreprocessor):
                 ncols=1,
             )
         else:
-            axs = fig.subplots(nrows=2, ncols=1)
+            axs = fig.subplots(nrows=len(self.images), ncols=1)
 
         norm = Normalize(vmin=0, vmax=vmax)
         for i, image in enumerate(self.images):
@@ -360,21 +365,18 @@ class TweezerPreprocessor(ImagePreprocessor):
                 )
                 collection = PatchCollection(patches, match_original=True)
                 ax.add_collection(collection)
-                text_kwargs = {
-                    'color':'red',
-                    'fontsize':'small',
-                    }
                 if site_index:
-                    [ax.annotate(
-                        str(j), # The site index to display
-                        xy=(roi.xmin, roi.ymin - 5), # Position of the text
-                        **text_kwargs
+                    [
+                        ax.annotate(
+                            str(j), # The site index to display
+                            xy=(roi.xmin, roi.ymin - 5), # Position of the text
+                            **self.plot_config.tweezer_index_label_kw,
                         )
-                    # Iterate through sites, but only annotate if j is a multiple of 5
-                    for j, roi in enumerate(self.site_rois) if j % 5 == 0]
+                        # Iterate through sites, but only annotate if j is a multiple of 5
+                        for j, roi in enumerate(self.site_rois)
+                        if j % 5 == 0
+                    ]
 
-            fig.suptitle(
-                self.h5_path,
-            )
+            fig.suptitle(str(self.h5_path))
 
         fig.colorbar(ScalarMappable(norm, cmap=cmap), ax=axs, label='Counts')
