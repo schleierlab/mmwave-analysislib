@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 
 background_subtract = True
-USE_AVERAGED_BACKGROUND = True
+USE_AVERAGED_BACKGROUND = False
 folder = select_data_directory()
 
 finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAGED_BACKGROUND)

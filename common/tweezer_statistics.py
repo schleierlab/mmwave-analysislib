@@ -966,7 +966,7 @@ class TweezerStatistician(BaseStatistician):
             np.savetxt(path, [unique_params, averaged_data[i]], delimiter=",")
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
-                initial_guess = [1, 2*np.pi*2e6, 0, 3.5e-6, 0.5]
+                initial_guess = [1, 2*np.pi*1.5e6, 0, 3.5e-6, 0.5]
                 params_opt, params_cov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
 
                 # Extract fit results

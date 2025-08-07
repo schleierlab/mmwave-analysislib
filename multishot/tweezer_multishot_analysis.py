@@ -13,7 +13,7 @@ Do tweezer multishot analysis without doing auto roi detection. Plot loading rat
 Load data directly from 'tweezer_preprocess.h5' (this is the file generated after running tweezer_single_shot) to do multishot analysis.
 '''
 background_subtract = True
-USE_AVERAGED_BACKGROUND = True
+USE_AVERAGED_BACKGROUND = False
 PLOT_AVERAGED_IMAGES = False # Show averaged image(s) but takes longer time because need to process through all h5 files
 PLOT_TWO_IMAGES = True # only matters if PLOT_AVERAGED_IMAGES is set to True. If set to False, only plot the first image.
 folder = select_data_directory()
@@ -54,8 +54,8 @@ thresholder.plot_spreads(ax=axs[0])
 thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
 tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
-tweezer_statistician.plot_survival_rate_by_site_2d()
-tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d_old(group_size = 50, fit_type = 'rabi_oscillation')
+# tweezer_statistician.plot_survival_rate_by_site_2d()
+# tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d_old(group_size = 50, fit_type = 'rabi_oscillation')
 
 axs[0].set_ylabel('Counts')
 axs[1].set_ylabel('Loading rate')
