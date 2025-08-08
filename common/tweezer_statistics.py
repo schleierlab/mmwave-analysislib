@@ -4,7 +4,7 @@ from collections.abc import Iterable, Sequence
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, overload
+from typing import ClassVar, Literal, Optional, cast, overload
 from typing_extensions import assert_never
 
 import h5py  # type: ignore
@@ -455,10 +455,36 @@ class TweezerStatistician(BaseStatistician):
             self,
             fig: Figure,
             plot_lorentz: bool = False,
+            show_hist: bool = False,
+            averaging_window: Optional[int] = None,
     ):
-        ax = fig.subplots()
-        ax.set_ylim(bottom=0)
-        self.plot_config.configure_grids(ax)
+        """
+        fig: Figure
+            A matplotlib Figure to plot in.
+        plot_lorentz: bool
+            If True and we're analyzing the last shot,
+            also fit a Lorentzian lineshape, plot it,
+            and show the fit parameters.
+        show_hist: bool
+            If True, show to the right of the main plot
+            a histogram of all the values encountered.
+        averaging_window: int, optional
+            If provided, also plot the average of the `averaging_window` most recent.
+        """
+        if show_hist:
+            _ax_plot, _ax_hist = fig.subplots(
+                ncols=2,
+                nrows=1,
+                sharey=True,
+                gridspec_kw=dict(width_ratios=[3,1]),
+            )
+            ax_plot = cast(Axes, _ax_plot)
+            ax_hist = cast(Axes, _ax_hist)
+        else:
+            ax_plot = fig.subplots()
+
+        ax_plot.set_ylim(bottom=0)
+        self.plot_config.configure_grids(ax_plot)
 
         fig.suptitle(
             str(self.folder_path),
@@ -475,30 +501,44 @@ class TweezerStatistician(BaseStatistician):
         elif len(self.params) == 0:
             gb = df
             xlabel = 'Shot number'
-        ax.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
+        ax_plot.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
         survival_df = self.dataframe_survival(gb)
 
         indep_var = survival_df.index
         survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
         survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
-        ax.errorbar(
+        ax_plot.errorbar(
             indep_var,
             survival_rates,
             yerr=survival_rate_errs,
             **self.plot_config.errorbar_kw,
         )
 
-        ax.set_ylabel(
+        ax_plot.set_ylabel(
             'Survival rate',
             fontsize=self.plot_config.label_font_size,
         )
-        ax.tick_params(
+        ax_plot.tick_params(
             axis='both',
             which='major',
             labelsize=self.plot_config.label_font_size,
         )
 
-        ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+        ax_plot.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+        if show_hist:
+            ax_hist.hist(
+                survival_rates,
+                orientation='horizontal',
+            )
+        if averaging_window is not None:
+            # TODO add errorbars to this
+            ax_plot.plot(
+                indep_var,
+                survival_rates.rolling(averaging_window).mean(),
+                color='C1',
+                marker='.',
+            )
 
         # doing the fit at the end of the run
         if self.is_final_shot and plot_lorentz:
@@ -511,7 +551,7 @@ class TweezerStatistician(BaseStatistician):
                 1000,
             )
 
-            ax.plot(x_plot, self.lorentzian(x_plot, *popt))
+            ax_plot.plot(x_plot, self.lorentzian(x_plot, *popt))
             fig.suptitle(
                 f'Center frequency: ${upopt[0]:SL}$ MHz; '
                 f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
