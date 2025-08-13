@@ -517,6 +517,14 @@ class TweezerStatistician(BaseStatistician):
                 f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
             )
 
+        if self.is_final_shot and self.params[0].name == 'repetition_index':
+            mean_df = self.dataframe_survival(df)
+            umean = uncertainties.ufloat(mean_df[self.KEY_SURVIVAL_RATE], mean_df[self.KEY_SURVIVAL_RATE_STD])
+            ax.axhline(umean.n, label=f'Mean: {umean:S}')
+            ax.legend()
+
+        return indep_var, survival_rates, survival_rate_errs
+
     def plot_survival_rate_2d(
             self,
             fig: Figure,
@@ -609,7 +617,8 @@ class TweezerStatistician(BaseStatistician):
             )
 
         if loop_params.ndim in [0, 1]:
-            self.plot_survival_rate_1d(fig, plot_lorentz)
+            indep_var, survival_rates, survival_rate_errs = self.plot_survival_rate_1d(fig, plot_lorentz)
+            return indep_var, survival_rates, survival_rate_errs
         elif loop_params.ndim == 2:
             self.plot_survival_rate_2d(fig, plot_gaussian)
         else:
@@ -695,6 +704,7 @@ class TweezerStatistician(BaseStatistician):
             marker='.',
             linestyle='',
         )
+        ax.set_ylabel('target site survival rate')
 
     def plot_tweezing_statistics(self, fig: Optional[Figure] = None):
         rows = 2 if self.rearrangement else 1
@@ -966,7 +976,7 @@ class TweezerStatistician(BaseStatistician):
             np.savetxt(path, [unique_params, averaged_data[i]], delimiter=",")
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
-                initial_guess = [1, 2*np.pi*2e6, 0, 3.5e-6, 0.5]
+                initial_guess = [1, 2*np.pi*2e6, 0, 6e-6, 0.5]
                 params_opt, params_cov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
 
                 # Extract fit results
