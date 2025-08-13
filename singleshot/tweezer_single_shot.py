@@ -4,6 +4,7 @@ import os
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
+import numpy as np
 
 SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to false
@@ -18,6 +19,7 @@ tweezer_preproc = TweezerPreprocessor(
     use_averaged_background = USE_AVERAGED_BACKGROUND
 )
 doing_rearrangement = bool(tweezer_preproc.parameters['do_rearrangement'])
+print('do rearrangement: ', doing_rearrangement)
 
 fig = plt.figure(layout='constrained')
 processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = True)
@@ -44,7 +46,7 @@ if not SHOW_IMG_ONLY:
         # print(unique_params)
         # print(survival_rates)
         # print(sigma_beta)
-        # np.savetxt(folder_path + "/data.csv", [unique_params, survival_rates, sigma_beta], delimiter=",")
+    # np.savetxt(folder_path + "/data.csv", [indep_var, survival_rates, survival_rate_errs], delimiter=",")
         # TODO: this function right now doesn't work with 2d parameter scan
 
 figname = folder_path + '/tweezer_single_shot.pdf'
