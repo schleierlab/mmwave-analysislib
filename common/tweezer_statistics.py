@@ -194,7 +194,10 @@ class TweezerStatistician(BaseStatistician):
         inds = slice(1, 3) if self.rearrangement else slice(0, 2)
         return self.site_occupancies[:, inds, :].prod(axis=-2)
 
-    def dataframe(self) -> pd.DataFrame:
+    def dataframe(
+        self,
+        shot_mask: Optional[np.ndarray] = None,
+        require_exact_rearrangement: bool = False,) -> pd.DataFrame:
         '''
         Return dataframe of the form:
 
@@ -209,9 +212,36 @@ class TweezerStatistician(BaseStatistician):
         The columns are: [*scanned_globals, site index, initial, survival].
         There are n_sites rows per shot, for a total of n_sites * n_shots rows.
         This form is amenable to grouping (via `.groupby()`) and aggregation.
+        ----------
+        shot_mask : optional boolean array of shape (shots,)
+            If provided, only these shots are included.
+        require_exact_rearrangement : bool
+            When True (and self.rearrangement is True), only include shots where
+            image index 1 matches the target pattern exactly.
         '''
+        # --- figure out which shots to include ---
+        if require_exact_rearrangement:
+            exact_mask = self._shot_mask_exact_rearrangement()
+            if shot_mask is None:
+                shot_mask = exact_mask
+            else:
+                if shot_mask.shape != exact_mask.shape:
+                    raise ValueError("shot_mask has wrong shape")
+                shot_mask = shot_mask & exact_mask
+
+        # Slice per-shot arrays and param table if a mask is active
+        if shot_mask is not None:
+            params_for_index = self.current_params[shot_mask]
+            initial_arr = self.initial_atoms_array[shot_mask]
+            survival_arr = self.surviving_atoms_array[shot_mask]
+        else:
+            params_for_index = self.current_params
+            initial_arr = self.initial_atoms_array
+            survival_arr = self.surviving_atoms_array
+
+        # --- original dataframe construction (unchanged logic) ---
         index = pd.MultiIndex.from_arrays(
-            self.current_params.T,
+            params_for_index.T,
             names=[param.name for param in self.params],
         )
 
@@ -222,9 +252,25 @@ class TweezerStatistician(BaseStatistician):
             occupancy_df.name = name
             return occupancy_df
 
-        df_initial = assemble_occupancy_df(self.initial_atoms_array, name=self.KEY_INITIAL)
-        df_survival = assemble_occupancy_df(self.surviving_atoms_array, name=self.KEY_SURVIVAL)
+        df_initial = assemble_occupancy_df(initial_arr, name=self.KEY_INITIAL)
+        df_survival = assemble_occupancy_df(survival_arr, name=self.KEY_SURVIVAL)
         df = pd.concat([df_initial, df_survival], axis=1)
+
+        # index = pd.MultiIndex.from_arrays(
+        #     self.current_params.T,
+        #     names=[param.name for param in self.params],
+        # )
+
+        # def assemble_occupancy_df(array: NDArray, name: str):
+        #     df = pd.DataFrame(array, index=index, dtype=bool)
+        #     df.columns.name = self.KEY_SITE
+        #     occupancy_df = df.stack()
+        #     occupancy_df.name = name
+        #     return occupancy_df
+
+        # df_initial = assemble_occupancy_df(self.initial_atoms_array, name=self.KEY_INITIAL)
+        # df_survival = assemble_occupancy_df(self.surviving_atoms_array, name=self.KEY_SURVIVAL)
+        # df = pd.concat([df_initial, df_survival], axis=1)
 
         return df.reset_index()
 
@@ -285,6 +331,19 @@ class TweezerStatistician(BaseStatistician):
         self.dataframe_binomial_error(df, self.KEY_SURVIVAL, self.KEY_INITIAL, name=self.KEY_SURVIVAL_RATE_STD)
         return df
 
+    def _shot_mask_exact_rearrangement(self) -> np.ndarray:
+        """
+        True for shots where image 1 matches target_sites exactly.
+        If not rearrangement mode or no target sites set, returns all True.
+        """
+        if (not self.rearrangement) or (len(self.target_sites) == 0):
+            return np.ones(self.shots_processed, dtype=bool)
+
+        target_bool = np.zeros(self.n_sites, dtype=bool)
+        target_bool[np.asarray(self.target_sites, dtype=int)] = True
+
+        img1 = self.site_occupancies[:, 1, :]  # (shots, sites)
+        return np.all(img1 == target_bool[None, :], axis=1)
     # LEGACY CODE
 
     def rearragne_statistics(self, target_array):
@@ -455,6 +514,7 @@ class TweezerStatistician(BaseStatistician):
             self,
             fig: Figure,
             plot_lorentz: bool = False,
+            require_exact_rearrangement: bool = False,   # NEW
     ):
         ax = fig.subplots()
         ax.set_ylim(bottom=0)
@@ -465,7 +525,7 @@ class TweezerStatistician(BaseStatistician):
             fontsize=8,
         )
 
-        df = self.dataframe()
+        df = self.dataframe(require_exact_rearrangement=require_exact_rearrangement)
         gb: pd.DataFrame | pdt.DataFrameGroupBy
         if len(self.params) != 1:
             raise ValueError
@@ -598,6 +658,7 @@ class TweezerStatistician(BaseStatistician):
             fig: Optional[Figure] = None,
             plot_lorentz: bool = True,
             plot_gaussian: bool = False,
+            require_exact_rearrangement=False
     ):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -617,7 +678,7 @@ class TweezerStatistician(BaseStatistician):
             )
 
         if loop_params.ndim in [0, 1]:
-            indep_var, survival_rates, survival_rate_errs = self.plot_survival_rate_1d(fig, plot_lorentz)
+            indep_var, survival_rates, survival_rate_errs = self.plot_survival_rate_1d(fig, plot_lorentz, require_exact_rearrangement)
             return indep_var, survival_rates, survival_rate_errs
         elif loop_params.ndim == 2:
             self.plot_survival_rate_2d(fig, plot_gaussian)
