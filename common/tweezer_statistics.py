@@ -630,6 +630,7 @@ class TweezerStatistician(BaseStatistician):
             fig: Optional[Figure] = None,
             plot_lorentz: bool = True,
             plot_gaussian: bool = False,
+            show_hist: bool = False,
     ):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -648,8 +649,10 @@ class TweezerStatistician(BaseStatistician):
                 constrained_layout=self.plot_config.constrained_layout,
             )
 
-        if loop_params.ndim in [0, 1]:
-            self.plot_survival_rate_1d(fig, plot_lorentz)
+        if loop_params.ndim == 0:
+            self.plot_survival_rate_1d(fig, show_hist=True, averaging_window=10)
+        if loop_params.ndim == 1:
+            self.plot_survival_rate_1d(fig, plot_lorentz, show_hist = show_hist, averaging_window=None)
         elif loop_params.ndim == 2:
             self.plot_survival_rate_2d(fig, plot_gaussian)
         else:
@@ -659,23 +662,25 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
 
+
+    # TODO this should be refactored with the other pandas-based
+    # binomial error uncertainty implementations...
+    # need to figure out best way to do this
+    @staticmethod
+    def binomial_rate_uncert(arr):
+        trues = arr.sum()
+        total = len(arr)
+        mean = trues / total
+
+        laplace_p = (trues + 1) / (total + 2)
+        uncert = np.sqrt(laplace_p * (1 - laplace_p) / total)
+        return uncertainties.ufloat(mean, uncert)
+
     def plot_loading_rate(self, ax: Axes):
         series = self.series()
         gb = series.xs(0, level=self.KEY_IMAGE).groupby(self.KEY_SHOT)
 
-        # TODO this should be refactored with the other pandas-based
-        # binomial error uncertainty implementations...
-        # need to figure out best way to do this
-        def binomial_rate_uncert(arr):
-            trues = arr.sum()
-            total = len(arr)
-            mean = trues / total
-
-            laplace_p = (trues + 1) / (total + 2)
-            uncert = np.sqrt(laplace_p * (1 - laplace_p) / total)
-            return uncertainties.ufloat(mean, uncert)
-
-        agg = gb.agg(binomial_rate_uncert)
+        agg = gb.agg(self.binomial_rate_uncert)
 
         run_time_series = self.run_time_series()
         '''index: shot number; values: run times'''
