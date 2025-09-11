@@ -13,6 +13,7 @@ USE_AVERAGED_BACKGROUND = True
 SHOW_IMG_ONLY = False
 EXACT_REARRANGEMENT = True
 
+
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_preproc = TweezerPreprocessor(
     load_type='lyse',
@@ -41,15 +42,15 @@ tweezer_statistician = TweezerStatistician(
 
 folder_path = os.path.dirname(tweezer_preproc.h5_path)
 if not SHOW_IMG_ONLY:
-    tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ, require_exact_rearrangement=EXACT_REARRANGEMENT)
+    # tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ, require_exact_rearrangement=EXACT_REARRANGEMENT)
+    indep_var, survival_rates, survival_rate_errs = tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ, require_exact_rearrangement=EXACT_REARRANGEMENT)
     tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2])
 
-        # print(unique_params)
-        # print(survival_rates)
-        # print(sigma_beta)
-    # np.savetxt(folder_path + "/data.csv", [indep_var, survival_rates, survival_rate_errs], delimiter=",")
-        # TODO: this function right now doesn't work with 2d parameter scan
+    np.savetxt(folder_path + "/data.csv", [indep_var, survival_rates, survival_rate_errs], delimiter=",")
+    # TODO: this function right now doesn't work with 2d parameter scan
 
-figname = folder_path + '/tweezer_single_shot.pdf'
-fig.savefig(figname)
+if tweezer_statistician.is_final_shot:
+    figname = folder_path + '/tweezer_single_shot.pdf'
+    fig.savefig(figname)
+
 #tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])
