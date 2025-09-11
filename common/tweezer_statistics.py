@@ -765,7 +765,7 @@ class TweezerStatistician(BaseStatistician):
             marker='.',
             linestyle='',
         )
-        ax.set_ylabel('target site survival rate')
+        ax.set_ylabel('Array preparation fidelity')
 
     def plot_tweezing_statistics(self, fig: Optional[Figure] = None):
         rows = 2 if self.rearrangement else 1
@@ -787,6 +787,8 @@ class TweezerStatistician(BaseStatistician):
         # https://stackoverflow.com/a/56139690
         last_ax.set_xticks(last_ax.get_xticks(), last_ax.get_xticklabels(), rotation=45, ha='right')  # type: ignore
         last_ax.set_xlabel('Shot time')
+
+        fig.align_ylabels()
 
     # LEGACY CODE
 
