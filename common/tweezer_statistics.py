@@ -229,6 +229,14 @@ class TweezerStatistician(BaseStatistician):
         return df.reset_index()
 
     def run_time_series(self) -> pd.Series:
+        '''
+        Return the run timestamps of the shots in this analysis.
+
+        Returns
+        -------
+        pandas.Series
+            A series of all the timestamps, as datetime64 objects.
+        '''
         return pd.Series(self.run_times_strs, dtype='datetime64[ns]')
 
     # this is intended to supersede the above dataframe() eventually, since it has shot number information
@@ -1075,7 +1083,39 @@ class TweezerStatistician(BaseStatistician):
                 )
                 print(popt[0], pcov[0][0]) # print out value for plotting
                 ax.legend(loc='upper right')
+            elif fit_type == 'quadratic':
+                # Fit the model to the data
+                y_range = np.max(averaged_data[i]) - np.min(averaged_data[i])
+                x_range = np.max(unique_params) - np.min(unique_params)
+                guess = (y_range / x_range**2, np.min(averaged_data[i]), np.mean(unique_params))
+                params_opt, params_cov = curve_fit(self.quadratic, unique_params, averaged_data[i], p0 = guess)
 
+                # Extract fit results
+                A_fit, B_fit, x_0_fit = params_opt
+                print(A_fit, B_fit, x_0_fit)
+                upopt = uncertainties.correlated_values(params_opt, params_cov)
+
+
+                x_plot = np.linspace(
+                    np.min(unique_params),
+                    np.max(unique_params),
+                    1001,
+                )
+                ax.plot(x_plot, self.quadratic(x_plot, *params_opt), 'r-', label=rf'{i}Fit')
+                annotation_text = (
+                    f'Center: {upopt[2]}'
+                )
+
+                ax.annotate(
+                    annotation_text,
+                    xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
+                    xycoords='axes fraction',
+                    fontsize=9,
+                    ha='left',
+                    va='bottom',
+                )
+
+                ax.legend(loc='upper right')
         fig.supxlabel(self.params[0].axis_label)
         fig.supylabel('Population')
 

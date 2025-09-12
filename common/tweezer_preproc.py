@@ -1,7 +1,8 @@
 import importlib.resources
 from collections.abc import Sequence
+import os
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, cast
+from typing import ClassVar, Literal, Optional, Union, cast
 
 import h5py
 import numpy as np
@@ -18,6 +19,9 @@ from .analysis_config import kinetix_system
 from .image import Image, ROI
 from analysislib import multishot
 from analysislib.common.plot_config import PlotConfig
+
+
+StrPath = Union[os.PathLike[str], str]
 
 
 class TweezerPreprocessor(ImagePreprocessor):
@@ -51,7 +55,7 @@ class TweezerPreprocessor(ImagePreprocessor):
     def __init__(
             self,
             load_type: Literal['lyse', 'h5'] = 'lyse',
-            h5_path: Optional[str] = None,
+            h5_path: Optional[StrPath] = None,
             use_averaged_background: bool = False,
             plot_config: Optional[PlotConfig] = None,
         ):

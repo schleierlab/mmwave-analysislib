@@ -4,6 +4,7 @@ from os import PathLike
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import optimize
+from scipy.constants import pi
 
 # try:
 #     lyse
@@ -84,10 +85,18 @@ class BaseStatistician(ABC):
             return A * np.cos(Omega * t + phi) * np.exp(-t / T2) + C
         else:
             return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C # gaussian decay
+    
+    @staticmethod
+    # Define the damped Rabi oscillation model
+    def quadratic(x, a, offset, x_0):
+        return a * (x - x_0)**2 + offset
 
-    # @staticmethod
-    # def sinc_squared(x, A, B, x0, w):
-    #     return A-B * (np.sinc((x-x0)/w))**2
+    @staticmethod
+    def rabi_spectrum_model(freq, center, rabi_freq, pulse_time):
+        detuning = freq - center
+        gen_rabi_freq_sq = rabi_freq**2 + detuning**2
+
+        return (rabi_freq * np.sin(pi * np.sqrt(gen_rabi_freq_sq) * pulse_time))**2 / gen_rabi_freq_sq
 
     @staticmethod
     def lorentzian(x, x0, width, a, offset):
