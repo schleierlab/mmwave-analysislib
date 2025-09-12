@@ -8,10 +8,14 @@ import numpy as np
 
 SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to false
-FIT_LORENTZ = False
 USE_AVERAGED_BACKGROUND = True
+FIT_TYPE_1D = None # do a curve fit at the final shot, set to None when don't to curve fit
+# options: 'lorentzian',
+
+EXACT_REARRANGEMENT = False
+PLOT_PAIR_STATES = False
 SHOW_IMG_ONLY = False
-EXACT_REARRANGEMENT = True
+SAVE_DATA_CSV_FILE = False # need to be False for 2d scans!
 
 
 # Initialize analysis with background ROI and standard ROI loading
@@ -42,11 +46,14 @@ tweezer_statistician = TweezerStatistician(
 
 folder_path = os.path.dirname(tweezer_preproc.h5_path)
 if not SHOW_IMG_ONLY:
-    # tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ, require_exact_rearrangement=EXACT_REARRANGEMENT)
-    indep_var, survival_rates, survival_rate_errs = tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ, require_exact_rearrangement=EXACT_REARRANGEMENT)
+    if SAVE_DATA_CSV_FILE:
+        indep_var, survival_rates, survival_rate_errs = tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT, plot_pair_states = PLOT_PAIR_STATES)
+        np.savetxt(folder_path + "/data.csv", [indep_var, survival_rates, survival_rate_errs], delimiter=",")
+    else:
+        tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT)
+
     tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2])
 
-    np.savetxt(folder_path + "/data.csv", [indep_var, survival_rates, survival_rate_errs], delimiter=",")
     # TODO: this function right now doesn't work with 2d parameter scan
 
 if tweezer_statistician.is_final_shot:

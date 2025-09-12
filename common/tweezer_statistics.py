@@ -219,7 +219,7 @@ class TweezerStatistician(BaseStatistician):
             When True (and self.rearrangement is True), only include shots where
             image index 1 matches the target pattern exactly.
         '''
-        # --- figure out which shots to include ---
+        # figure out which shots to include
         if require_exact_rearrangement:
             exact_mask = self._shot_mask_exact_rearrangement()
             if shot_mask is None:
@@ -239,7 +239,7 @@ class TweezerStatistician(BaseStatistician):
             initial_arr = self.initial_atoms_array
             survival_arr = self.surviving_atoms_array
 
-        # --- original dataframe construction (unchanged logic) ---
+        # --- original dataframe construction ---
         index = pd.MultiIndex.from_arrays(
             params_for_index.T,
             names=[param.name for param in self.params],
@@ -481,6 +481,142 @@ class TweezerStatistician(BaseStatistician):
         ax.set_title(f'Tweezer site loading rates, {n_shots} shots average')
         ax.legend()
 
+    def _pairs_from_targets(
+        self,
+        drop_last_incomplete: bool = True,
+        explicit_pairs: Optional[Sequence[tuple[int, int]]] = None):
+        pair_size = 2
+        if explicit_pairs is not None:
+            pairs = np.asarray(explicit_pairs, dtype=int)
+            if pairs.ndim != 2 or pairs.shape[1] != 2:
+                raise ValueError("explicit_pairs must be a list/tuple of (i,j) pairs.")
+            return pairs
+
+        tgt = list(self.target_sites)  # preserve given order
+        if len(tgt) < pair_size:
+            return np.empty((0, 2), dtype=int)
+
+        remainder = len(tgt) % pair_size
+        if remainder:
+            if drop_last_incomplete:
+                tgt = tgt[:len(tgt) - remainder]
+            else:
+                raise ValueError(
+                    f"target_sites length ({len(self.target_sites)}) not divisible by pair_size={pair_size}"
+                )
+
+        chunks = [tuple(tgt[i:i+pair_size]) for i in range(0, len(tgt), pair_size)]
+        pairs: list[tuple[int, int]] = []
+        for ch in chunks:
+            if len(ch) != 2:
+                raise ValueError("pair_size must be 2 for pair-state populations.")
+            pairs.append((int(ch[0]), int(ch[1])))
+        return np.asarray(pairs, dtype=int)
+
+    def _plot_pair_state_population(
+        self,
+        ax,
+        indep_var,
+        require_exact_rearrangement: bool = True,
+        explicit_pairs: Optional[Sequence[tuple[int, int]]] = None):
+        if not self.rearrangement:
+                raise ValueError("plot_pair_states=True requires rearrangement=True and 3 images (0,1,2).")
+        if self.n_images < 3:
+            raise ValueError("Expected 3 images (indices 0,1,2) for pair-state populations.")
+        if (len(self.target_sites) < 2) and (explicit_pairs is None):
+            raise ValueError("Need at least two target sites or provide explicit_pairs for pair-state plot.")
+
+        # Use the same shot mask logic used in dataframe()
+        if require_exact_rearrangement:
+            mask = self._shot_mask_exact_rearrangement()
+            if not mask.any():
+                ax.text(0.5, 0.5, "No exact-matching rearranged shots", ha="center", va="center",
+                            transform=ax.transAxes)
+                ax.set_axis_off()
+        else:
+            mask = np.ones(self.shots_processed, dtype=bool)
+
+        # Build pairs in GIVEN ORDER (or explicit)
+        pairs = self._pairs_from_targets(explicit_pairs=explicit_pairs)
+        if pairs.size == 0:
+            raise ValueError("No complete pairs could be formed for pair-state plot.")
+        n_pairs = pairs.shape[0]
+
+        # image-2 occupancy (S-survival) and the scan parameter (x-values) for those shots
+        img2 = self.site_occupancies[mask, 2, :] # (shots_kept, n_sites)
+        xvals = self.current_params[mask, 0] # (shots_kept,)
+
+        # per pair per shot
+        SS_list, PP_list, PS_list, SP_list = [], [], [], []
+        for a_idx, b_idx in pairs:
+            a2 = img2[:, a_idx]
+            b2 = img2[:, b_idx]
+            SS_list.append(a2 & b2)
+            PP_list.append((~a2) & (~b2))
+            PS_list.append((~a2) & b2)
+            SP_list.append(a2 & (~b2))
+
+        SS = np.vstack(SS_list)  # (n_pairs, shots_kept)
+        PP = np.vstack(PP_list)
+        PS = np.vstack(PS_list)
+        SP = np.vstack(SP_list)
+
+        x_arr = np.asarray(indep_var)
+        k_SS = np.zeros_like(x_arr, dtype=float)
+        k_PP = np.zeros_like(x_arr, dtype=float)
+        k_PS = np.zeros_like(x_arr, dtype=float)
+        k_SP = np.zeros_like(x_arr, dtype=float)
+        N = np.zeros_like(x_arr, dtype=float)
+
+        for i, xv in enumerate(x_arr):
+            bin_idx = (xvals == xv) # which kept shots belong to this x
+            n_shots_bin = int(bin_idx.sum())
+            N[i] = n_pairs * n_shots_bin
+            if N[i] == 0:
+                continue
+            k_SS[i] = SS[:, bin_idx].sum() # (n_pairs, n_shots_bin)
+            k_PP[i] = PP[:, bin_idx].sum()
+            k_PS[i] = PS[:, bin_idx].sum()
+            k_SP[i] = SP[:, bin_idx].sum()
+
+        def division(a, b):
+            # aviod devision by 0
+            # return a/b if b > 0, else return nan
+            return np.divide(a, b, out=np.full_like(a, np.nan, dtype=float), where=(b > 0))
+
+        def prop_and_std(k, n):
+            p = division(k, n)
+            lap = division(k + 1, n + 2)
+            std = np.sqrt(lap * (1 - lap) / (n + 2,))
+            return p, std
+
+        pSS, eSS = prop_and_std(k_SS, N)
+        pPP, ePP = prop_and_std(k_PP, N)
+        pPS, ePS = prop_and_std(k_PS, N)
+        pSP, eSP = prop_and_std(k_SP, N)
+
+        # pD = pPP - pSS # differences
+        # pEO = pPP + pSS - pSP - pPS  # even-odd
+
+        # var_D = division(pPP + pSS - pD**2, N)
+        # var_EO = division(1-pEO**2, N)
+
+        # eD  = np.sqrt(var_D)
+        # eEO = np.sqrt(var_EO)
+
+        ax.errorbar(x_arr, pSS, yerr=eSS, label="SS", **self.plot_config.errorbar_kw)
+        ax.errorbar(x_arr, pPS, yerr=ePS, label="PS", **self.plot_config.errorbar_kw)
+        ax.errorbar(x_arr, pSP, yerr=eSP, label="SP", **self.plot_config.errorbar_kw)
+        ax.errorbar(x_arr, pPP, yerr=ePP, label="PP", **self.plot_config.errorbar_kw)
+        # ax.errorbar(x_arr, pD, yerr = eD, label = 'PP-SS', **self.plot_config.errorbar_kw)
+        # ax.errorbar(x_arr, pEO, yerr = eEO, label = 'Even-Odd', **self.plot_config.errorbar_kw)
+
+        ax.set_xlabel(self.params[0].axis_label, fontsize=self.plot_config.label_font_size)
+        ax.set_ylabel("Pair population", fontsize=self.plot_config.label_font_size)
+        ax.set_ylim(0, 1)
+        ax.legend()
+        ax.tick_params(axis="both", which="major", labelsize=self.plot_config.label_font_size)
+
     def _save_mloop_params(self, shot_h5_path: str | os.PathLike) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
@@ -511,77 +647,77 @@ class TweezerStatistician(BaseStatistician):
     # REFACTORED
 
     def plot_survival_rate_1d(
-            self,
-            fig: Figure,
-            plot_lorentz: bool = False,
-            require_exact_rearrangement: bool = False,   # NEW
+        self,
+        fig: Figure,
+        fit_type = None,
+        require_exact_rearrangement: bool = False,
+        plot_pair_states: bool = False,
+        explicit_pairs: Optional[Sequence[tuple[int, int]]] = None,
     ):
-        ax = fig.subplots()
-        ax.set_ylim(bottom=0)
-        self.plot_config.configure_grids(ax)
+        """
+        Plot survival rate over all sites (1D scan).
+        Optionally add a second subplot below that shows pair-state populations
+        (SS /PP /PS /SP ) computed from image index 2.
 
-        fig.suptitle(
-            str(self.folder_path),
-            fontsize=8,
-        )
+        Returns:
+            indep_var, survival_rates, survival_rate_errs
+        """
+        if plot_pair_states:
+            fig.clf()
+            ax, ax_pairs = fig.subplots(nrows=2, ncols=1, sharex=True)
+            axes_for_grid = [ax, ax_pairs]
+        else:
+            ax = fig.subplots()
+            axes_for_grid = [ax]
 
+        for a in axes_for_grid:
+            a.set_ylim(bottom=0)
+            self.plot_config.configure_grids(a)
+
+        fig.suptitle(str(self.folder_path), fontsize=8)
+
+        # build dataframe (optionally filtered to exact rearrangement at image 1)
         df = self.dataframe(require_exact_rearrangement=require_exact_rearrangement)
-        gb: pd.DataFrame | pdt.DataFrameGroupBy
-        if len(self.params) != 1:
-            raise ValueError
-        elif len(self.params) == 1:
-            gb = df.groupby([param.name for param in self.params])
-            xlabel = self.params[0].axis_label
-        elif len(self.params) == 0:
-            gb = df
-            xlabel = 'Shot number'
-        ax.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
-        survival_df = self.dataframe_survival(gb)
 
+        if len(self.params) != 1:
+            raise ValueError("plot_survival_rate_1d expects exactly one scanned parameter")
+        gb = df.groupby([param.name for param in self.params])
+        xlabel = self.params[0].axis_label
+        ax.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
+
+        survival_df = self.dataframe_survival(gb)
         indep_var = survival_df.index
         survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
         survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
+
         ax.errorbar(
             indep_var,
             survival_rates,
             yerr=survival_rate_errs,
             **self.plot_config.errorbar_kw,
         )
-
-        ax.set_ylabel(
-            'Survival rate',
-            fontsize=self.plot_config.label_font_size,
-        )
-        ax.tick_params(
-            axis='both',
-            which='major',
-            labelsize=self.plot_config.label_font_size,
-        )
-
+        ax.set_ylabel('Survival rate', fontsize=self.plot_config.label_font_size)
+        ax.tick_params(axis='both', which='major', labelsize=self.plot_config.label_font_size)
         ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
 
-        # doing the fit at the end of the run
-        if self.is_final_shot and plot_lorentz:
-            popt, pcov = self.fit_lorentzian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
-            upopt = uncertainties.correlated_values(popt, pcov)
-
-            x_plot = np.linspace(
-                np.min(indep_var),
-                np.max(indep_var),
-                1000,
-            )
-
-            ax.plot(x_plot, self.lorentzian(x_plot, *popt))
-            fig.suptitle(
-                f'Center frequency: ${upopt[0]:SL}$ MHz; '
-                f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
-            )
+        if self.is_final_shot and fit_type is not None and len(indep_var) > 2:
+            if fit_type == 'lorentzian':
+                popt, pcov = self.fit_lorentzian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
+                ax.plot(x_plot, self.lorentzian(x_plot, *popt))
+                fig.suptitle(
+                    f'Center frequency: ${upopt[0]:SL}$ {self.params[0].unit}; Width: ${1e+3 * upopt[1]:SL}$ {self.params[0].unit}'
+                )
 
         if self.is_final_shot and self.params[0].name == 'repetition_index':
             mean_df = self.dataframe_survival(df)
             umean = uncertainties.ufloat(mean_df[self.KEY_SURVIVAL_RATE], mean_df[self.KEY_SURVIVAL_RATE_STD])
             ax.axhline(umean.n, label=f'Mean: {umean:S}')
             ax.legend()
+
+        if plot_pair_states:
+            self._plot_pair_state_population(ax_pairs, indep_var, require_exact_rearrangement, explicit_pairs)
 
         return indep_var, survival_rates, survival_rate_errs
 
@@ -656,9 +792,10 @@ class TweezerStatistician(BaseStatistician):
     def plot_survival_rate(
             self,
             fig: Optional[Figure] = None,
-            plot_lorentz: bool = True,
+            fit_type_1d = None,
             plot_gaussian: bool = False,
-            require_exact_rearrangement=False
+            require_exact_rearrangement=False,
+            plot_pair_states = False
     ):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -678,7 +815,7 @@ class TweezerStatistician(BaseStatistician):
             )
 
         if loop_params.ndim in [0, 1]:
-            indep_var, survival_rates, survival_rate_errs = self.plot_survival_rate_1d(fig, plot_lorentz, require_exact_rearrangement)
+            indep_var, survival_rates, survival_rate_errs = self.plot_survival_rate_1d(fig, fit_type_1d, require_exact_rearrangement, plot_pair_states)
             return indep_var, survival_rates, survival_rate_errs
         elif loop_params.ndim == 2:
             self.plot_survival_rate_2d(fig, plot_gaussian)
