@@ -10,13 +10,11 @@ SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to false
 USE_AVERAGED_BACKGROUND = True
 FIT_TYPE_1D = None # do a curve fit at the final shot, set to None when don't to curve fit
-# options: 'lorentzian',
-
+# options: 'lorentzian', 'quadratic'
 EXACT_REARRANGEMENT = False
 PLOT_PAIR_STATES = False
 SHOW_IMG_ONLY = False
 SAVE_DATA_CSV_FILE = False # need to be False for 2d scans!
-
 
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_preproc = TweezerPreprocessor(
