@@ -70,3 +70,4 @@ Thumbs.db
 *.h5   # HDF5 data files
 #*.csv  # CSV data files
 data/  # Data directory
+multishot/roi_config.yml
