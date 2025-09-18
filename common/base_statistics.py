@@ -78,6 +78,10 @@ class BaseStatistician(ABC):
     # have access to them and we keep fitting functionality in one place.
 
     @staticmethod
+    def quadratic(x, a, offset, x_0):
+        return a*(x - x_0)**2 + offset
+
+    @staticmethod
     # Define the damped Rabi oscillation model
     def rabi_model(t, A, Omega, phi, T2, C, exp_decay = False):
         if exp_decay:
@@ -114,6 +118,31 @@ class BaseStatistician(ABC):
         """
         detuning = x - x0
         return a * width / ((width / 2)**2 + detuning**2) + offset
+
+    def fit_quadratic(self, x_data, y_data, sigma=None, peak_direction=+1):
+        '''
+        peak direction: {-1, +1}
+            +1 means to fit quafratic open up
+        '''
+        # Initial guess
+        # try:
+        #     a_lin, b_lin, c_lin = np.polyfit(x_data, y_data, deg=2, w=1.0/s)
+        #     x0_guess = -b_lin / (2 * a_lin) if a_lin != 0 else x_data[np.argmin(y_data)]
+        #     y0_guess = c_lin - b_lin**2 / (4 * a_lin) if a_lin != 0 else np.min(y_data)
+        #     a_guess = abs(a_lin)*peak_direction
+        # except Exception:
+        #     a_guess = 1e-3
+        #     x0_guess = x_data[np.argmin(y_data)]
+        #     y0_guess = np.min(y_data)
+        y_range = (np.max(y_data) - np.min(y_data))*peak_direction
+        x_range = np.max(x_data) - np.min(x_data)
+        if peak_direction == +1:
+            guess = (y_range/x_range**2, np.min(y_data), np.mean(x_data))
+        elif peak_direction == -1:
+            guess = (y_range/x_range**2, np.max(y_data), np.mean(x_data))
+
+        p0 = guess #[a_guess, x0_guess, y0_guess]
+        return optimize.curve_fit(self.quadratic, x_data, y_data, p0=p0, sigma=sigma)
 
     def fit_lorentzian(self, x_data, y_data, sigma=None, peak_direction=+1):
         """

@@ -709,6 +709,14 @@ class TweezerStatistician(BaseStatistician):
                 fig.suptitle(
                     f'Center frequency: ${upopt[0]:SL}$ {self.params[0].unit}; Width: ${1e+3 * upopt[1]:SL}$ {self.params[0].unit}'
                 )
+            if fit_type == 'quadratic':
+                popt, pcov = self.fit_quadratic(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=+1)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
+                ax.plot(x_plot, self.quadratic(x_plot, *popt), color = 'r')
+                fig.suptitle(
+                    f'Center: ${upopt[2]:SL}$ {self.params[0].unit}'
+                )
 
         if self.is_final_shot and self.params[0].name == 'repetition_index':
             mean_df = self.dataframe_survival(df)
