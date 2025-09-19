@@ -11,9 +11,9 @@ SHOW_INDEX = True # site index will not show up if show_rois is set to false
 USE_AVERAGED_BACKGROUND = True
 FIT_TYPE_1D = None # do a curve fit at the final shot, set to None when don't to curve fit
 # options: 'lorentzian', 'quadratic'
+SHOW_IMG_ONLY = False
 EXACT_REARRANGEMENT = False
 PLOT_PAIR_STATES = False
-SHOW_IMG_ONLY = False
 SAVE_DATA_CSV_FILE = False # need to be False for 2d scans!
 
 # Initialize analysis with background ROI and standard ROI loading
@@ -48,7 +48,7 @@ if not SHOW_IMG_ONLY:
         indep_var, survival_rates, survival_rate_errs = tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT, plot_pair_states = PLOT_PAIR_STATES)
         np.savetxt(folder_path + "/data.csv", [indep_var, survival_rates, survival_rate_errs], delimiter=",")
     else:
-        tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT)
+        tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT, plot_pair_states = PLOT_PAIR_STATES)
 
     tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2])
 
