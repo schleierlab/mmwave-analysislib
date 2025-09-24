@@ -715,7 +715,7 @@ class TweezerStatistician(BaseStatistician):
                 x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
                 ax.plot(x_plot, self.quadratic(x_plot, *popt), color = 'r')
                 fig.suptitle(
-                    f'Center: ${upopt[2]:SL}$ {self.params[0].unit}'
+                    f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; Offst: ${upopt[1]:SL}$'
                 )
 
         if self.is_final_shot and self.params[0].name == 'repetition_index':
