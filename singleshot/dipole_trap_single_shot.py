@@ -30,12 +30,14 @@ bulk_gas_preproc.show_images(fig = subfigs[0], raw_img_scale = 200)
 fig2 = plt.figure(layout='constrained', figsize=[6, 6])
 # bulk_gas_preproc.show_state_sensitive_images(fig2)
 
-plotter = BulkGasStatistician(
+bulkgas_statistician = BulkGasStatistician(
     preproc_h5_path=processed_results_fname,
     shot_h5_path=bulk_gas_preproc.h5_path, # Used only for MLOOP
     plot_config=PlotConfig(),
 )
 
-plotter.plot_atom_number(fig=subfigs[1], plot_lorentz=False)
+bulkgas_statistician.plot_atom_number(fig=subfigs[1], plot_lorentz=False)
 
-fig.savefig(bulk_gas_preproc.h5_path.with_name("dipole_trap_single_shot.pdf"))
+if bulkgas_statistician.is_final_shot:
+    figname = bulk_gas_preproc.h5_path.with_name("dipole_trap_single_shot.pdf")
+    fig.savefig(figname)
