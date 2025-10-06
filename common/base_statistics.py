@@ -68,11 +68,12 @@ class BaseStatistician(ABC):
         unique_params() will only have six entries, each of length 2:
         [[0, 10], [0, 20], [0, 30], ...]
         '''
-        return np.unique(self._loop_params(), axis=0)
+        _, inds = np.unique(self._loop_params(), axis=0, return_index=True)
+        return self._loop_params()[sorted(inds)]
 
     @property
     def expansion_ndim(self) -> int:
-        return self._loop_params().ndim
+        return self._loop_params().shape[-1]
 
     # TODO: maybe we can keep all of our fitting functions here, so that both child classes
     # have access to them and we keep fitting functionality in one place.
@@ -253,7 +254,7 @@ class BaseStatistician(ABC):
 
         return data_new
 
-    def get_params_order(self, unique_params):
+    def get_params_order(self, unique_params_unsorted) -> list[int]:
         '''
         Given an array of lattice points formed by some Cartesian product,
         find the order of the Cartesian product.
@@ -264,17 +265,20 @@ class BaseStatistician(ABC):
             List of indices, such that params[scan_order[i]]
             is the i-th innermost scanned parameter.
         '''
-        unique_params = np.asarray(unique_params)
+        unique_params_unsorted = np.asarray(unique_params_unsorted)
         ndim = self.expansion_ndim
 
-        if unique_params.shape[0] <= 1:
+        if unique_params_unsorted.shape[0] <= 1:
             return list(range(ndim))
 
         scan_order = []
         remaining_indices = list(range(ndim))
 
-        for _ in range(ndim - 1):
-            unique_params_remaining_dims = np.unique(unique_params[:, remaining_indices], axis=0)
+        for ind in range(ndim - 1):
+            _, sorted_uniq_inds = np.unique(unique_params_unsorted[:, remaining_indices], axis=0, return_index=True)
+            unique_params_remaining_dims = unique_params_unsorted[:, remaining_indices][sorted(sorted_uniq_inds)]
+            if unique_params_remaining_dims.shape[0] <= 1:
+                break
             site_difference = (unique_params_remaining_dims[1] != unique_params_remaining_dims[0])
             if np.sum(site_difference) != 1:
                 # print(unique_params_remaining_dims)

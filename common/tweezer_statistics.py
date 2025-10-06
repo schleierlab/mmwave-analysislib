@@ -26,7 +26,7 @@ from .image import ROI
 from .base_statistics import BaseStatistician
 
 
-@dataclass
+@dataclass(frozen=True)
 class ScanningParameter:
     name: str
     unit: str
@@ -736,7 +736,11 @@ class TweezerStatistician(BaseStatistician):
             fig: Figure,
             plot_gaussian: bool = False,
     ):
-        ax1, ax2 = fig.subplots(nrows=2, ncols=1)
+        '''
+        For higher dimensional scans,
+        we will only plot the 2D cut corresponding to the two innermost scan variables.
+        '''
+        (ax1,), (ax2,) = fig.subplots(nrows=2, ncols=1, sharex=True, sharey=True, squeeze=False)
 
         # unique_params = self.unique_params()
         # x_params_index, y_params_index = self.get_params_order(unique_params)
@@ -746,14 +750,30 @@ class TweezerStatistician(BaseStatistician):
         survival_df = self.dataframe_survival(groupby)
 
         def df_to_pcolor_args(df: pd.Series | pd.DataFrame):
-            unstack = df.unstack()
+            # TODO consider moving sorting logic to self.dataframe
+            this_run_params = self.current_params[-1]
+            param_order = self.get_params_order(self.unique_params())[::-1]
+            index_order = [self.params[ind].name for ind in param_order]
+            df_reordered = df.reorder_levels(index_order).sort_index()
+
+            cross_section = tuple(this_run_params[ind] for ind in param_order[:-2])
+            twodim_df = df_reordered.xs(key=cross_section)
+
+            unstack = twodim_df.unstack()
             if not isinstance(unstack, pd.DataFrame):
                 raise ValueError('df must have a MultiIndex')
-            return (
+            
+            pcolor_args = (
                 unstack.columns,
                 unstack.index,
                 unstack,
             )
+            cross_section_info = {
+                self.params[ind]: this_run_params[ind]
+                for ind in param_order[:-2]
+            }
+
+            return pcolor_args, cross_section_info
 
         def plot_key_2d(df: pd.Series | pd.DataFrame, ax: Axes):
             '''
@@ -767,23 +787,37 @@ class TweezerStatistician(BaseStatistician):
             ax: Axes
                 Axes in which to plot the data.
             '''
-            cols, ind, data = df_to_pcolor_args(df)
+            (cols, ind, data), cross_section_info = df_to_pcolor_args(df)
 
-            ax.set_xlabel(
-                self.params[cols.name].axis_label,
-                fontsize=self.plot_config.label_font_size,
-            )
-            ax.set_ylabel(
-                self.params[ind.name].axis_label,
-                fontsize=self.plot_config.label_font_size,
-            )
+            subplotspec = ax.get_subplotspec()
+            if subplotspec is None:
+                raise ValueError
+            if subplotspec.is_last_row():
+                ax.set_xlabel(
+                    self.params[cols.name].axis_label,
+                    fontsize=self.plot_config.label_font_size,
+                )
+            if subplotspec.is_first_col():
+                ax.set_ylabel(
+                    self.params[ind.name].axis_label,
+                    fontsize=self.plot_config.label_font_size,
+                )
+
+            if subplotspec.is_first_row():
+                cross_section_str = '; '.join(
+                    f'{param.name} = {varval} {param.unit}'
+                    for param, varval in cross_section_info.items()
+                )
+                ax.set_title(f'(at {cross_section_str})')
             return ax.pcolormesh(cols, ind, data, shading='nearest')
 
         pcolor_survival_rate = plot_key_2d(survival_df[self.KEY_SURVIVAL_RATE], ax1)
         pcolor_std = plot_key_2d(survival_df[self.KEY_SURVIVAL_RATE_STD], ax2)
 
-        fig.colorbar(pcolor_survival_rate, ax=ax1)
-        fig.colorbar(pcolor_std, ax=ax2)
+        surv_cb = fig.colorbar(pcolor_survival_rate, ax=ax1)
+        surv_cb.set_label('Survival rate')
+        std_cb = fig.colorbar(pcolor_std, ax=ax2)
+        std_cb.set_label('Uncertainty')
 
         for ax in [ax1, ax2]:
             ax.tick_params(
@@ -792,8 +826,6 @@ class TweezerStatistician(BaseStatistician):
                 labelsize=self.plot_config.label_font_size,
             )
             self.plot_config.configure_grids(ax)
-        ax1.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
-        ax2.set_title('Std over all sites', fontsize=self.plot_config.title_font_size)
         if plot_gaussian:
             popt, pcov = self.fit_gaussian_2d(*df_to_pcolor_args(survival_df[self.KEY_SURVIVAL_RATE]))
             perr = np.sqrt(np.diag(pcov))
