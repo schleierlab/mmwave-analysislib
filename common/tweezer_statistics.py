@@ -4,7 +4,7 @@ from collections.abc import Iterable, Sequence
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, overload
+from typing import ClassVar, Literal, Optional, cast, overload
 from typing_extensions import assert_never
 
 import h5py  # type: ignore
@@ -19,7 +19,6 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
 from numpy.typing import NDArray
-from scipy.stats import beta, norm
 from scipy.optimize import curve_fit
 
 from .plot_config import PlotConfig
@@ -100,6 +99,9 @@ class TweezerStatistician(BaseStatistician):
         Configuration object for plot styling
     """
 
+    n_runs: int
+    '''Total number of shots in this expansion'''
+
     rearrangement: bool
     '''Whether data being analyzed uses tweezer rearrangement'''
     # TODO: rearrangement-related functionality should probably be handled by a subclass?
@@ -153,7 +155,7 @@ class TweezerStatistician(BaseStatistician):
             self.site_occupancies = np.asarray(f['site_occupancies'][:], dtype=bool)
             self.site_rois = ROI.fromarray(f['site_rois'])
             self.params_list = f['params'][:]
-            self.n_runs = f.attrs['n_runs']
+            self.n_runs = cast(int, f.attrs['n_runs'])
             self.current_params = f['current_params'][:]
             self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
 
@@ -715,7 +717,7 @@ class TweezerStatistician(BaseStatistician):
                 x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
                 ax.plot(x_plot, self.quadratic(x_plot, *popt), color = 'r')
                 fig.suptitle(
-                    f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; Offst: ${upopt[1]:SL}$'
+                    f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; offset: ${upopt[1]:SL}$'
                 )
 
         if self.is_final_shot and self.params[0].name == 'repetition_index':
