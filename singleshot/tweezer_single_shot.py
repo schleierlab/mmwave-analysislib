@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import os
+import winsound
 
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
@@ -57,5 +58,13 @@ if not SHOW_IMG_ONLY:
 if tweezer_statistician.is_final_shot:
     figname = folder_path + '/tweezer_single_shot.pdf'
     fig.savefig(figname)
+
+    # play a sound after a long run
+    if tweezer_statistician.n_runs >= 50:
+        notes = np.array([12, 7, 4, 0])  # do' sol mi do
+        freqs = 440 * 2.**((notes - 9)/12)
+        for freq in freqs:
+            winsound.Beep(int(freq), 300)
+        winsound.PlaySound('SystemQuestion', winsound.SND_ALIAS)
 
 #tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])
