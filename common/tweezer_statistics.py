@@ -133,7 +133,6 @@ class TweezerStatistician(BaseStatistician):
             target_sites: Sequence[int] = [],
     ):
         super().__init__(shot_index=shot_index)
-        self.rearrangement = rearrangement
         self.target_sites = target_sites
 
         self.plot_config = plot_config or PlotConfig()
@@ -160,6 +159,11 @@ class TweezerStatistician(BaseStatistician):
             self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
 
             self.params = ScanningParameters.from_h5_tuples(self.params_list)
+
+            do_rearr = f.attrs['do_rearrangement']
+            if not isinstance(do_rearr, bool):
+                raise TypeError
+            self.rearrangement = do_rearr
 
     @property
     def shot_index(self) -> int:
@@ -803,7 +807,7 @@ class TweezerStatistician(BaseStatistician):
                     fontsize=self.plot_config.label_font_size,
                 )
 
-            if subplotspec.is_first_row():
+            if subplotspec.is_first_row() and len(cross_section_info) > 0:
                 cross_section_str = '; '.join(
                     f'{param.name} = {varval} {param.unit}'
                     for param, varval in cross_section_info.items()

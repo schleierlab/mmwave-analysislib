@@ -282,6 +282,11 @@ class TweezerPreprocessor(ImagePreprocessor):
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
+
+                do_rearrangement = self.parameters['do_rearrangement']
+                if not isinstance(do_rearrangement, bool):
+                    raise TypeError
+                f.attrs['do_rearrangement'] = self.parameters['do_rearrangement']
                 f.create_dataset(
                     'camera_counts',
                     data=camera_counts[np.newaxis, ...],
