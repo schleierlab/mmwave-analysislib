@@ -39,7 +39,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
             self,
             config: BulkGasAnalysisConfig,
             load_type: str = 'lyse',
-            h5_path: str = None
+            h5_path: str = None,
+            background = True,
             ):
         """Initialize BulkGasAnalysis with analysis configuration.
 
@@ -80,12 +81,17 @@ class BulkGasPreprocessor(ImagePreprocessor):
             self.scattering_rate,
             config.exposure_time,
         )
-
-        background_exposure = self.exposures[-1]
-        self.images = tuple(
-            Image(atom_exposure, background_exposure)
-            for atom_exposure in self.exposures[:-1]
-        )
+        if background:
+            background_exposure = self.exposures[-1]
+            self.images = tuple(
+                Image(atom_exposure, background_exposure)
+                for atom_exposure in self.exposures[:-1]
+            )
+        else:
+            self.images = tuple(
+                Image(atom_exposure, background_exposure)
+                for atom_exposure in self.exposures
+            )
 
     def get_atom_numbers(
             self,
@@ -148,7 +154,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         else:
             return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
 
-    def process_shot(self, cloud_fit=None) -> str:
+    def process_shot(self, cloud_fit=None):# -> str:
         """
         Process a single shot of bulk gas.
 
@@ -334,6 +340,31 @@ class BulkGasPreprocessor(ImagePreprocessor):
         else:
             axs = fig.subplots(nrows=2, ncols=1)
 
+        plot_unit = 1e-3
+        plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+
+        for i, ax in enumerate(axs):
+            im = self.images[i].imshow_view(
+                self.atoms_roi,
+                scale_factor=plot_units_per_pixel,
+                ax=ax,
+                cmap='magma',
+                vmin=0,
+                vmax=(20 if i == 0 else None),
+            )
+            fig.colorbar(im, ax=ax, location='right')
+    
+    def show_all_images(self, fig: Optional[Figure] = None,):
+        if fig is None:
+            fig, axs = plt.subplots(
+                nrows=2,
+                ncols=1,
+                figsize=(10, 10),
+                layout='constrained',
+            )
+        else:
+            axs = fig.subplots(nrows=np.shape(self.images)[0], ncols=1)
+        
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
 
