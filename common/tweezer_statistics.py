@@ -137,8 +137,8 @@ class TweezerStatistician(BaseStatistician):
 
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
-        if shot_h5_path is not None:
-            self._save_mloop_params(shot_h5_path)
+        # if shot_h5_path is not None:
+        #     self._save_mloop_params(shot_h5_path)
         self.folder_path = Path(preproc_h5_path).parent
 
     def _load_processed_quantities(self, preproc_h5_path):
@@ -160,10 +160,10 @@ class TweezerStatistician(BaseStatistician):
 
             self.params = ScanningParameters.from_h5_tuples(self.params_list)
 
-            do_rearr = f.attrs['do_rearrangement']
-            if not isinstance(do_rearr, bool):
+            do_rearrangement = f.attrs['do_rearrangement']
+            if not (isinstance(do_rearrangement, bool) or isinstance(do_rearrangement, np.bool_)):
                 raise TypeError
-            self.rearrangement = do_rearr
+            self.rearrangement = do_rearrangement
 
     @property
     def shot_index(self) -> int:
@@ -601,14 +601,14 @@ class TweezerStatistician(BaseStatistician):
         pPS, ePS = prop_and_std(k_PS, N)
         pSP, eSP = prop_and_std(k_SP, N)
 
-        # pD = pPP - pSS # differences
-        # pEO = pPP + pSS - pSP - pPS  # even-odd
+        pD = pPP - pSS # differences
+        pEO = pPP + pSS - pSP - pPS  # even-odd
 
-        # var_D = division(pPP + pSS - pD**2, N)
-        # var_EO = division(1-pEO**2, N)
+        var_D = division(pPP + pSS - pD**2, N)
+        var_EO = division(1-pEO**2, N)
 
-        # eD  = np.sqrt(var_D)
-        # eEO = np.sqrt(var_EO)
+        eD  = np.sqrt(var_D)
+        eEO = np.sqrt(var_EO)
 
         ax.errorbar(x_arr, pSS, yerr=eSS, label="SS", **self.plot_config.errorbar_kw)
         ax.errorbar(x_arr, pPS, yerr=ePS, label="PS", **self.plot_config.errorbar_kw)
@@ -622,6 +622,16 @@ class TweezerStatistician(BaseStatistician):
         ax.set_ylim(0, 1)
         ax.legend()
         ax.tick_params(axis="both", which="major", labelsize=self.plot_config.label_font_size)
+
+        # file_path = os.path.join(f"{self.folder_path}/", '2025-10-01-0004_ramsey_dimer_data.npz')
+        # np.savez(file_path,
+        #  x_arr=x_arr,
+        #  pSS=pSS, eSS=eSS,
+        #  pPP=pPP, ePP=ePP,
+        #  pPS=pPS, ePS=ePS,
+        #  pSP=pSP, eSP=eSP,
+        #  pD=pD, eD=eD,
+        #  pEO=pEO, eEO=eEO, N=N)
 
     def _save_mloop_params(self, shot_h5_path: str | os.PathLike) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.

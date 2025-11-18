@@ -284,7 +284,7 @@ class TweezerPreprocessor(ImagePreprocessor):
                 f.attrs['n_runs'] = self.n_runs
 
                 do_rearrangement = self.parameters['do_rearrangement']
-                if not isinstance(do_rearrangement, bool):
+                if not (isinstance(do_rearrangement, bool) or isinstance(do_rearrangement, np.bool_)):
                     raise TypeError
                 f.attrs['do_rearrangement'] = self.parameters['do_rearrangement']
                 f.create_dataset(
