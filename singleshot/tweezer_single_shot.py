@@ -8,6 +8,7 @@ from analysislib.common.plot_config import PlotConfig
 SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to false
 FIT_LORENTZ = False
+SHOW_HIST = True
 USE_AVERAGED_BACKGROUND = True
 SHOW_IMG_ONLY = False
 
@@ -38,7 +39,7 @@ tweezer_statistician = TweezerStatistician(
 
 folder_path = os.path.dirname(tweezer_preproc.h5_path)
 if not SHOW_IMG_ONLY:
-    tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ)
+    tweezer_statistician.plot_survival_rate(fig=subfigs[1], plot_lorentz = FIT_LORENTZ, show_hist = SHOW_HIST)
     tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2])
 
         # print(unique_params)
