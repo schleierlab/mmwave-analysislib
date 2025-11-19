@@ -89,7 +89,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             )
         else:
             self.images = tuple(
-                Image(atom_exposure, background_exposure)
+                Image(atom_exposure)
                 for atom_exposure in self.exposures
             )
 
@@ -121,7 +121,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         if method == 'fit':
             raise NotImplementedError
 
-        atom_counts = np.asarray([image.roi_sum(self.atoms_roi) for image in self.images]).astype(np.float_)
+        atom_counts = np.asarray([image.roi_sum(self.atoms_roi) for image in self.images]).astype(np.float64)
         if subtraction == 'double':
             area_ratio = self.atoms_roi.pixel_area / self.background_roi.pixel_area
             background_counts = np.asarray([image.roi_sum(self.background_roi) for image in self.images])
@@ -363,7 +363,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 layout='constrained',
             )
         else:
-            axs = fig.subplots(nrows=np.shape(self.images)[0], ncols=1)
+            axs = fig.subplots(nrows=1, ncols=np.shape(self.images)[0])
         
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit

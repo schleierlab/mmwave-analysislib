@@ -35,6 +35,8 @@ class ImagingCamera:
     gain: float
     image_group_name: str
     image_name_stem: str
+    image_group_name2: str = "None"
+
 
 
 @dataclass
@@ -124,12 +126,32 @@ manta_camera = ImagingCamera(
     image_name_stem='manta',
 )
 
+manta_camera_x2 = ImagingCamera(
+    pixel_size=5.5e-6,
+    image_size=2048,
+    quantum_efficiency=0.4,
+    gain=1,
+    image_group_name='manta419b_tweezer_images',
+    image_group_name2='manta419b_local_addr_images',
+    image_name_stem='manta',
+)
+
 manta_system = ImagingSystem(
     imaging_f=50e-3,
     objective_f=125e-3,
     lens_diameter=25.4e-3,
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
     camera=manta_camera,
+)
+
+#Some of these need to be fixed, but it doesn't quite matter if the alignment calibration is just using pixels.
+#Either way, should note down what we're actually using.
+local_addr_align_system = ImagingSystem(
+    imaging_f=50e-3,
+    objective_f=125e-3,
+    lens_diameter=25.4e-3,
+    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
+    camera=manta_camera_x2,
 )
 
 kinetix_camera = ImagingCamera(
