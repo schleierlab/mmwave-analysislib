@@ -611,16 +611,18 @@ class BulkGasStatistician(BaseStatistician):
         # print(gaussian_cloud_params)
         gaussian_cloud_params_groupby_unique = [self.mean_values_by_unique_params(params, add_std_errs=True) for params in gaussian_cloud_params]
 
-        params_tweezer_cam = gaussian_cloud_params_groupby_unique[0] - gaussian_cloud_params_groupby_unique[1]
-        params_la_cam = gaussian_cloud_params_groupby_unique[2] - gaussian_cloud_params_groupby_unique[3]
+        params_tweezer_cam = gaussian_cloud_params_groupby_unique[1] - gaussian_cloud_params_groupby_unique[0]
+        params_la_cam = gaussian_cloud_params_groupby_unique[3] - gaussian_cloud_params_groupby_unique[2]
 
         # print(params_tweezer_cam)
         # print(gaussian_cloud_params_groupby_unique[0], gaussian_cloud_params_groupby_unique[1])
 
-        axs[0].plot(unique_params, unumpy.nominal_values(params_tweezer_cam[:, 0]))
-        axs[0].plot(unique_params, unumpy.nominal_values(params_tweezer_cam[:, 1]))
-        axs[1].plot(unique_params, unumpy.nominal_values(params_la_cam[:, 0]))
-        axs[1].plot(unique_params, unumpy.nominal_values(params_la_cam[:, 1]))
+        axs[0].plot(unique_params, unumpy.nominal_values(params_tweezer_cam[:, 1]), ".", label = "x")
+        axs[0].plot(unique_params, unumpy.nominal_values(params_tweezer_cam[:, 0]), ".", label = "y")
+        axs[1].plot(unique_params, unumpy.nominal_values(params_la_cam[:, 1]), ".", label = "x")
+        axs[1].plot(unique_params, unumpy.nominal_values(params_la_cam[:, 0]), ".", label = "y")
+
+
 
     @staticmethod
     def uniform_acceleration(t, x0, v0, a):

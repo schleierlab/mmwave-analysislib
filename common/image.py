@@ -219,7 +219,7 @@ class Image:
 
         return site_rois
 
-    def roi_fit_gaussian2d(self, roi: ROI, uniform = False):
+    def roi_fit_gaussian2d(self, roi: ROI, uniform = False, small_dot = False):
         """
         Fits a 2D Gaussian function to the image data.
         Mainly intended to fit images of the MOT.
@@ -229,8 +229,11 @@ class Image:
         xys = np.vstack([x.ravel(), y.ravel()]).T
 
         x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
-        width_guess = roi.width/20
-        height_guess = roi.height/20
+        width_guess = roi.width/4
+        height_guess = roi.height/4
+        if small_dot:
+            width_guess = width_guess/8
+            height_guess = height_guess/8
         z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
         offset_guess = np.min(roiview)

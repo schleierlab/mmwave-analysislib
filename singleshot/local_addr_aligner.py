@@ -19,7 +19,7 @@ bulk_gas_preproc = BulkGasPreprocessor(
     load_type='lyse',
     h5_path=None,
     background = False,
-    just_pixels=True
+    beam_image=True
 )
 
 processed_results_fname = bulk_gas_preproc.process_shot(cloud_fit='gaussian')

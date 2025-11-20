@@ -41,7 +41,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             load_type: str = 'lyse',
             h5_path: str = None,
             background = True,
-            just_pixels = False
+            beam_image = False
             ):
         """Initialize BulkGasAnalysis with analysis configuration.
 
@@ -74,7 +74,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         # Store config
         self.analysis_config = config
-        self.just_pixels = just_pixels
+        self.just_pixels = beam_image
+        self.beam_image = beam_image
 
         # Set class-specific attributes
         self.atoms_roi = config.atoms_roi
@@ -146,7 +147,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         upopts = []
         for image in self.images:
-            popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform)
+            popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform, small_dot = self.beam_image)
             upopt = uncertainties.correlated_values(popt, pcov)
             upopts.append(upopt)
 
@@ -156,7 +157,6 @@ class BulkGasPreprocessor(ImagePreprocessor):
         if uniform:
             return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, 1, 1)
         else:
-            print(np.asarray(upopts))
             return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
 
     def process_shot(self, cloud_fit=None):# -> str:
