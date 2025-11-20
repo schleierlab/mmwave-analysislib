@@ -229,11 +229,12 @@ class Image:
         xys = np.vstack([x.ravel(), y.ravel()]).T
 
         x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
-        width_guess = roi.width/4
-        height_guess = roi.height/4
+        width_guess = roi.width/20
+        height_guess = roi.height/20
         z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
         offset_guess = np.min(roiview)
+        print(x0_guess, y0_guess, a_guess)
 
         if uniform:
             p0 = [x0_guess, y0_guess, width_guess, a_guess, offset_guess]

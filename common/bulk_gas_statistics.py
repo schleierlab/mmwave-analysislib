@@ -51,13 +51,16 @@ class BulkGasStatistician(BaseStatistician):
     def __init__(self,
                  preproc_h5_path: str,
                  shot_h5_path: str,
-                 plot_config: PlotConfig = None
+                 plot_config: PlotConfig = None,
+                 multi_image: bool = False
                  ):
         super().__init__()
+        self.multi_image = multi_image
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
         self._save_mloop_params(shot_h5_path)
         self.folder_path = Path(preproc_h5_path).parent
+
 
     def _load_processed_quantities(self, preproc_h5_path):
         """Load processed quantities from an h5 file.
@@ -72,7 +75,7 @@ class BulkGasStatistician(BaseStatistician):
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
-            if 'gaussian_cloud_params_nom' in f:
+            if 'gaussian_cloud_params_nom' in f and not self.multi_image:
                 # presently, only extract the params from the first fit
                 self.gaussian_cloud_params_nom = f['gaussian_cloud_params_nom'][:, 0]
                 self.gaussian_cloud_params_cov = f['gaussian_cloud_params_cov'][:, 0]
@@ -80,6 +83,13 @@ class BulkGasStatistician(BaseStatistician):
                     f['gaussian_atom_numbers_nom'][:, 0],
                     f['gaussian_atom_numbers_std'][:, 0],
                 )
+            elif 'gaussian_cloud_params_nom' in f and self.multi_image:
+                self.gaussian_cloud_params_nom = []
+                self.gaussian_cloud_params_cov = []
+                for i in range (4):
+                    self.gaussian_cloud_params_nom.append(f['gaussian_cloud_params_nom'][:, i])
+                    self.gaussian_cloud_params_cov.append(f['gaussian_cloud_params_cov'][:, i])
+
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -557,6 +567,60 @@ class BulkGasStatistician(BaseStatistician):
             self.save_subfig(fig, figname)
         else:
             fig.savefig(figname)
+    
+    def plot_beam_positions(self, fig: Optional[Figure] = None, uniform = True, show_means=True):
+        """Plot atom number vs the looped parameter and save the image in the folder path.
+
+        This function requires that get_atom_number has been run first to save the
+        atom number to processed_quantities.h5.
+
+        Parameters
+        ----------
+        fig : Optional[Figure], default=None
+            Figure to plot on, if None a new figure is created
+        uniform : bool, default=True
+            Whether to use a uniform width and height for the Gaussian fit
+        show_means : bool, default=True
+            Whether to show the means of the mot params vs loop params as a horizontal line on
+            on the plot.
+        """
+        # assume 1D scan
+        unique_params = self.unique_params[:, 0]
+
+        # Create subplots
+        if fig is None:
+            fig = plt.figure(
+                figsize=(12, 8),
+                constrained_layout=True
+            )
+        is_subfig = (fig is not None)
+        loop_global_name: str = self.params_list[0][0].decode('utf-8')
+        loop_global_unit: str = self.params_list[0][1].decode('utf-8')
+
+        axs = fig.subplots(1, 2, sharey=True)
+        axs_flat = axs.flatten()
+
+        colors = ['C0', 'C1', 'C0', 'C1', 'C0', 'C1']
+
+        # Convert nominal values and uncertainties to ufloat arrays
+        gaussian_cloud_params = np.array([
+            [uncertainties.correlated_values(nom, cov)
+            for nom, cov in zip(params_nom, params_cov)]
+            for params_nom, params_cov in zip(self.gaussian_cloud_params_nom, self.gaussian_cloud_params_cov)
+        ])
+        # print(gaussian_cloud_params)
+        gaussian_cloud_params_groupby_unique = [self.mean_values_by_unique_params(params, add_std_errs=True) for params in gaussian_cloud_params]
+
+        params_tweezer_cam = gaussian_cloud_params_groupby_unique[0] - gaussian_cloud_params_groupby_unique[1]
+        params_la_cam = gaussian_cloud_params_groupby_unique[2] - gaussian_cloud_params_groupby_unique[3]
+
+        # print(params_tweezer_cam)
+        # print(gaussian_cloud_params_groupby_unique[0], gaussian_cloud_params_groupby_unique[1])
+
+        axs[0].plot(unique_params, unumpy.nominal_values(params_tweezer_cam[:, 0]))
+        axs[0].plot(unique_params, unumpy.nominal_values(params_tweezer_cam[:, 1]))
+        axs[1].plot(unique_params, unumpy.nominal_values(params_la_cam[:, 0]))
+        axs[1].plot(unique_params, unumpy.nominal_values(params_la_cam[:, 1]))
 
     @staticmethod
     def uniform_acceleration(t, x0, v0, a):

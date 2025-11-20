@@ -41,6 +41,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             load_type: str = 'lyse',
             h5_path: str = None,
             background = True,
+            just_pixels = False
             ):
         """Initialize BulkGasAnalysis with analysis configuration.
 
@@ -73,6 +74,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         # Store config
         self.analysis_config = config
+        self.just_pixels = just_pixels
 
         # Set class-specific attributes
         self.atoms_roi = config.atoms_roi
@@ -149,9 +151,12 @@ class BulkGasPreprocessor(ImagePreprocessor):
             upopts.append(upopt)
 
         pixel_size = self.analysis_config.imaging_system.atom_plane_pixel_size
+        if self.just_pixels:
+            pixel_size = 1
         if uniform:
             return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, 1, 1)
         else:
+            print(np.asarray(upopts))
             return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
 
     def process_shot(self, cloud_fit=None):# -> str:
@@ -172,6 +177,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         if cloud_fit == 'gaussian':
             gauss_params = self.get_gaussian_cloud_params()
+            print(gauss_params)
             gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
             gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
             # integrated under 2D gaussian: 2 * pi * peak_height * sigma_u * sigma_v
@@ -286,6 +292,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
         fig.supylabel('Length (mm)')
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+        if self.just_pixels:
+            plot_units_per_pixel = 1
 
         img_obj = self.images[image_index]
 
@@ -342,6 +350,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+        if self.just_pixels:
+            plot_units_per_pixel = 1
 
         for i, ax in enumerate(axs):
             im = self.images[i].imshow_view(
@@ -367,6 +377,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
         
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+        if self.just_pixels:
+            plot_units_per_pixel = 1
 
         for i, ax in enumerate(axs):
             im = self.images[i].imshow_view(
@@ -375,6 +387,5 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 ax=ax,
                 cmap='magma',
                 vmin=0,
-                vmax=(20 if i == 0 else None),
             )
             fig.colorbar(im, ax=ax, location='right')
