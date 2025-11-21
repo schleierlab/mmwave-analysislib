@@ -10,7 +10,7 @@ DO_GAUSSIAN_FIT = True
 analysis_config = BulkGasAnalysisConfig(
     imaging_system=local_addr_align_system,
     exposure_time=1e-3,
-    atoms_roi=ROI(xmin=750, xmax=950, ymin=650, ymax=850),
+    atoms_roi=ROI(xmin=300, xmax=1500, ymin=450, ymax=1050),
     bkg_roi=ROI(xmin=1900, xmax=2048, ymin=1900, ymax=2048),
 )
 

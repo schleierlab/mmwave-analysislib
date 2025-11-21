@@ -147,7 +147,18 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         upopts = []
         for image in self.images:
-            popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform, small_dot = self.beam_image)
+            if self.beam_image:
+                a = image.subtracted_array
+                y0, x0 = (np.unravel_index(np.argmax(a), a.shape))
+                delta = 20
+                atoms_roi = ROI(xmin=x0-delta, xmax=x0+delta, ymin=y0-delta, ymax=y0+delta)
+                popt_0, pcov = image.roi_fit_gaussian2d(atoms_roi, uniform, small_dot = self.beam_image)
+                correction = np.zeros(np.shape(popt_0))
+                correction[0] = y0
+                correction[1] = x0
+                popt = [p + corr for p, corr in zip (popt_0, correction)]
+            else:
+                popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform, small_dot = self.beam_image)
             upopt = uncertainties.correlated_values(popt, pcov)
             upopts.append(upopt)
 
@@ -177,7 +188,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         if cloud_fit == 'gaussian':
             gauss_params = self.get_gaussian_cloud_params()
-            print(gauss_params)
+            # print(gauss_params)
             gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
             gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
             # integrated under 2D gaussian: 2 * pi * peak_height * sigma_u * sigma_v
@@ -236,7 +247,6 @@ class BulkGasPreprocessor(ImagePreprocessor):
                         data=[unumpy.std_devs(gauss_atom_num)],
                         maxshape=(self.n_runs, len(self.images)),
                     )
-
                 # save parameters from runmanager globals
                 f.create_dataset(
                     'current_params',
@@ -244,6 +254,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                     maxshape=(self.n_runs, len(self.current_params)),
                     chunks = True,
                 )
+                
                 param_list = []
                 for key in self.params.keys():
                     param_list.append([key, self.params[key][1], self.params[key][0]])
@@ -254,6 +265,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 f['atom_numbers'][run_number] = atom_numbers
 
                 # save parameters from runmanager globals
+                #NOTE: If you pass in a python array with an int, it will cast others as ints. 
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
 
@@ -266,6 +278,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                     f['gaussian_atom_numbers_nom'][run_number] = unumpy.nominal_values(gauss_atom_num)
                     f['gaussian_atom_numbers_std'].resize(run_number + 1, axis=0)
                     f['gaussian_atom_numbers_std'][run_number] = unumpy.std_devs(gauss_atom_num)
+            
 
         return fname
 
