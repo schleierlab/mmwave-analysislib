@@ -9,7 +9,7 @@ import numpy as np
 
 SHOW_ROIS = False
 SHOW_INDEX = True # site index will not show up if show_rois is set to False
-USE_AVERAGED_BACKGROUND = True
+USE_AVERAGED_BACKGROUND = False
 FIT_TYPE_1D = None # do a curve fit at the final shot, set to None when don't do curve fit
 # options: 'lorentzian', 'quadratic', None
 SHOW_IMG_ONLY = False
