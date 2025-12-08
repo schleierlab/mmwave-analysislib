@@ -178,10 +178,20 @@ class Image:
     def roi_sums(self, rois: Sequence[ROI]):
         return np.array([self.roi_sum(roi) for roi in rois])
 
-    def detect_site_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
+    def detect_site_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int, restricted_ROI = None,):
         from scipy import ndimage
 
-        data = self.subtracted_array
+        if restricted_ROI is None:
+            data = self.subtracted_array
+            x_shift = 0
+            yshift = self.yshift
+        else:
+            data = self.roi_view(restricted_ROI)
+            x_shift = restricted_ROI.xmin
+            yshift = restricted_ROI.ymin
+
+
+        
         data_maxfilt = ndimage.maximum_filter(data, neighborhood_size)
         data_minfilt = ndimage.minimum_filter(data, neighborhood_size)
 
@@ -201,8 +211,8 @@ class Image:
         site_rois: list[ROI] = []
         halfsize = roi_size / 2
         for dy, dx in slices:
-            center_x = (dx.start + dx.stop) / 2
-            center_y = self.yshift + (dy.start + dy.stop) / 2
+            center_x = x_shift + (dx.start + dx.stop) / 2
+            center_y = yshift + (dy.start + dy.stop) / 2
 
             site_rois.append(ROI(
                 int(center_x - halfsize),

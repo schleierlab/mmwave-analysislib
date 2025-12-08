@@ -304,6 +304,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             ax=axs[1, 0],
             cmap='magma',
             vmin=0,
+            vmax=60
         )
 
         bkg_roi = self.background_roi

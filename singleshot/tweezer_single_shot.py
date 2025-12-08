@@ -7,7 +7,7 @@ from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
 import numpy as np
 
-SHOW_ROIS = False
+SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to False
 USE_AVERAGED_BACKGROUND = False
 FIT_TYPE_1D = None # do a curve fit at the final shot, set to None when don't do curve fit
@@ -27,7 +27,7 @@ doing_rearrangement = bool(tweezer_preproc.parameters['do_rearrangement'])
 print('do rearrangement: ', doing_rearrangement)
 
 fig = plt.figure(layout='constrained')
-processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = True)
+processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = False)
 if SHOW_IMG_ONLY:
     tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=fig, vmax=80)
 else:

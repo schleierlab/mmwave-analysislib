@@ -7,15 +7,17 @@ from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
 from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
 from analysislib.common.tweezer_statistics import TweezerStatistician
+from analysislib.common.image import ROI
 from pathlib import Path
 import numpy as np
 
 background_subtract = True
-USE_AVERAGED_BACKGROUND = True
+USE_AVERAGED_BACKGROUND = False
 folder = select_data_directory()
 
 finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAGED_BACKGROUND)
-new_site_rois = finder.detect_rois_by_roi_number(roi_number= 50, neighborhood_size=5, roi_size=5, detection_threshold = 30)
+ROI_restriction = ROI(xmin=1138, xmax=1505, ymin=996, ymax=1012)#None
+new_site_rois = finder.detect_rois_by_roi_number(roi_number= 50, neighborhood_size=6, roi_size=5, detection_threshold = 35, restricted_ROI= ROI_restriction) #30
 finder.overwrite_site_rois_to_yaml(new_site_rois, folder)
 # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
 # TODO: Include survival rate if taking two shots

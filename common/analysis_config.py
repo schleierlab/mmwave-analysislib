@@ -115,12 +115,21 @@ class ImagingSystem:
 
 
 # Pre-configured camera systems
-manta_camera = ImagingCamera(
+manta_MOT = ImagingCamera(
     pixel_size=5.5e-6,
     image_size=2048,
     quantum_efficiency=0.4,
     gain=1,
-    image_group_name= 'manta419b_mot_images',#'manta419b_tweezer_images',#'manta419b_mot_images',
+    image_group_name='manta419b_mot_images',
+    image_name_stem='manta',
+)
+
+manta_tweezer = ImagingCamera(
+    pixel_size=5.5e-6,
+    image_size=2048,
+    quantum_efficiency=0.4,
+    gain=1,
+    image_group_name='manta419b_tweezer_images',
     image_name_stem='manta',
 )
 
@@ -129,7 +138,15 @@ manta_system = ImagingSystem(
     objective_f=125e-3,
     lens_diameter=25.4e-3,
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
-    camera=manta_camera,
+    camera=manta_MOT,
+)
+
+manta_tweezer_system = ImagingSystem(
+    imaging_f=50e-3,
+    objective_f=125e-3,
+    lens_diameter=25.4e-3,
+    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
+    camera=manta_tweezer,
 )
 
 kinetix_camera = ImagingCamera(

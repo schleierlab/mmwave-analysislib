@@ -552,11 +552,11 @@ class BulkGasStatistician(BaseStatistician):
         axs[1, 1].set_ylabel('Atom number')
         axs[1, 1].set_ylim(0, None)
 
-        figname = f"{self.folder_path}\mot_params.png"
-        if is_subfig:
-            self.save_subfig(fig, figname)
-        else:
-            fig.savefig(figname)
+        # figname = f"{self.folder_path}\mot_params.png"
+        # if is_subfig:
+        #     self.save_subfig(fig, figname)
+        # else:
+        #     fig.savefig(figname)
 
     @staticmethod
     def uniform_acceleration(t, x0, v0, a):

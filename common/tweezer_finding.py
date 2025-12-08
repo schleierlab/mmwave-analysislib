@@ -26,11 +26,13 @@ class TweezerFinder:
         detection_threshold: float = 25,
         roi_size: int = 5,
         search_step: float = 0.5,
+        restricted_ROI = None,
     ):
         site_rois = self.detect_rois(
             neighborhood_size=neighborhood_size,
             detection_threshold=detection_threshold,
             roi_size=roi_size,
+            restricted_ROI=restricted_ROI,
         )
 
         site_count_difference_init = len(site_rois) - roi_number
@@ -47,11 +49,17 @@ class TweezerFinder:
                 neighborhood_size,
                 current_threshold,
                 roi_size,
+                restricted_ROI=restricted_ROI,
             )
 
-        print(f"Exactly {len(site_rois)} sites found")
         site_rois = self.remove_overlapping_rois(site_rois, min_distance=roi_size)
+        print(f"Exactly {len(site_rois)} sites found")
 
+        if len(site_rois)>roi_number:
+            last_index = roi_number - len(site_rois)
+            site_rois = site_rois[:last_index]
+
+        print(site_rois)
         return site_rois
 
     def remove_overlapping_rois(self, rois, min_distance):
@@ -76,8 +84,8 @@ class TweezerFinder:
                 centers.append((cx, cy))
         return filtered
 
-    def detect_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
-        return self.averaged_image.detect_site_rois(neighborhood_size, detection_threshold, roi_size)
+    def detect_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int, restricted_ROI = None,):
+        return self.averaged_image.detect_site_rois(neighborhood_size, detection_threshold, roi_size, restricted_ROI = restricted_ROI)
 
     def weight_functions(self, rois: Sequence[ROI], background_subtract: bool = False):
         img = self.averaged_image if background_subtract else self.averaged_image.raw_image()
@@ -194,7 +202,7 @@ class TweezerFinder:
             **text_kwargs
             )
         # Iterate through sites, but only annotate if j is a multiple of 5
-        for j, roi in enumerate(rois) if j % 5 == 0]
+        for j, roi in enumerate(rois) if j % 1 == 0]
 
         fig.savefig(f'{self.folder}/tweezers_averaged_image_with_site_rois.pdf')
 

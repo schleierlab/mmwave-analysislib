@@ -913,6 +913,8 @@ class TweezerStatistician(BaseStatistician):
         ax.set_ylabel('Loading rate')
         ax.set_ylim(0, 1)
         ax.axhline(0.5, color='red', linestyle='dashed')
+        ax.axhline(np.average(unp.nominal_values(agg)), color = 'black', label = f'mean = {np.average(unp.nominal_values(agg))}')
+        ax.legend()
 
     def _setup_shot_index_secax(self, ax: Axes):
         run_time_nums = mdates.date2num(self.run_time_series())
