@@ -119,6 +119,10 @@ class BaseStatistician(ABC):
         """
         detuning = x - x0
         return a * width / ((width / 2)**2 + detuning**2) + offset
+    
+    @staticmethod
+    def exponential(t,a,tau,offset):
+        return a*np.exp(-t/tau) + offset
 
     def fit_quadratic(self, x_data, y_data, sigma=None, peak_direction=+1):
         '''

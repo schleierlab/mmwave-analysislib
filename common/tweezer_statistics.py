@@ -1235,20 +1235,19 @@ class TweezerStatistician(BaseStatistician):
             if fit_type == 'rabi_oscillation':
                 # Fit the model to the data
                 initial_guess = [1, 2*np.pi*2e6, 0, 6e-6, 0.5]
-                params_opt, params_cov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
+                popt, pcov = curve_fit(self.rabi_model, unique_params, averaged_data[i], p0=initial_guess)
 
                 # Extract fit results
-                A_fit, Omega_fit, phi_fit, T2_fit, C_fit = params_opt
+                A_fit, Omega_fit, phi_fit, T2_fit, C_fit = popt
 
-                upopt = uncertainties.correlated_values(params_opt, params_cov)
-
+                upopt = uncertainties.correlated_values(popt, pcov)
 
                 x_plot = np.linspace(
                     np.min(unique_params),
                     np.max(unique_params),
                     1000,
                 )
-                ax.plot(x_plot, self.rabi_model(x_plot, *params_opt), 'r-', label=rf'{i}Fit')
+                ax.plot(x_plot, self.rabi_model(x_plot, *popt), 'r-', label=rf'{i}Fit')
                 annotation_text = (
                     f'p-p Ampl: {A_fit*2:.3f}\n'
                     Rf'$\Omega$: $2\pi\times {upopt[1] / 1e6 / (2 * np.pi):SL}\,\mathrm{{MHz}}$'
@@ -1287,6 +1286,32 @@ class TweezerStatistician(BaseStatistician):
                 annotation_text = (
                     f'Center frequency: ${upopt[0]:SL}$ MHz\n'
                     f'Width: ${1e+3 * upopt[1]:SL}$ kHz'
+                )
+                ax.annotate(
+                    annotation_text,
+                    xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
+                    xycoords='axes fraction',
+                    fontsize=9,
+                    ha='left',
+                    va='bottom',
+                )
+                print(popt[0], pcov[0][0]) # print out value for plotting
+                ax.legend(loc='upper right')
+            elif fit_type == 'exponential': # fit lifetime
+                initial_guess = [0.5,0.2,0]
+                popt, pcov = curve_fit(self.exponential, unique_params, averaged_data[i], p0=initial_guess)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                x_plot = np.linspace(
+                    np.min(unique_params),
+                    np.max(unique_params),
+                    1000,
+                )
+
+                ax.plot(x_plot, self.exponential(x_plot, *popt), 'r-', label=rf'{i}Fit')
+                annotation_text = (
+                    f'Lifetime: ${upopt[1]:SL}$ s\n'
+                    f'Factor: ${upopt[0]:SL}$\n'
+                    # f'Offset: ${upopt[2]:SL}$\n' 
                 )
                 ax.annotate(
                     annotation_text,
