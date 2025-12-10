@@ -202,7 +202,7 @@ class TweezerFinder:
             **text_kwargs
             )
         # Iterate through sites, but only annotate if j is a multiple of 5
-        for j, roi in enumerate(rois) if j % 1 == 0]
+        for j, roi in enumerate(rois) if j % 5 == 0]
 
         fig.savefig(f'{self.folder}/tweezers_averaged_image_with_site_rois.pdf')
 

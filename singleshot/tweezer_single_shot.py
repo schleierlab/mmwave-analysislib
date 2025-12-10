@@ -27,7 +27,7 @@ doing_rearrangement = bool(tweezer_preproc.parameters['do_rearrangement'])
 print('do rearrangement: ', doing_rearrangement)
 
 fig = plt.figure(layout='constrained')
-processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = False)
+processed_results_fname = tweezer_preproc.process_shot(use_global_threshold = True)
 if SHOW_IMG_ONLY:
     tweezer_preproc.show_image(roi_patches=SHOW_ROIS, site_index = SHOW_INDEX, fig=fig, vmax=80)
 else:
