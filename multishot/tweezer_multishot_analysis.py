@@ -34,6 +34,7 @@ if PLOT_AVERAGED_IMAGES:
 
 tweezer_statistician = TweezerStatistician(
     preproc_h5_path=preproc_h5_path,
+    rearrangement=True,
 )
 
 thresholder = TweezerThresholder(

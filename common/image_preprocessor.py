@@ -62,6 +62,7 @@ class ImagePreprocessor(ABC):
         self.exposures, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
+
         self.parameters = self.default_params | self.globals
 
         with h5py.File(self.h5_path, mode='r') as f:
@@ -212,7 +213,21 @@ class ImagePreprocessor(ABC):
         with h5py.File(self.h5_path, mode='r+') as f:
             globals_dict = hz.getGlobalsFromFile(self.h5_path)
             hz.getDefaultParamsFromFile
-            images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
+            if self.imaging_setup.camera.image_group_name2 == "None":
+                images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
+            else:
+                images1 = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
+                images2 = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name2], recursive=True)
+                images = dict()
+                #With two manta cameras taking images, the keys are the same, so we need to make a new dict with new keys
+                for key in images1.keys():
+                    val1 = images1[key]
+                    images[key] = val1
+                n_per_camera = int(key[-1])+1
+                for key in images2.keys():
+                    val2 = images2[key]
+                    new_key = self.imaging_setup.camera.image_name_stem + str(n_per_camera + int(key[-1]))
+                    images[new_key] = val2
             run_number = f.attrs['run number']
             try:
                 default_params = hz.getDefaultParamsFromFile(self.h5_path)

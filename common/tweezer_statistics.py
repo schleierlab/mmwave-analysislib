@@ -281,6 +281,14 @@ class TweezerStatistician(BaseStatistician):
         return df.reset_index()
 
     def run_time_series(self) -> pd.Series:
+        '''
+        Return the run timestamps of the shots in this analysis.
+
+        Returns
+        -------
+        pandas.Series
+            A series of all the timestamps, as datetime64 objects.
+        '''
         return pd.Series(self.run_times_strs, dtype='datetime64[ns]')
 
     # this is intended to supersede the above dataframe() eventually, since it has shot number information
@@ -669,15 +677,44 @@ class TweezerStatistician(BaseStatistician):
         require_exact_rearrangement: bool = False,
         plot_pair_states: bool = False,
         explicit_pairs: Optional[Sequence[tuple[int, int]]] = None,
+        show_hist: bool = False,
+        averaging_window: Optional[int] = None,
     ):
         """
         Plot survival rate over all sites (1D scan).
         Optionally add a second subplot below that shows pair-state populations
         (SS /PP /PS /SP ) computed from image index 2.
 
+        fig: Figure
+            A matplotlib Figure to plot in.
+        plot_lorentz: bool
+            If True and we're analyzing the last shot,
+            also fit a Lorentzian lineshape, plot it,
+            and show the fit parameters.
+        show_hist: bool
+            If True, show to the right of the main plot
+            a histogram of all the values encountered.
+        averaging_window: int, optional
+            If provided, also plot the average of the `averaging_window` most recent.
+            
         Returns:
             indep_var, survival_rates, survival_rate_errs
         """
+        if show_hist:
+            _ax_plot, _ax_hist = fig.subplots(
+                ncols=2,
+                nrows=1,
+                sharey=True,
+                gridspec_kw=dict(width_ratios=[3,1]),
+            )
+            ax_plot = cast(Axes, _ax_plot)
+            ax_hist = cast(Axes, _ax_hist)
+        else:
+            ax_plot = fig.subplots()
+
+        ax_plot.set_ylim(bottom=0)
+        self.plot_config.configure_grids(ax_plot)
+
         if plot_pair_states:
             fig.clf()
             ax, ax_pairs = fig.subplots(nrows=2, ncols=1, sharex=True)
@@ -697,24 +734,51 @@ class TweezerStatistician(BaseStatistician):
 
         if len(self.params) != 1:
             raise ValueError("plot_survival_rate_1d expects exactly one scanned parameter")
-        gb = df.groupby([param.name for param in self.params])
-        xlabel = self.params[0].axis_label
-        ax.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
+        elif len(self.params) == 1:
+            gb = df.groupby([param.name for param in self.params])
+            xlabel = self.params[0].axis_label
+        elif len(self.params) == 0:
+            gb = df
+            xlabel = 'Shot number'
+        ax_plot.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
+        survival_df = self.dataframe_survival(gb)
 
         survival_df = self.dataframe_survival(gb)
         indep_var = survival_df.index
         survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
         survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
-
-        ax.errorbar(
+        ax_plot.errorbar(
             indep_var,
             survival_rates,
             yerr=survival_rate_errs,
             **self.plot_config.errorbar_kw,
         )
-        ax.set_ylabel('Survival rate', fontsize=self.plot_config.label_font_size)
-        ax.tick_params(axis='both', which='major', labelsize=self.plot_config.label_font_size)
-        ax.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+        ax_plot.set_ylabel(
+            'Survival rate',
+            fontsize=self.plot_config.label_font_size,
+        )
+        ax_plot.tick_params(
+            axis='both',
+            which='major',
+            labelsize=self.plot_config.label_font_size,
+        )
+
+        ax_plot.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
+
+        if show_hist:
+            ax_hist.hist(
+                survival_rates,
+                orientation='horizontal',
+            )
+        if averaging_window is not None:
+            # TODO add errorbars to this
+            ax_plot.plot(
+                indep_var,
+                survival_rates.rolling(averaging_window).mean(),
+                color='C1',
+                marker='.',
+            )
 
         if self.is_final_shot and fit_type is not None and len(indep_var) > 2:
             if fit_type == 'lorentzian':
@@ -850,8 +914,9 @@ class TweezerStatistician(BaseStatistician):
             fig: Optional[Figure] = None,
             fit_type_1d = None,
             plot_gaussian: bool = False,
-            require_exact_rearrangement=False,
-            plot_pair_states = False
+            require_exact_rearrangement: bool = False,
+            plot_pair_states: bool = False,
+            show_hist: bool = False,
     ):
         """
         Plots the total survival rate of atoms in the tweezers, summed over all sites.
@@ -870,9 +935,23 @@ class TweezerStatistician(BaseStatistician):
                 constrained_layout=self.plot_config.constrained_layout,
             )
 
-        if loop_params.ndim in [0, 1]:
-            indep_var, survival_rates, survival_rate_errs = self.plot_survival_rate_1d(fig, fit_type_1d, require_exact_rearrangement, plot_pair_states)
-            return indep_var, survival_rates, survival_rate_errs
+        if loop_params.ndim == 0:
+            self.plot_survival_rate_1d(
+                fig,
+                require_exact_rearrangement=require_exact_rearrangement,
+                plot_pair_states=plot_pair_states,
+                show_hist=True,
+                averaging_window=10,
+            )
+        if loop_params.ndim == 1:
+            self.plot_survival_rate_1d(
+                fig,
+                fit_type=fit_type_1d,
+                require_exact_rearrangement=require_exact_rearrangement,
+                plot_pair_states=plot_pair_states,
+                show_hist=show_hist,
+                averaging_window=None,
+            )
         elif loop_params.ndim == 2:
             self.plot_survival_rate_2d(fig, plot_gaussian)
         else:
@@ -882,23 +961,25 @@ class TweezerStatistician(BaseStatistician):
         if not is_subfig:
             fig.savefig(figname)
 
+
+    # TODO this should be refactored with the other pandas-based
+    # binomial error uncertainty implementations...
+    # need to figure out best way to do this
+    @staticmethod
+    def binomial_rate_uncert(arr):
+        trues = arr.sum()
+        total = len(arr)
+        mean = trues / total
+
+        laplace_p = (trues + 1) / (total + 2)
+        uncert = np.sqrt(laplace_p * (1 - laplace_p) / total)
+        return uncertainties.ufloat(mean, uncert)
+
     def plot_loading_rate(self, ax: Axes):
         series = self.series()
         gb = series.xs(0, level=self.KEY_IMAGE).groupby(self.KEY_SHOT)
 
-        # TODO this should be refactored with the other pandas-based
-        # binomial error uncertainty implementations...
-        # need to figure out best way to do this
-        def binomial_rate_uncert(arr):
-            trues = arr.sum()
-            total = len(arr)
-            mean = trues / total
-
-            laplace_p = (trues + 1) / (total + 2)
-            uncert = np.sqrt(laplace_p * (1 - laplace_p) / total)
-            return uncertainties.ufloat(mean, uncert)
-
-        agg = gb.agg(binomial_rate_uncert)
+        agg = gb.agg(self.binomial_rate_uncert)
 
         run_time_series = self.run_time_series()
         '''index: shot number; values: run times'''
@@ -1323,7 +1404,39 @@ class TweezerStatistician(BaseStatistician):
                 )
                 print(popt[0], pcov[0][0]) # print out value for plotting
                 ax.legend(loc='upper right')
+            elif fit_type == 'quadratic':
+                # Fit the model to the data
+                y_range = np.max(averaged_data[i]) - np.min(averaged_data[i])
+                x_range = np.max(unique_params) - np.min(unique_params)
+                guess = (y_range / x_range**2, np.min(averaged_data[i]), np.mean(unique_params))
+                params_opt, params_cov = curve_fit(self.quadratic, unique_params, averaged_data[i], p0 = guess)
 
+                # Extract fit results
+                A_fit, B_fit, x_0_fit = params_opt
+                print(A_fit, B_fit, x_0_fit)
+                upopt = uncertainties.correlated_values(params_opt, params_cov)
+
+
+                x_plot = np.linspace(
+                    np.min(unique_params),
+                    np.max(unique_params),
+                    1001,
+                )
+                ax.plot(x_plot, self.quadratic(x_plot, *params_opt), 'r-', label=rf'{i}Fit')
+                annotation_text = (
+                    f'Center: {upopt[2]}'
+                )
+
+                ax.annotate(
+                    annotation_text,
+                    xy=(0.02, 0.05),  # Changed to bottom-left corner (x=0.02, y=0.05)
+                    xycoords='axes fraction',
+                    fontsize=9,
+                    ha='left',
+                    va='bottom',
+                )
+
+                ax.legend(loc='upper right')
         fig.supxlabel(self.params[0].axis_label)
         fig.supylabel('Population')
 

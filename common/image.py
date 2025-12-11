@@ -104,26 +104,28 @@ class Image:
     def background_image(self) -> Image:
         return Image(self.bkg_array, background=0, yshift=self.yshift)
 
-    @staticmethod
-    def mean(images: Sequence[Image]) -> Image:
+    @classmethod
+    def mean(cls, images: Sequence[Image]) -> Image:
         """
         This is not a function to average the images across different
         h5 files. The input has to be a list of [Image] instead of [Images]
         """
-        # sho
-        # computed manually to allow for broadcasted backgrounds
-        # use larger ints to avoid overflow
-        background = sum(image.background.astype(np.int32) for image in images) / len(images)
-
         yshift = images[0].yshift
         if any(image.yshift != yshift for image in images[1:]):
             raise ValueError('All images must have the same yshift.')
 
         return Image(
             np.mean([image.array for image in images], axis=0),
-            background,
+            cls.mean_background(images),
             yshift,
         )
+    
+    @staticmethod
+    def mean_background(images: Sequence[Image]) -> NDArray:
+        # computed manually to allow for broadcasted backgrounds
+        # use larger ints to avoid overflow
+        bkg_generator = (np.asarray(image.background).astype(np.int32) for image in images)
+        return sum(bkg_generator, start=np.array(0)) / len(images)  # need np.array in start to guarantee NDArray output
 
     def roi_view(self, roi: ROI):
         '''
@@ -227,7 +229,7 @@ class Image:
 
         return site_rois
 
-    def roi_fit_gaussian2d(self, roi: ROI, uniform = False):
+    def roi_fit_gaussian2d(self, roi: ROI, uniform = False, small_dot = False):
         """
         Fits a 2D Gaussian function to the image data.
         Mainly intended to fit images of the MOT.
@@ -239,14 +241,18 @@ class Image:
         x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
         width_guess = roi.width/4
         height_guess = roi.height/4
+        if small_dot:
+            width_guess = width_guess/8
+            height_guess = height_guess/8
         z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
         offset_guess = np.min(roiview)
+        print(x0_guess, y0_guess, a_guess)
 
         if uniform:
             p0 = [x0_guess, y0_guess, width_guess, a_guess, offset_guess]
             return optimize.curve_fit(
-                lambda xy, x0, y0, width, peak_height, offset :self.gaussian2d_uniform(xy, x0, y0, width, peak_height, offset),
+                lambda xy, x0, y0, width, peak_height, offset: self.gaussian2d_uniform(xy, x0, y0, width, peak_height, offset),
                 xys,
                 roiview.ravel(),
                 p0=p0,

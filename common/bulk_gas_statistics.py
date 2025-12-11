@@ -51,13 +51,16 @@ class BulkGasStatistician(BaseStatistician):
     def __init__(self,
                  preproc_h5_path: str,
                  shot_h5_path: str,
-                 plot_config: PlotConfig = None
+                 plot_config: PlotConfig = None,
+                 multi_image: bool = False
                  ):
         super().__init__()
+        self.multi_image = multi_image
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
         self._save_mloop_params(shot_h5_path)
         self.folder_path = Path(preproc_h5_path).parent
+
 
     def _load_processed_quantities(self, preproc_h5_path):
         """Load processed quantities from an h5 file.
@@ -72,7 +75,7 @@ class BulkGasStatistician(BaseStatistician):
             self.params_list = f['params'][:]
             self.n_runs = f.attrs['n_runs']
             self.current_params = f['current_params'][:]
-            if 'gaussian_cloud_params_nom' in f:
+            if 'gaussian_cloud_params_nom' in f and not self.multi_image:
                 # presently, only extract the params from the first fit
                 self.gaussian_cloud_params_nom = f['gaussian_cloud_params_nom'][:, 0]
                 self.gaussian_cloud_params_cov = f['gaussian_cloud_params_cov'][:, 0]
@@ -80,6 +83,13 @@ class BulkGasStatistician(BaseStatistician):
                     f['gaussian_atom_numbers_nom'][:, 0],
                     f['gaussian_atom_numbers_std'][:, 0],
                 )
+            elif 'gaussian_cloud_params_nom' in f and self.multi_image:
+                self.gaussian_cloud_params_nom = []
+                self.gaussian_cloud_params_cov = []
+                for i in range (4):
+                    self.gaussian_cloud_params_nom.append(f['gaussian_cloud_params_nom'][:, i])
+                    self.gaussian_cloud_params_cov.append(f['gaussian_cloud_params_cov'][:, i])
+
 
     def _save_mloop_params(self, shot_h5_path: str) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -159,6 +169,7 @@ class BulkGasStatistician(BaseStatistician):
         -------
         unique_params: NDArray, shape (n_unique_param_combos,)
         """
+        # print(self.current_params)
         return np.unique(self.current_params, axis=0)
 
     # TODO promote this to BaseStatistician?
@@ -552,11 +563,112 @@ class BulkGasStatistician(BaseStatistician):
         axs[1, 1].set_ylabel('Atom number')
         axs[1, 1].set_ylim(0, None)
 
-        # figname = f"{self.folder_path}\mot_params.png"
-        # if is_subfig:
-        #     self.save_subfig(fig, figname)
-        # else:
-        #     fig.savefig(figname)
+        figname = f"{self.folder_path}\mot_params.png"
+        if is_subfig:
+            self.save_subfig(fig, figname)
+        else:
+            fig.savefig(figname)
+    
+    def plot_beam_positions(self, fig: Optional[Figure] = None, uniform = True, show_means=True):
+        """Plot atom number vs the looped parameter and save the image in the folder path.
+
+        This function requires that get_atom_number has been run first to save the
+        atom number to processed_quantities.h5.
+
+        Parameters
+        ----------
+        fig : Optional[Figure], default=None
+            Figure to plot on, if None a new figure is created
+        uniform : bool, default=True
+            Whether to use a uniform width and height for the Gaussian fit
+        show_means : bool, default=True
+            Whether to show the means of the mot params vs loop params as a horizontal line on
+            on the plot.
+        """
+        # assume 1D scan
+        # print(self.unique_params)
+        unique_params = self.unique_params[:, 0]
+
+        # Create subplots
+        if fig is None:
+            fig = plt.figure(
+                figsize=(12, 8),
+                constrained_layout=True
+            )
+        is_subfig = (fig is not None)
+        loop_global_name: str = self.params_list[0][0].decode('utf-8')
+        loop_global_unit: str = self.params_list[0][1].decode('utf-8')
+
+        axs = fig.subplots(1, 2, sharey=True)
+
+        # Convert nominal values and uncertainties to ufloat arrays
+        gaussian_cloud_params = np.array([
+            [uncertainties.correlated_values(nom, cov)
+            for nom, cov in zip(params_nom, params_cov)]
+            for params_nom, params_cov in zip(self.gaussian_cloud_params_nom, self.gaussian_cloud_params_cov)
+        ])
+        gaussian_cloud_params_groupby_unique = [self.mean_values_by_unique_params(params, add_std_errs=True) for params in gaussian_cloud_params]
+
+        params_tweezer_cam = gaussian_cloud_params_groupby_unique[1] - gaussian_cloud_params_groupby_unique[0]
+        params_la_cam = gaussian_cloud_params_groupby_unique[3] - gaussian_cloud_params_groupby_unique[2]
+
+        tw_x = unumpy.nominal_values(params_tweezer_cam[:, 1])
+        tw_y = unumpy.nominal_values(params_tweezer_cam[:, 0])
+        la_x = unumpy.nominal_values(params_la_cam[:, 1])
+        la_y = unumpy.nominal_values(params_la_cam[:, 0])
+
+        lines = [tw_x, tw_y, la_x, la_y]
+
+
+        axs[0].plot(unique_params, tw_x, ".", label = "x")
+        axs[0].plot(unique_params, tw_y, ".", label = "y")
+        axs[1].plot(unique_params, la_x, ".", label = "x")
+        axs[1].plot(unique_params, la_y, ".", label = "y")
+
+        line_fits = []
+        print()
+        if np.size(unique_params) > 1:
+            for line in lines:
+                coefs = np.polyfit(unique_params, line, 1)
+                line_fits.append(coefs)
+            print(unique_params)
+            print(np.poly1d(line_fits[0])(unique_params))
+            axs[0].plot(unique_params, np.poly1d(line_fits[0])(unique_params),"C0", label = f"{line_fits[0][0]:.3f}x + {line_fits[0][1]:.3f}")
+            axs[0].plot(unique_params, np.poly1d(line_fits[1])(unique_params),"C1", label = f"{line_fits[1][0]:.3f}x + {line_fits[1][1]:.3f}")
+            axs[1].plot(unique_params, np.poly1d(line_fits[2])(unique_params),"C0", label = f"{line_fits[2][0]:.3f}x + {line_fits[2][1]:.3f}")
+            axs[1].plot(unique_params, np.poly1d(line_fits[3])(unique_params),"C1", label = f"{line_fits[3][0]:.3f}x + {line_fits[3][1]:.3f}")
+
+
+
+        axs[0].legend()
+        axs[1].legend()
+        axs[0].set_title("Position difference after move on tweezer cam")
+        axs[1].set_title("Position difference after move on loc addr cam")
+        
+        if self.current_params.shape[1] == 1:
+            loop_params = self.current_params[:, 0]
+        else:
+            loop_params = self.current_params
+        unique_params = np.unique(loop_params, axis = 0)
+
+        for ax in axs:
+            ax.set_xlabel(
+                f"{self.params_list[0][0].decode('utf-8')} [{self.params_list[0][1].decode('utf-8')}]",
+                fontsize=self.plot_config.label_font_size,
+                )
+            ax.set_ylabel(
+                "Position difference (pixels)",
+                fontsize=self.plot_config.label_font_size
+                )
+        
+        
+        figname = f"{self.folder_path}\_beam_alignment.png"
+        if is_subfig:
+            self.save_subfig(fig, figname)
+        else:
+            fig.savefig(figname)
+
+
 
     @staticmethod
     def uniform_acceleration(t, x0, v0, a):
