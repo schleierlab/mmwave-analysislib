@@ -709,23 +709,21 @@ class TweezerStatistician(BaseStatistician):
             )
             ax_plot = cast(Axes, _ax_plot)
             ax_hist = cast(Axes, _ax_hist)
+        elif plot_pair_states:
+            _ax_plot, _ax_pairs = fig.subplots(
+                ncols=2,
+                nrows=1,
+                sharey=True,
+            )
+            ax_plot = cast(Axes, _ax_plot)
+            ax_pairs = cast(Axes, _ax_pairs)
+            self.plot_config.configure_grids(ax_pairs)
+            ax_pairs.set_ylim(bottom=0)
         else:
             ax_plot = fig.subplots()
 
         ax_plot.set_ylim(bottom=0)
         self.plot_config.configure_grids(ax_plot)
-
-        if plot_pair_states:
-            fig.clf()
-            ax, ax_pairs = fig.subplots(nrows=2, ncols=1, sharex=True)
-            axes_for_grid = [ax, ax_pairs]
-        else:
-            ax = fig.subplots()
-            axes_for_grid = [ax]
-
-        for a in axes_for_grid:
-            a.set_ylim(bottom=0)
-            self.plot_config.configure_grids(a)
 
         fig.suptitle(str(self.folder_path), fontsize=8)
 
@@ -785,7 +783,7 @@ class TweezerStatistician(BaseStatistician):
                 popt, pcov = self.fit_lorentzian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
                 x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
-                ax.plot(x_plot, self.lorentzian(x_plot, *popt))
+                ax_plot.plot(x_plot, self.lorentzian(x_plot, *popt))
                 fig.suptitle(
                     f'Center frequency: ${upopt[0]:SL}$ {self.params[0].unit}; Width: ${1e+3 * upopt[1]:SL}$ {self.params[0].unit}'
                 )
@@ -793,7 +791,7 @@ class TweezerStatistician(BaseStatistician):
                 popt, pcov = self.fit_quadratic(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=+1)
                 upopt = uncertainties.correlated_values(popt, pcov)
                 x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
-                ax.plot(x_plot, self.quadratic(x_plot, *popt), color = 'r')
+                ax_plot.plot(x_plot, self.quadratic(x_plot, *popt), color = 'r')
                 fig.suptitle(
                     f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; offset: ${upopt[1]:SL}$'
                 )
@@ -801,8 +799,8 @@ class TweezerStatistician(BaseStatistician):
         if self.is_final_shot and self.params[0].name == 'repetition_index':
             mean_df = self.dataframe_survival(df)
             umean = uncertainties.ufloat(mean_df[self.KEY_SURVIVAL_RATE], mean_df[self.KEY_SURVIVAL_RATE_STD])
-            ax.axhline(umean.n, label=f'Mean: {umean:S}')
-            ax.legend()
+            ax_plot.axhline(umean.n, label=f'Mean: {umean:S}')
+            ax_plot.legend()
 
         if plot_pair_states:
             self._plot_pair_state_population(ax_pairs, indep_var, require_exact_rearrangement, explicit_pairs)
