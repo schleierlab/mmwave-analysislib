@@ -7,7 +7,7 @@ from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
 import numpy as np
 
-SHOW_ROIS = True
+SHOW_ROIS = False
 SHOW_INDEX = True # site index will not show up if show_rois is set to False
 USE_AVERAGED_BACKGROUND = False
 FIT_TYPE_1D = None # do a curve fit at the final shot, set to None when don't do curve fit
