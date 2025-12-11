@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import ClassVar, Optional
 from pathlib import Path
+from typing import ClassVar, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,8 +11,8 @@ import scipy.optimize
 import seaborn as sns
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
-from sklearn.mixture import GaussianMixture
 from scipy.stats import norm
+from sklearn.mixture import GaussianMixture
 
 from analysislib.common.image import ROI, Image
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
@@ -23,7 +23,7 @@ class TweezerThresholder:
     INDEX_NAME: ClassVar[str] = 'Tweezer index'
     COUNTS_NAME: ClassVar[str] = 'Counts'
     df: pd.DataFrame
-    rois = list[ROI]
+    rois: list[ROI]
     gmms: list[TweezerCountGMM]
     '''gaussian mixture models of the counts for each site'''
 
@@ -75,6 +75,9 @@ class TweezerThresholder:
         )
 
     def fit_gmms(self):
+        '''
+        Fit Gaussian mixture models to the tweezer fluorescence histograms.
+        '''
         self.gmms = [
             TweezerCountGMM(self.df[self.df['Tweezer index'] == i]['Counts'])
             for i in range(self.n_sites)

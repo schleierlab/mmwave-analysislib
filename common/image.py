@@ -5,12 +5,11 @@ from dataclasses import dataclass
 from typing import Literal, NamedTuple, Optional, Union, cast
 
 import numpy as np
-from matplotlib import patches, pyplot as plt
+from matplotlib import patches
+from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from numpy.typing import ArrayLike, NDArray
 from scipy import optimize
-from scipy.constants import pi
-from pathlib import Path
 
 MaybeInt = Optional[int]
 
@@ -44,6 +43,7 @@ class ROI(NamedTuple):
             **(default_kw | kwargs),
         )
 
+    @staticmethod
     def bounding_box(rois: Sequence[ROI]):
         return ROI(
             min(roi.xmin for roi in rois),

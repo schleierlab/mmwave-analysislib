@@ -1,14 +1,14 @@
 from collections.abc import Sequence
 from os import PathLike
 from pathlib import Path
+from typing import Union
+
+import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib.collections import PatchCollection
 
 from analysislib.common.image import ROI, Image
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
-from matplotlib import pyplot as plt
-from matplotlib.collections import PatchCollection
-import numpy as np
-
-from typing import Union
 
 
 class TweezerFinder:
@@ -126,20 +126,12 @@ class TweezerFinder:
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
         padding = 50
 
-        xmin_lst = []
-        xmax_lst = []
-        for roi in new_site_rois:
-            xmin_lst.append(roi.xmin)
-            xmax_lst.append(roi.xmax)
-        xmin_lst = np.array(xmin_lst)
-        xmax_lst = np.array(xmax_lst)
-
         atom_roi = ROI(
             ymax = processor.atom_roi.ymax,
             ymin = processor.atom_roi.ymin,
-            xmin = np.min(xmin_lst)- padding,
-            xmax = np.max(xmax_lst) + padding
-            )
+            xmin = min(roi.xmin for roi in new_site_rois) - padding,
+            xmax = max(roi.xmax for roi in new_site_rois) + padding,
+        )
 
 
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
@@ -149,15 +141,14 @@ class TweezerFinder:
 
         roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
         global_threshold, site_thresholds = TweezerPreprocessor._load_threshold_from_yaml(roi_config_path)
-        output_path = TweezerPreprocessor.dump_to_yaml(new_site_rois,
-                                                        atom_roi,
-                                                        global_threshold,
-                                                        site_thresholds,
-                                                        roi_config_path
-                                                        )
+        output_path = TweezerPreprocessor.dump_to_yaml(
+            new_site_rois,
+            atom_roi,
+            global_threshold,
+            site_thresholds,
+            roi_config_path,
+        )
         print(f'Site ROIs dumped to {output_path}')
-
-
 
     def plot_sites(self, rois: Sequence[ROI]):
         '''
@@ -168,7 +159,7 @@ class TweezerFinder:
 
         rois_bbox = ROI.bounding_box(rois)
         padding = 50
-        atom_roi_xlims = [rois_bbox.xmin - padding, rois_bbox.xmax + padding]
+        atom_roi_xlims = (rois_bbox.xmin - padding, rois_bbox.xmax + padding)
 
         fig.suptitle(f'Tweezer site detection ({len(self.images)} shots averaged)')
         raw_img_color_kw = dict(
@@ -192,17 +183,20 @@ class TweezerFinder:
         patchs = tuple(roi.patch(edgecolor='yellow') for roi in rois)
         collection = PatchCollection(patchs, match_original=True)
         ax.add_collection(collection)
-        text_kwargs = {
-                    'color':'red',
-                    'fontsize':'small',
-                    }
-        [ax.annotate(
-            str(j), # The site index to display
-            xy=(roi.xmin, roi.ymin - 5), # Position of the text
-            **text_kwargs
-            )
-        # Iterate through sites, but only annotate if j is a multiple of 5
-        for j, roi in enumerate(rois) if j % 5 == 0]
+
+        # annotate every five (5) sites with site index
+        for j, roi in enumerate(rois):
+            if j % 5 == 0:
+                # asserts to placate mypy
+                if roi.xmin is None or roi.ymin is None:
+                    raise ValueError
+
+                ax.annotate(
+                    str(j), # The site index to display
+                    xy=(roi.xmin, roi.ymin - 5), # Position of the text
+                    color='red',
+                    fontsize='small',
+                )
 
         fig.savefig(f'{self.folder}/tweezers_averaged_image_with_site_rois.pdf')
 
@@ -215,7 +209,7 @@ class TweezerFinder:
 
         rois_bbox = ROI.bounding_box(rois)
         padding = 50
-        atom_roi_xlims = [rois_bbox.xmin - padding, rois_bbox.xmax + padding]
+        atom_roi_xlims = (rois_bbox.xmin - padding, rois_bbox.xmax + padding)
 
         fig.suptitle(f'Tweezer site detection ({len(self.images[::2])} shots averaged)')
         raw_img_color_kw = dict(
@@ -241,5 +235,3 @@ class TweezerFinder:
         )
         fig.colorbar(im, ax=axs)
         fig.savefig(f'{self.folder}/tweezers_averaged_images.pdf')
-
-

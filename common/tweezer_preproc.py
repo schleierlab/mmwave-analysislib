@@ -1,6 +1,6 @@
 import importlib.resources
-from collections.abc import Sequence
 import os
+from collections.abc import Sequence
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, Union, cast
 
@@ -14,12 +14,11 @@ from matplotlib.collections import PatchCollection
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 
-from .image_preprocessor import ImagePreprocessor
-from .analysis_config import kinetix_system
-from .image import Image, ROI
 from analysislib import multishot
+from analysislib.common.analysis_config import kinetix_system
+from analysislib.common.image import ROI, Image
+from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.plot_config import PlotConfig
-
 
 StrPath = Union[os.PathLike[str], str]
 
@@ -203,7 +202,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         atom_roi: ROI,
         global_threshold: float,
         site_thresholds: list[float],
-        output_path: str,
+        output_path: StrPath,
     ) -> str:
         """
         Dump site ROIs to a YAML file in the same format as roi_config.yml.
