@@ -119,7 +119,7 @@ class Image:
             cls.mean_background(images),
             yshift,
         )
-    
+
     @staticmethod
     def mean_background(images: Sequence[Image]) -> NDArray:
         # computed manually to allow for broadcasted backgrounds
@@ -140,7 +140,13 @@ class Image:
             roi.xmin:roi.xmax,
         ]
 
-    def imshow_view(self, roi: ROI = None, scale_factor: float = 1.0, ax: Optional[Axes] = None, **kwargs):
+    def imshow_view(
+            self,
+            roi: Optional[ROI] = None,
+            scale_factor: float = 1.0,
+            ax: Optional[Axes] = None,
+            **kwargs,
+    ):
         '''
         Parameters
         ----------
@@ -160,9 +166,9 @@ class Image:
             )
         else:
             im = ax.imshow(
-            self.roi_view(roi),
-            extent=(scale_factor * np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin])),
-            **kwargs,
+                self.roi_view(roi),
+                extent=(scale_factor * np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin])),
+                **kwargs,
             )
 
 
@@ -193,7 +199,7 @@ class Image:
             yshift = restricted_ROI.ymin
 
 
-        
+
         data_maxfilt = ndimage.maximum_filter(data, neighborhood_size)
         data_minfilt = ndimage.minimum_filter(data, neighborhood_size)
 

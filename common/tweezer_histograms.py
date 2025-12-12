@@ -17,6 +17,7 @@ from sklearn.mixture import GaussianMixture
 from analysislib.common.image import ROI, Image
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
+from analysislib.common.typing import StrPath
 
 
 class TweezerThresholder:
@@ -88,7 +89,7 @@ class TweezerThresholder:
         self.loading_rates = np.array([gmm.weights[1] for gmm in self.gmms])
         self.infidelities = np.array([gmm.infidelity_at_threshold() for gmm in self.gmms])
 
-    def overwrite_thresholds_to_yaml(self, folder: str):
+    def overwrite_thresholds_to_yaml(self, folder: StrPath):
         """
         Overwrite the global and site thresholds in the roi_config.yml file, to be used by all subsequent
         TweezerPreprocessor instances.

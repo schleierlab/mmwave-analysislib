@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Sequence
 from os import PathLike
 from pathlib import Path
@@ -6,6 +7,7 @@ from typing import Union
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.collections import PatchCollection
+from matplotlib.figure import Figure
 
 from analysislib.common.image import ROI, Image
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
@@ -60,6 +62,62 @@ class TweezerFinder:
             site_rois = site_rois[:last_index]
 
         print(site_rois)
+        return site_rois
+
+    def detect_rois_by_contours(self, roi_number: int, roi_size: int) -> list[ROI]:
+        import cv2
+
+        from analysislib.common.contour import Contour
+
+        image_array_blurred = cv2.GaussianBlur(
+            self.averaged_image.subtracted_array,
+            (3, 3),  # kernel size
+            1,  # Gaussian width
+        )
+        image_array_u8 = ((image_array_blurred + 10) * 4).astype('uint8')
+        thresholded = cv2.adaptiveThreshold(
+            image_array_u8,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            11,
+            -4,
+        )
+        contours_raw, hierarchy = cv2.findContours(
+            thresholded,
+            cv2.RETR_TREE,
+            cv2.CHAIN_APPROX_SIMPLE,
+        )
+        contours = (Contour(contour_raw) for contour_raw in contours_raw)
+        contours_filtered = sorted(
+            (contour for contour in contours if contour.area > 0),
+            key=(lambda contour: contour.area),
+            reverse=True,
+        )
+        print(f'Identified {len(contours_filtered)} potential sites')
+        if len(contours_filtered) < roi_number:
+            warnings.warn(f'Did not find desired number ({roi_number}) of sites.')
+        elif len(contours_filtered) > roi_number:
+            print(f'Keeping largest {roi_number} sites by area.')
+        site_contours = contours_filtered[:roi_number]
+
+        halfsize = roi_size / 2
+        site_rois = [
+            ROI(
+                int(contour.centroid[0] - halfsize),
+                int(contour.centroid[0] + halfsize),
+                self.averaged_image.yshift + int(contour.centroid[1] - halfsize),
+                self.averaged_image.yshift + int(contour.centroid[1] + halfsize),
+            )
+            for contour in site_contours
+        ]
+        # sort ROIs by decreasing x coordinate
+        site_rois.sort(key=(lambda roi: roi.xmin), reverse=True)
+
+        self.image_blurred = image_array_blurred
+        self.image_thresholded = thresholded
+        self.rois = site_rois
+
         return site_rois
 
     def remove_overlapping_rois(self, rois, min_distance):
@@ -133,7 +191,6 @@ class TweezerFinder:
             xmax = max(roi.xmax for roi in new_site_rois) + padding,
         )
 
-
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
         # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
@@ -199,6 +256,49 @@ class TweezerFinder:
                 )
 
         fig.savefig(f'{self.folder}/tweezers_averaged_image_with_site_rois.pdf')
+
+    def plot_contour_site_detection(self, fig: Figure):
+        axs = fig.subplots(nrows=3)
+
+        rois_bbox = ROI.bounding_box(self.rois)
+        padding = 50
+        atom_roi_xlims = (rois_bbox.xmin - padding, rois_bbox.xmax + padding)
+        full_ylims = (
+            self.averaged_image.yshift,
+            self.averaged_image.yshift + self.averaged_image.height,
+        )
+        view_roi = ROI.from_roi_xy(atom_roi_xlims, full_ylims)
+
+        fig.suptitle(f'Tweezer site detection ({len(self.images)} shots averaged)')
+        raw_img_color_kw = dict(
+            cmap='viridis',
+            vmin=0,
+            vmax=np.max(self.averaged_image.subtracted_array),
+        )
+
+        im = self.averaged_image.imshow_view(
+            view_roi,
+            ax=axs[0],
+            **raw_img_color_kw,
+        )
+        fig.colorbar(im, ax=axs)
+
+        patches = tuple(
+            roi.patch(edgecolor='yellow', alpha=0.6)
+            for j, roi in enumerate(self.rois)
+        )
+        collection = PatchCollection(patches, match_original=True)
+        axs[0].add_collection(collection)
+
+        axs[1].set_title('Blurred image')
+        axs[1].imshow(
+            self.image_blurred[view_roi.ymin:view_roi.ymax, view_roi.xmin:view_roi.xmax],
+            extent=[view_roi.xmin, view_roi.xmax, view_roi.ymax, view_roi.ymin],
+            **raw_img_color_kw,
+        )
+
+        axs[2].set_title('Adaptive threshold')
+        axs[2].imshow(self.image_thresholded, cmap='Greys')
 
     def plot_averaged_images(self, rois: Sequence[ROI]):
         '''

@@ -1,8 +1,7 @@
 import importlib.resources
-import os
 from collections.abc import Sequence
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, Union, cast
+from typing import ClassVar, Literal, Optional, cast
 
 import h5py
 import numpy as np
@@ -19,8 +18,7 @@ from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI, Image
 from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.plot_config import PlotConfig
-
-StrPath = Union[os.PathLike[str], str]
+from analysislib.common.typing import StrPath
 
 
 class TweezerPreprocessor(ImagePreprocessor):
