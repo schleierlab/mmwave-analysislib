@@ -9,7 +9,9 @@ from matplotlib import pyplot as plt
 from matplotlib.collections import PatchCollection
 from matplotlib.figure import Figure
 
+from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI, Image
+from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 
 
@@ -101,13 +103,11 @@ class TweezerFinder:
             print(f'Keeping largest {roi_number} sites by area.')
         site_contours = contours_filtered[:roi_number]
 
-        halfsize = roi_size / 2
         site_rois = [
-            ROI(
-                int(contour.centroid[0] - halfsize),
-                int(contour.centroid[0] + halfsize),
-                self.averaged_image.yshift + int(contour.centroid[1] - halfsize),
-                self.averaged_image.yshift + int(contour.centroid[1] + halfsize),
+            ROI.from_center(
+                center_x=contour.centroid[0],
+                center_y=(self.averaged_image.yshift + contour.centroid[1]),
+                size=roi_size,
             )
             for contour in site_contours
         ]
@@ -116,6 +116,7 @@ class TweezerFinder:
 
         self.image_blurred = image_array_blurred
         self.image_thresholded = thresholded
+        self.site_contours = site_contours
         self.rois = site_rois
 
         return site_rois
@@ -161,51 +162,17 @@ class TweezerFinder:
         images: list[Image] = []
         for shot in shots_h5s:
             print(shot)
-            processor = TweezerPreprocessor(load_type='h5', h5_path=shot, use_averaged_background = use_averaged_background)
+            processor = TweezerPreprocessor(
+                load_type='h5',
+                h5_path=shot,
+                use_averaged_background = use_averaged_background,
+                load_rois_threshs=False,
+            )
             images.append(processor.images[0])
             if include_2_images:
                 images.append(processor.images[1])
 
         return cls(images)
-
-    def overwrite_site_rois_to_yaml(self, new_site_rois: list[ROI], folder: str):
-        """Overwrite the site ROIs in the roi_config.yml file, to be used by all subsequent
-        TweezerPreprocessor instances.
-
-        Parameters
-        ----------
-        new_site_rois : list[ROI]
-            List of ROI objects for each site, to override the existing site ROIs in roi_config.yml
-        folder : str
-            Folder containing the sequence of h5 files of the current multishot analysis
-        """
-        sequence_dir = Path(folder)
-        shots_h5s = sequence_dir.glob('20*.h5')
-        processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
-        padding = 50
-
-        atom_roi = ROI(
-            ymax = processor.atom_roi.ymax,
-            ymin = processor.atom_roi.ymin,
-            xmin = min(roi.xmin for roi in new_site_rois) - padding,
-            xmax = max(roi.xmax for roi in new_site_rois) + padding,
-        )
-
-        # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
-        # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
-        # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
-        # we could load the atom_roi to be copied in the same way that the threshold is copied below.
-
-        roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
-        global_threshold, site_thresholds = TweezerPreprocessor._load_threshold_from_yaml(roi_config_path)
-        output_path = TweezerPreprocessor.dump_to_yaml(
-            new_site_rois,
-            atom_roi,
-            global_threshold,
-            site_thresholds,
-            roi_config_path,
-        )
-        print(f'Site ROIs dumped to {output_path}')
 
     def plot_sites(self, rois: Sequence[ROI]):
         '''
@@ -237,28 +204,17 @@ class TweezerFinder:
         )
         fig.colorbar(im, ax=ax)
 
-        patchs = tuple(roi.patch(edgecolor='yellow') for roi in rois)
-        collection = PatchCollection(patchs, match_original=True)
-        ax.add_collection(collection)
-
-        # annotate every five (5) sites with site index
-        for j, roi in enumerate(rois):
-            if j % 5 == 0:
-                # asserts to placate mypy
-                if roi.xmin is None or roi.ymin is None:
-                    raise ValueError
-
-                ax.annotate(
-                    str(j), # The site index to display
-                    xy=(roi.xmin, roi.ymin - 5), # Position of the text
-                    color='red',
-                    fontsize='small',
-                )
+        ROI.plot_rois(
+            ax,
+            rois,
+            label_sites=5,
+        )
 
         fig.savefig(f'{self.folder}/tweezers_averaged_image_with_site_rois.pdf')
 
     def plot_contour_site_detection(self, fig: Figure):
         axs = fig.subplots(nrows=3)
+        # print(self.rois)
 
         rois_bbox = ROI.bounding_box(self.rois)
         padding = 50
@@ -283,22 +239,47 @@ class TweezerFinder:
         )
         fig.colorbar(im, ax=axs)
 
-        patches = tuple(
-            roi.patch(edgecolor='yellow', alpha=0.6)
-            for j, roi in enumerate(self.rois)
+        ROI.plot_rois(
+            axs[0],
+            self.rois,
+            label_sites=5,
         )
-        collection = PatchCollection(patches, match_original=True)
-        axs[0].add_collection(collection)
 
         axs[1].set_title('Blurred image')
+        # print(self.image_blurred.shape)
+
+        plot_extent = np.array([view_roi.xmin, view_roi.xmax, view_roi.ymax, view_roi.ymin]) - 0.5
         axs[1].imshow(
-            self.image_blurred[view_roi.ymin:view_roi.ymax, view_roi.xmin:view_roi.xmax],
-            extent=[view_roi.xmin, view_roi.xmax, view_roi.ymax, view_roi.ymin],
+            self.image_blurred[:, view_roi.xmin:view_roi.xmax],
+            extent=plot_extent,
             **raw_img_color_kw,
         )
 
         axs[2].set_title('Adaptive threshold')
-        axs[2].imshow(self.image_thresholded, cmap='Greys')
+        axs[2].imshow(
+            self.image_thresholded[:, view_roi.xmin:view_roi.xmax],
+            extent=plot_extent,
+            cmap='Greys_r',
+        )
+        
+        ROI.plot_rois(
+            axs[2],
+            self.rois,
+            label_sites=5,
+        )
+
+        centroids = np.array([contour.centroid for contour in self.site_contours])
+
+        # print(centroids + [0, self.averaged_image.yshift])
+        # print(f'{self.averaged_image.yshift=}')
+        
+        centroid_x, centroid_y = centroids.T
+        axs[2].scatter(
+            centroid_x,
+            centroid_y + self.averaged_image.yshift,
+            s=1,
+            color='red',
+        )
 
     def plot_averaged_images(self, rois: Sequence[ROI]):
         '''

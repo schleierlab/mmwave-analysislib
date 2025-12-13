@@ -14,7 +14,9 @@ from numpy.typing import NDArray
 from scipy.stats import norm
 from sklearn.mixture import GaussianMixture
 
+from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI, Image
+from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.typing import StrPath
@@ -111,7 +113,6 @@ class TweezerThresholder:
         shots_h5s = sequence_dir.glob('20*.h5')
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
         atom_roi = processor.atom_roi
-        site_rois = processor.site_rois
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
         # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
@@ -119,7 +120,7 @@ class TweezerThresholder:
 
         roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
         output_path = TweezerPreprocessor.dump_to_yaml(
-            site_rois,
+            self.rois,
             atom_roi,
             new_global_threshold,
             new_site_thresholds,
