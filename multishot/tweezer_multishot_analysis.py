@@ -5,7 +5,6 @@ from analysislib.common.tweezer_finding import TweezerFinder
 from analysislib.common.tweezer_histograms import TweezerThresholder
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
-from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from pathlib import Path
 '''
@@ -13,7 +12,7 @@ Do tweezer multishot analysis without doing auto roi detection. Plot loading rat
 Load data directly from 'tweezer_preprocess.h5' (this is the file generated after running tweezer_single_shot) to do multishot analysis.
 '''
 background_subtract = True
-USE_AVERAGED_BACKGROUND = True
+USE_AVERAGED_BACKGROUND = False
 PLOT_AVERAGED_IMAGES = False # Show averaged image(s) but takes longer time because need to process through all h5 files
 PLOT_TWO_IMAGES = False # only matters if PLOT_AVERAGED_IMAGES is set to True. If set to False, only plot the first image.
 folder = select_data_directory()
