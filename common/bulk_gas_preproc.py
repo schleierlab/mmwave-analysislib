@@ -41,8 +41,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
             load_type: str = 'lyse',
             h5_path: str = None,
             background = True,
-            beam_image = False
-            ):
+            beam_image = False,
+    ):
         """Initialize BulkGasAnalysis with analysis configuration.
 
         Parameters
@@ -331,7 +331,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             ax=axs[1, 0],
             cmap='magma',
             vmin=0,
-            # vmax=60,
+            vmax=20,
         )
 
         bkg_roi = self.background_roi
@@ -350,8 +350,6 @@ class BulkGasPreprocessor(ImagePreprocessor):
         )
 
     def show_state_sensitive_images(self, fig: Optional[Figure] = None, ):
-        fig.suptitle(self.h5_path, fontsize='x-small')
-
         if fig is None:
             fig, axs = plt.subplots(
                 nrows=2,
@@ -361,6 +359,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
             )
         else:
             axs = fig.subplots(nrows=2, ncols=1)
+
+        fig.suptitle(self.h5_path, fontsize='x-small')
 
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
