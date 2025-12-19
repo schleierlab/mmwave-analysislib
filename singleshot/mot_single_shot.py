@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-from analysislib.common.analysis_config import manta_tweezer_system, kinetix_system, manta_system, BulkGasAnalysisConfig
+from analysislib.common.analysis_config import manta_system, BulkGasAnalysisConfig
 from analysislib.common.bulk_gas_preproc import BulkGasPreprocessor
 from analysislib.common.bulk_gas_statistics import BulkGasStatistician
 from analysislib.common.image import ROI
@@ -34,7 +34,7 @@ else:
     processed_results_fname = bulk_gas_preproc.process_shot()
 
 
-fig = plt.figure(layout = "constrained", figsize = [10, 4])
+fig = plt.figure(layout="constrained", figsize=(10, 4))
 subfigs = fig.subfigures(nrows=1, ncols=2, wspace=0.07)
 
 bulk_gas_preproc.show_images(fig = subfigs[0])
