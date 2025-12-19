@@ -14,9 +14,7 @@ from numpy.typing import NDArray
 from scipy.stats import norm
 from sklearn.mixture import GaussianMixture
 
-from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI, Image
-from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.typing import StrPath
@@ -26,13 +24,31 @@ class TweezerThresholder:
     INDEX_NAME: ClassVar[str] = 'Tweezer index'
     COUNTS_NAME: ClassVar[str] = 'Counts'
     df: pd.DataFrame
+    '''
+    Dataframe of the form
+
+    ``
+            Tweezer index  Counts
+    0                 0      45
+    1                 0     306
+    2                 0     188
+    3                 0     142
+    4                 0      80
+    ...             ...     ...
+    9995             49     398
+    9996             49      82
+    9997             49      41
+    9998             49     531
+    9999             49     143
+    ``
+    '''
     rois: list[ROI]
     gmms: list[TweezerCountGMM]
     '''gaussian mixture models of the counts for each site'''
 
     def __init__(
             self,
-            images: Sequence[Image],
+            images: Optional[Sequence[Image]],
             rois: Sequence[ROI],
             weights: Sequence[NDArray | float] | float = 1,
             background_subtract: bool = False,
@@ -133,7 +149,13 @@ class TweezerThresholder:
             fig, ax = plt.subplots()
 
         inds = np.arange(self.n_sites)
-        ax.plot(inds, self.thresholds, color='red', linestyle='dashed', label = f'mean = {np.mean(self.thresholds)}')
+        ax.plot(
+            inds,
+            self.thresholds,
+            color='red',
+            linestyle='dashed',
+            label=f'mean: {np.mean(self.thresholds)}',
+        )
         for i in range(2):
             mean_i = self.means[:, i]
             std_i = self.stds[:, i]
@@ -166,6 +188,12 @@ class TweezerThresholder:
         ax.plot(np.arange(self.n_sites), self.infidelities, **plot_kw)
         ax.set_yscale('log')
 
+    def plot_histogram(self, ax: Optional[Axes] = None, **kwargs):
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        hist_kwargs = dict(bins=100) | kwargs
+        ax.hist(self.df['Counts'], **hist_kwargs)
 
 
 class TweezerCountGMM:
