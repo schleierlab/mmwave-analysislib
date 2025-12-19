@@ -9,8 +9,8 @@ from analysislib.common.plot_config import PlotConfig
 DO_GAUSSIAN_FIT = True
 analysis_config = BulkGasAnalysisConfig(
     imaging_system= manta_system,
-    exposure_time=1e-3,
-    atoms_roi= ROI(xmin=800, xmax=1100, ymin=900, ymax=1200),#full rangeROI(xmin=0, xmax=2048, ymin=0, ymax=2048),
+    exposure_time=1e-3,  # FIXME: do not hardcode this number; query it from the defaults/globals
+    atoms_roi=ROI(xmin=800, xmax=1100, ymin=900, ymax=1200),  # full range  ROI(xmin=0, xmax=2048, ymin=0, ymax=2048),
     bkg_roi=ROI(xmin=1900, xmax=2048, ymin=1900, ymax=2048),
 )
 
@@ -25,6 +25,7 @@ bulk_gas_preproc = BulkGasPreprocessor(
     config=analysis_config,
     load_type='lyse',
     h5_path=None,
+    # beam_image=True,
 )
 
 if DO_GAUSSIAN_FIT:

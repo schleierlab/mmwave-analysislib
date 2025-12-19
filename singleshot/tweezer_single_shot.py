@@ -7,7 +7,7 @@ from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
 import numpy as np
 
-SHOW_ROIS = False
+SHOW_ROIS = True
 SHOW_INDEX = True # site index will not show up if show_rois is set to False
 USE_AVERAGED_BACKGROUND = False
 FIT_TYPE_1D = None # do a curve fit at the final shot, set to None when don't do curve fit
@@ -15,6 +15,7 @@ FIT_TYPE_1D = None # do a curve fit at the final shot, set to None when don't do
 SHOW_IMG_ONLY = False
 EXACT_REARRANGEMENT = False
 PLOT_PAIR_STATES = False
+SHOW_HIST = False # show histagram for survival rate
 SAVE_DATA_CSV_FILE = False # need to be False for 2d scans!
 
 # Initialize analysis with background ROI and standard ROI loading
@@ -45,12 +46,12 @@ tweezer_statistician = TweezerStatistician(
 folder_path = os.path.dirname(tweezer_preproc.h5_path)
 if not SHOW_IMG_ONLY:
     if SAVE_DATA_CSV_FILE:
-        indep_var, survival_rates, survival_rate_errs = tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT, plot_pair_states = PLOT_PAIR_STATES)
+        indep_var, survival_rates, survival_rate_errs = tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT, plot_pair_states = PLOT_PAIR_STATES, show_hist = SHOW_HIST)
         np.savetxt(folder_path + "/data.csv", [indep_var, survival_rates, survival_rate_errs], delimiter=",")
     else:
-        tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT, plot_pair_states = PLOT_PAIR_STATES)
+        tweezer_statistician.plot_survival_rate(fig=subfigs[1], fit_type_1d = FIT_TYPE_1D, require_exact_rearrangement=EXACT_REARRANGEMENT, plot_pair_states = PLOT_PAIR_STATES, show_hist = SHOW_HIST)
 
-    tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2])
+    tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=True)
 
     # TODO: this function right now doesn't work with 2d parameter scan
 

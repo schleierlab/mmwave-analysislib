@@ -741,7 +741,6 @@ class TweezerStatistician(BaseStatistician):
         ax_plot.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
         survival_df = self.dataframe_survival(gb)
 
-        survival_df = self.dataframe_survival(gb)
         indep_var = survival_df.index
         survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
         survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
@@ -994,6 +993,25 @@ class TweezerStatistician(BaseStatistician):
         ax.axhline(0.5, color='red', linestyle='dashed')
         ax.axhline(np.average(unp.nominal_values(agg)), color = 'black', label = f'mean = {np.average(unp.nominal_values(agg))}')
         ax.legend()
+    
+    def plot_loading_rate_1d(self, ax: Axes):
+        df = self.dataframe()
+        gb = df.groupby([param.name for param in self.params])[self.KEY_INITIAL]
+        xlabel = self.params[0].axis_label
+        loading_rates_unc = gb.agg(self.binomial_rate_uncert)
+
+        ax.errorbar(
+            loading_rates_unc.index,
+            unp.nominal_values(loading_rates_unc),
+            yerr=unp.std_devs(loading_rates_unc),
+            **self.plot_config.errorbar_kw,
+        )
+
+        ax.set_ylabel('Loading rate')
+        ax.set_xlabel(xlabel)
+        ax.set_ylim(0, 1)
+        ax.axhline(0.5, color='red', linestyle='dashed')
+        ax.legend()
 
     def _setup_shot_index_secax(self, ax: Axes):
         run_time_nums = mdates.date2num(self.run_time_series())
@@ -1041,7 +1059,7 @@ class TweezerStatistician(BaseStatistician):
         )
         ax.set_ylabel('Array preparation fidelity')
 
-    def plot_tweezing_statistics(self, fig: Optional[Figure] = None):
+    def plot_tweezing_statistics(self, fig: Optional[Figure] = None, avg_loading_rate: bool = False):
         rows = 2 if self.rearrangement else 1
 
         if fig is None:
@@ -1051,16 +1069,19 @@ class TweezerStatistician(BaseStatistician):
         axs = np.atleast_1d(axs)
 
         fig.suptitle('Tweezing statistics')
-        self.plot_loading_rate(axs[0])
+        if avg_loading_rate:
+            self.plot_loading_rate_1d(axs[0])
+        else:
+            self.plot_loading_rate(axs[0])
 
-        if self.rearrangement:
-            self.plot_rearrangement_performance(axs[1])
+            if self.rearrangement:
+                self.plot_rearrangement_performance(axs[1])
 
-        self._setup_shot_index_secax(axs[0])
-        last_ax = axs[-1]
-        # https://stackoverflow.com/a/56139690
-        last_ax.set_xticks(last_ax.get_xticks(), last_ax.get_xticklabels(), rotation=45, ha='right')  # type: ignore
-        last_ax.set_xlabel('Shot time')
+            self._setup_shot_index_secax(axs[0])
+            last_ax = axs[-1]
+            # https://stackoverflow.com/a/56139690
+            last_ax.set_xticks(last_ax.get_xticks(), last_ax.get_xticklabels(), rotation=45, ha='right')  # type: ignore
+            last_ax.set_xlabel('Shot time')
 
         fig.align_ylabels()
 
