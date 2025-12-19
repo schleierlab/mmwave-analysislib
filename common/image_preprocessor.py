@@ -1,20 +1,18 @@
-from abc import abstractmethod, ABC
-import os
 from typing import Any, Optional, Literal
 
 import numpy as np
+import yaml
 
 import h5py
 
 from .analysis_config import ImagingSystem
 from analysislib.analysis.data import h5lyze as hz
-from analysislib.common.image import Image
-from typing import Union
-from os import PathLike
 from pathlib import Path
 
+from analysislib.common.typing import StrPath
 
-class ImagePreprocessor(ABC):
+
+class ImagePreprocessor:
     """Base class for image preprocessing.
 
     This class handles the basic image loading and preprocessing operations
@@ -45,7 +43,7 @@ class ImagePreprocessor(ABC):
             self,
             imaging_setup: ImagingSystem,
             load_type: Literal['lyse', 'h5'] = 'lyse',
-            h5_path: Optional[str] = None):
+            h5_path: Optional[StrPath] = None):
         """Initialize image preprocessing.
 
         Parameters
@@ -62,7 +60,6 @@ class ImagePreprocessor(ABC):
         self.exposures, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
-
         self.parameters = self.default_params | self.globals
 
         with h5py.File(self.h5_path, mode='r') as f:
@@ -70,7 +67,7 @@ class ImagePreprocessor(ABC):
             self.run_time = f.attrs['run time']
 
     # TODO migrate to using pathlib Paths instead
-    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[str] = None) -> Path:
+    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[StrPath] = None) -> Path:
         """
         get h5_path based on load_type
         Parameters
@@ -103,7 +100,6 @@ class ImagePreprocessor(ABC):
             raise ValueError("load_type must be 'lyse' or 'h5'")
 
         return h5_path
-
 
     # TODO unit tests for this
     def get_scanning_params(self,):
@@ -239,10 +235,44 @@ class ImagePreprocessor(ABC):
             for i in range(len(images))
         )
         return images_list, run_number, globals_dict, default_params
+    
+    @staticmethod
+    def _load_default_params_from_yaml(defaul_params_path: Path):
+        """
+        Load default parameters from YAML file.
 
-    @abstractmethod
-    def process_shot(self,) -> None:
+        Parameters
+        ----------
+        defaul_params_path : Path
+            Path to the YAML file containing the default parameters.
+
+        Returns
+        -------
+        default_params : dict
+            Dictionary of default parameters.
         """
-        Abstract method that should be overriden by subclasses to process the image data from a single shot.
+        with defaul_params_path.open('rt') as stream:
+            default_params = yaml.safe_load(stream)
+
+        return default_params
+
+    def _load_ylims_from_globals(self):
+        """Load the atom ROI y-coordinates from globals. Sometimes they change...
+        # TODO: further explanation
+
+        Returns
+        -------
+        atom_roi_ylims : list
+            List of y-coordinates for the atom ROI.
         """
-        raise NotImplementedError
+        try:
+            atom_roi_ymin, atom_roi_height = self.globals["kinetix_roi_row"]
+            atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
+        except KeyError:
+            try:
+                default_params = self._load_default_params_from_yaml(self.DEFAULT_PARAMS_PATH)
+                atom_roi_ymin, atom_roi_height  = np.array(eval(default_params["Tweezers"]["kinetix_roi_row"]['value']))
+                atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
+            except KeyError:
+                raise KeyError('kinetix_roi_row not found in globals')
+        return atom_roi_ylims

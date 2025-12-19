@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import ClassVar, Optional
 from pathlib import Path
+from typing import ClassVar, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,19 +11,22 @@ import scipy.optimize
 import seaborn as sns
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
-from sklearn.mixture import GaussianMixture
 from scipy.stats import norm
+from sklearn.mixture import GaussianMixture
 
+from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI, Image
+from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
+from analysislib.common.typing import StrPath
 
 
 class TweezerThresholder:
     INDEX_NAME: ClassVar[str] = 'Tweezer index'
     COUNTS_NAME: ClassVar[str] = 'Counts'
     df: pd.DataFrame
-    rois = list[ROI]
+    rois: list[ROI]
     gmms: list[TweezerCountGMM]
     '''gaussian mixture models of the counts for each site'''
 
@@ -75,6 +78,9 @@ class TweezerThresholder:
         )
 
     def fit_gmms(self):
+        '''
+        Fit Gaussian mixture models to the tweezer fluorescence histograms.
+        '''
         self.gmms = [
             TweezerCountGMM(self.df[self.df['Tweezer index'] == i]['Counts'])
             for i in range(self.n_sites)
@@ -85,7 +91,7 @@ class TweezerThresholder:
         self.loading_rates = np.array([gmm.weights[1] for gmm in self.gmms])
         self.infidelities = np.array([gmm.infidelity_at_threshold() for gmm in self.gmms])
 
-    def overwrite_thresholds_to_yaml(self, folder: str):
+    def overwrite_thresholds_to_yaml(self, folder: StrPath):
         """
         Overwrite the global and site thresholds in the roi_config.yml file, to be used by all subsequent
         TweezerPreprocessor instances.
@@ -107,7 +113,6 @@ class TweezerThresholder:
         shots_h5s = sequence_dir.glob('20*.h5')
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
         atom_roi = processor.atom_roi
-        site_rois = processor.site_rois
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
         # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
@@ -115,7 +120,7 @@ class TweezerThresholder:
 
         roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
         output_path = TweezerPreprocessor.dump_to_yaml(
-            site_rois,
+            self.rois,
             atom_roi,
             new_global_threshold,
             new_site_thresholds,
