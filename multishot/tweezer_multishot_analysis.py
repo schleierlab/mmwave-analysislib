@@ -1,3 +1,4 @@
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 
@@ -6,7 +7,6 @@ from analysislib.common.tweezer_histograms import TweezerThresholder
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
 from analysislib.common.tweezer_statistics import TweezerStatistician
-from pathlib import Path
 '''
 Do tweezer multishot analysis without doing auto roi detection. Plot loading rate, histagrams, imaging fidelity...
 Load data directly from 'tweezer_preprocess.h5' (this is the file generated after running tweezer_single_shot) to do multishot analysis.
@@ -18,9 +18,9 @@ PLOT_TWO_IMAGES = False # only matters if PLOT_AVERAGED_IMAGES is set to True. I
 folder = select_data_directory()
 
 tweezer_preproc = TweezerPreprocessor(
-        load_type='h5',
-        h5_path = next(folder.glob('20*0.h5')), # needed h5 file only to look at kinetix_roi_raw -- is there a better way to do this?
-    )
+    load_type='h5',
+    h5_path = next(folder.glob('20*0.h5')), # needed h5 file only to look at kinetix_roi_raw -- is there a better way to do this?
+)
 new_site_rois = tweezer_preproc.site_rois
 preproc_h5_path = Path(folder) / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
 
@@ -46,6 +46,9 @@ thresholder = TweezerThresholder(
 
 thresholder.fit_gmms() # gmm stands for Gaussian mixture model
 thresholder.overwrite_thresholds_to_yaml(folder)
+
+fig_hist, ax_hist = plt.subplots(layout='constrained')
+thresholder.plot_histogram(ax_hist)
 
 # TODO: add function to plot averaged tweezer image
 fig, axs = plt.subplots(nrows=4, ncols=1, sharex=True, layout='constrained')
