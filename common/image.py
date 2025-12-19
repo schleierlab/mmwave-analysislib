@@ -21,7 +21,9 @@ MaybeInt = Optional[int]
 class ROI(NamedTuple):
     '''
     Barebones class to wrap the four numbers needed to specify a ROI (region of interest) in an image.
-    xmin and ymin are inclusive, xmax and ymax are exclusive.
+    Parameters xmin and ymin are inclusive, xmax and ymax are exclusive, and are
+    all given in units of pixels. Thus, the center pixel of ROI(xmin=13, xmax=18, ymin=25, ymax=30),
+    a 5px x 5px region, is (x, y) = (15, 27).
     '''
     xmin: MaybeInt
     xmax: MaybeInt
@@ -43,7 +45,7 @@ class ROI(NamedTuple):
     def patch(self, scale_factor: float = 1.0, **kwargs):
         default_kw = dict(linewidth=0.75, edgecolor='r', facecolor='none')
         return patches.Rectangle(
-            (self.xmin * scale_factor - 0.5, self.ymin * scale_factor - 0.5),
+            ((self.xmin - 0.5) * scale_factor, (self.ymin - 0.5) * scale_factor),
             self.width * scale_factor, self.height * scale_factor,
             **(default_kw | kwargs),
         )
@@ -56,7 +58,7 @@ class ROI(NamedTuple):
             min(roi.ymin for roi in rois),
             max(roi.ymax for roi in rois),
         )
-    
+
     @classmethod
     def from_center(cls, center_x: float, center_y: float, size: int) -> ROI:
         if size < 1:
@@ -73,7 +75,9 @@ class ROI(NamedTuple):
         )
 
     @classmethod
-    def from_roi_xy(cls, roi_x: tuple[MaybeInt, MaybeInt], roi_y: tuple[MaybeInt, MaybeInt]):
+    def from_roi_xy(
+        cls, roi_x: tuple[MaybeInt, MaybeInt], roi_y: tuple[MaybeInt, MaybeInt]
+    ):
         return cls(roi_x[0], roi_x[1], roi_y[0], roi_y[1])
 
     @staticmethod
@@ -85,7 +89,13 @@ class ROI(NamedTuple):
         return [ROI(roi[0], roi[1], roi[2], roi[3]) for roi in arr]
 
     @staticmethod
-    def plot_rois(ax: Axes, rois: Sequence[ROI], edgecolors: Optional[Sequence[ColorType]] = None, label_sites: Optional[int] = 5, plot_config: Optional[PlotConfig] = None):
+    def plot_rois(
+        ax: Axes,
+        rois: Sequence[ROI],
+        edgecolors: Optional[Sequence[ColorType]] = None,
+        label_sites: Optional[int] = 5,
+        plot_config: Optional[PlotConfig] = None,
+    ):
         plotconfig = plot_config or PlotConfig()
         edgecolor_iter = itertools.repeat('yellow') if edgecolors is None else edgecolors
         patches = tuple(
@@ -100,7 +110,7 @@ class ROI(NamedTuple):
         if label_sites <= 0:
             raise ValueError
         for j, roi in enumerate(rois):
-            if j % label_sites == 0:                
+            if j % label_sites == 0:
                 # asserts to placate mypy
                 if roi.xmin is None or roi.ymin is None:
                     raise ValueError
@@ -233,7 +243,13 @@ class Image:
     def roi_sums(self, rois: Sequence[ROI]):
         return np.array([self.roi_sum(roi) for roi in rois])
 
-    def detect_site_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int, restricted_ROI = None,):
+    def detect_site_rois(
+            self,
+            neighborhood_size: int,
+            detection_threshold: float,
+            roi_size: int,
+            restricted_ROI = None,
+    ):
         from scipy import ndimage
 
         if restricted_ROI is None:
