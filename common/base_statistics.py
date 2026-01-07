@@ -69,8 +69,8 @@ class BaseStatistician(ABC):
         unique_params() will only have six entries, each of length 2:
         [[0, 10], [0, 20], [0, 30], ...]
         '''
-        _, inds = np.unique(self._loop_params(), axis=0, return_index=True)
-        return self._loop_params()[sorted(inds)]
+        _, inds = np.unique(self.current_params, axis=0, return_index=True)
+        return self.current_params[sorted(inds)]
 
     @property
     def expansion_ndim(self) -> int:
@@ -78,10 +78,6 @@ class BaseStatistician(ABC):
 
     # TODO: maybe we can keep all of our fitting functions here, so that both child classes
     # have access to them and we keep fitting functionality in one place.
-
-    @staticmethod
-    def quadratic(x, a, offset, x_0):
-        return a*(x - x_0)**2 + offset
 
     @staticmethod
     # Define the damped Rabi oscillation model

@@ -12,14 +12,16 @@ from pathlib import Path
 from scipy import optimize
 from scipy.constants import k as k_B, pi
 
+from analysislib.common.base_statistics import BaseStatistician
+from analysislib.common.constants import cesium_atomic_mass
+from analysislib.common.plot_config import PlotConfig
+from analysislib.common.typing import StrPath
+
 try:
     lyse
 except NameError:
     import lyse # needed for MLOOP
 
-from .constants import cesium_atomic_mass
-from .plot_config import PlotConfig
-from .base_statistics import BaseStatistician
 
 # TODO make these a shared resource, also include preferred plot units and scale factor
 globals_friendly_names = {
@@ -50,8 +52,8 @@ class BulkGasStatistician(BaseStatistician):
 
     def __init__(self,
                  preproc_h5_path: str,
-                 shot_h5_path: str,
-                 plot_config: PlotConfig = None,
+                 shot_h5_path: StrPath,
+                 plot_config: Optional[PlotConfig] = None,
                  multi_image: bool = False
                  ):
         super().__init__()
@@ -91,7 +93,7 @@ class BulkGasStatistician(BaseStatistician):
                     self.gaussian_cloud_params_cov.append(f['gaussian_cloud_params_cov'][:, i])
 
 
-    def _save_mloop_params(self, shot_h5_path: str) -> None:
+    def _save_mloop_params(self, shot_h5_path: StrPath) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
         MLOOP reads the results of any experiment from the latest shot h5 file,
@@ -105,7 +107,7 @@ class BulkGasStatistician(BaseStatistician):
         """
         # Save values for MLOOP
         # Save sequence analysis result in latest run
-        run = lyse.Run(h5_path=shot_h5_path)
+        run = lyse.Run(h5_path=str(shot_h5_path))
         my_condition = True
         # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
         # with h5py.File(shot_h5_path, mode='r+') as f:
@@ -162,15 +164,16 @@ class BulkGasStatistician(BaseStatistician):
 
         return means, stds
 
-    @property
-    def unique_params(self) -> NDArray:
-        """
-        Returns
-        -------
-        unique_params: NDArray, shape (n_unique_param_combos,)
-        """
-        # print(self.current_params)
-        return np.unique(self.current_params, axis=0)
+    # commented out in favor of implementation in superclass
+    # @property
+    # def unique_params_local(self) -> NDArray:
+    #     """
+    #     Returns
+    #     -------
+    #     unique_params: NDArray, shape (n_unique_param_combos,)
+    #     """
+    #     # print(self.current_params)
+    #     return np.unique(self.current_params, axis=0)
 
     # TODO promote this to BaseStatistician?
     def mean_values_by_unique_params(self, values: ArrayLike, add_std_errs: bool = False) -> NDArray:
@@ -190,7 +193,7 @@ class BulkGasStatistician(BaseStatistician):
         values = np.asarray(values)
 
         meaned_values = []
-        for param_combo in self.unique_params:
+        for param_combo in self.unique_params():
             mask = np.all(self.current_params == param_combo, axis=1)
             mean_value_this_paramcombo = np.mean(values[mask], axis=0)
             if add_std_errs:
@@ -240,7 +243,7 @@ class BulkGasStatistician(BaseStatistician):
             ax.plot(self.atom_numbers, 'o')
 
             ax.set_title(
-                self.folder_path,
+                str(self.folder_path),
                 fontsize=8,
             )
 
@@ -275,7 +278,7 @@ class BulkGasStatistician(BaseStatistician):
             ])
 
             ax.set_title(
-                self.folder_path,
+                str(self.folder_path),
                 fontsize=8,
             )
 
@@ -403,7 +406,7 @@ class BulkGasStatistician(BaseStatistician):
             on the plot.
         """
         # assume 1D scan
-        unique_params = self.unique_params[:, 0]
+        unique_params = self.unique_params()[:, 0]
 
         # Create subplots
         if fig is None:
@@ -586,8 +589,7 @@ class BulkGasStatistician(BaseStatistician):
             on the plot.
         """
         # assume 1D scan
-        # print(self.unique_params)
-        unique_params = self.unique_params[:, 0]
+        unique_params = self.unique_params()[:, 0]
 
         # Create subplots
         if fig is None:

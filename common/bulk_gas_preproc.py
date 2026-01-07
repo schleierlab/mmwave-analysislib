@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import ClassVar, Literal, cast, Optional
 
 import h5py
@@ -11,9 +10,10 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 from scipy.constants import pi
 
-from .analysis_config import BulkGasAnalysisConfig
-from .image import Image, ROI
-from .image_preprocessor import ImagePreprocessor
+from analysislib.common.analysis_config import BulkGasAnalysisConfig
+from analysislib.common.image import Image, ROI
+from analysislib.common.image_preprocessor import ImagePreprocessor
+from analysislib.common.typing import StrPath
 
 
 class BulkGasPreprocessor(ImagePreprocessor):
@@ -38,8 +38,8 @@ class BulkGasPreprocessor(ImagePreprocessor):
     def __init__(
             self,
             config: BulkGasAnalysisConfig,
-            load_type: str = 'lyse',
-            h5_path: str = None,
+            load_type: Literal['lyse', 'h5'] = 'lyse',
+            h5_path: Optional[StrPath] = None,
             background = True,
             beam_image = False,
     ):
@@ -317,7 +317,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             axs = fig.subplots(nrows=2, ncols=2)
 
         fig.suptitle(
-            self.h5_path,
+            str(self.h5_path),
             fontsize=8,
         )
         fig.supxlabel('Length (mm)')
@@ -332,6 +332,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         axs[0, 0].set_title('Raw, with atoms')
         axs[0, 1].set_title('Raw, without atoms')
         for i, img in enumerate([img_obj.array, img_obj.background]):
+            assert not isinstance(img, int)  # should not use without actual background img
             cast(Axes, axs[0, i]).imshow(
                 img,
                 cmap='magma',
@@ -379,7 +380,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         else:
             axs = fig.subplots(nrows=2, ncols=1)
 
-        fig.suptitle(self.h5_path, fontsize='x-small')
+        fig.suptitle(str(self.h5_path), fontsize='x-small')
 
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
