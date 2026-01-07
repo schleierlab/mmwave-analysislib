@@ -80,9 +80,28 @@ class BulkGasPreprocessor(ImagePreprocessor):
         # Set class-specific attributes
         self.atoms_roi = config.atoms_roi
         self.background_roi = config.bkg_roi
+
+        # MOT beam cooling light powers at TA AOM = 0.4 V
+        # X: 14.0 mW
+        # Y: 10.6 mW
+        # Z: 11.4 mW
+        # beam is collimated with a 35 mm plano-convex lens out of
+        # Thorlabs P3-780PM-FC-10 fibers (2w_0 = 5.3 +/- 1.0 um mode field diameter)
+        # w_0 * w(f) = f * \lambda / \pi (Siegman 17.24)
+        # w(f) = f * \lambda / \pi w_0
+        # I = 2 P / \pi w^2 = 2 P \pi (w_0 / f \lambda)^2
+        cesium_d2_lambda = 852.34727582e-9  # from Steck
+        fiber_waist = 5.3e-6 / 2
+        collimator_focal_length = 35e-3
+        intensity_per_power = 2 * np.pi * (fiber_waist / (collimator_focal_length * cesium_d2_lambda))**2
+        total_intensity = (14.0 + 10.6 + 11.4) * 1e-3 * intensity_per_power * 2
+        saturation_intensity = 27.059  # W / m^2, Steck
+
         self.counts_per_atom = self.imaging_setup.counts_per_atom(
             self.scattering_rate,
             config.exposure_time,
+            saturation_param=total_intensity/saturation_intensity,
+            detuning=0,
         )
         if background:
             background_exposure = self.exposures[-1]
