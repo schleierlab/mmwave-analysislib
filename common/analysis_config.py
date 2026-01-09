@@ -140,7 +140,7 @@ class ImagingSystem:
 
 
 # Pre-configured camera systems
-manta_MOT = ImagingCamera(
+manta_mot = ImagingCamera(
     pixel_size=5.5e-6,
     image_size=2048,
     quantum_efficiency=0.4,
@@ -158,7 +158,7 @@ manta_tweezer = ImagingCamera(
     image_name_stem='manta',
 )
 
-manta_camera_x2 = ImagingCamera(
+manta_local_addr = ImagingCamera(
     pixel_size=5.5e-6,
     image_size=2048,
     quantum_efficiency=0.4,
@@ -169,12 +169,12 @@ manta_camera_x2 = ImagingCamera(
 )
 
 
-manta_system = ImagingSystem(
+manta_mot_system = ImagingSystem(
     imaging_f=50e-3,
     objective_f=125e-3,
     lens_diameter=25.4e-3,
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
-    camera=manta_MOT,
+    camera=manta_mot,
 )
 
 manta_tweezer_system = ImagingSystem(
@@ -187,12 +187,12 @@ manta_tweezer_system = ImagingSystem(
 
 #Some of these need to be fixed, but it doesn't quite matter if the alignment calibration is just using pixels.
 #Either way, should note down what we're actually using.
-local_addr_align_system = ImagingSystem(
+manta_local_addr_align_system = ImagingSystem(
     imaging_f=50e-3,
     objective_f=125e-3,
     lens_diameter=25.4e-3,
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
-    camera=manta_camera_x2,
+    camera=manta_local_addr,
 )
 
 kinetix_camera = ImagingCamera(

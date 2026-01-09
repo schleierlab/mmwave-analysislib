@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-from analysislib.common.analysis_config import local_addr_align_system, BulkGasAnalysisConfig
+from analysislib.common.analysis_config import manta_local_addr_align_system, BulkGasAnalysisConfig
 from analysislib.common.bulk_gas_preproc import BulkGasPreprocessor
 from analysislib.common.bulk_gas_statistics import BulkGasStatistician
 from analysislib.common.image import ROI
@@ -8,7 +8,7 @@ from analysislib.common.plot_config import PlotConfig
 
 DO_GAUSSIAN_FIT = True
 analysis_config = BulkGasAnalysisConfig(
-    imaging_system=local_addr_align_system,
+    imaging_system=manta_local_addr_align_system,
     exposure_time=1e-3,
     atoms_roi=ROI(xmin=0, xmax=2048, ymin=0, ymax=2048),#(xmin=300, xmax=1500, ymin=450, ymax=1050),
     bkg_roi=ROI(xmin=1900, xmax=2048, ymin=1900, ymax=2048),
