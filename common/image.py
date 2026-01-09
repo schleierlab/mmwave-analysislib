@@ -1,23 +1,29 @@
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple, Optional, Union, cast
 
 import numpy as np
-from matplotlib import patches, pyplot as plt
+from matplotlib import patches
+from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.collections import PatchCollection
+from matplotlib.typing import ColorType
 from numpy.typing import ArrayLike, NDArray
 from scipy import optimize
-from scipy.constants import pi
-from pathlib import Path
+
+from analysislib.common.plot_config import PlotConfig
 
 MaybeInt = Optional[int]
 
 class ROI(NamedTuple):
     '''
     Barebones class to wrap the four numbers needed to specify a ROI (region of interest) in an image.
-    xmin and ymin are inclusive, xmax and ymax are exclusive.
+    Parameters xmin and ymin are inclusive, xmax and ymax are exclusive, and are
+    all given in units of pixels. Thus, the center pixel of ROI(xmin=13, xmax=18, ymin=25, ymax=30),
+    a 5px x 5px region, is (x, y) = (15, 27).
     '''
     xmin: MaybeInt
     xmax: MaybeInt
@@ -39,12 +45,13 @@ class ROI(NamedTuple):
     def patch(self, scale_factor: float = 1.0, **kwargs):
         default_kw = dict(linewidth=0.75, edgecolor='r', facecolor='none')
         return patches.Rectangle(
-            (self.xmin * scale_factor, self.ymin * scale_factor),
+            ((self.xmin - 0.5) * scale_factor, (self.ymin - 0.5) * scale_factor),
             self.width * scale_factor, self.height * scale_factor,
             **(default_kw | kwargs),
         )
 
-    def bounding_box(rois: Sequence[ROI]):
+    @staticmethod
+    def bounding_box(rois: Sequence[ROI]) -> ROI:
         return ROI(
             min(roi.xmin for roi in rois),
             max(roi.xmax for roi in rois),
@@ -53,7 +60,24 @@ class ROI(NamedTuple):
         )
 
     @classmethod
-    def from_roi_xy(cls, roi_x: tuple[MaybeInt, MaybeInt], roi_y: tuple[MaybeInt, MaybeInt]):
+    def from_center(cls, center_x: float, center_y: float, size: int) -> ROI:
+        if size < 1:
+            raise ValueError('size must be positive integer')
+        halfsize = size / 2
+        # the extra +0.5 terms make sure that center pixel is in the middle
+        # when we use the ROI bounds as a slice(inclusive left endpt, exclusive right endpt),
+        # as we normally do for tweezers
+        return cls(
+            int(center_x - halfsize + 0.5),
+            int(center_x + halfsize + 0.5),
+            int(center_y - halfsize + 0.5),
+            int(center_y + halfsize + 0.5),
+        )
+
+    @classmethod
+    def from_roi_xy(
+        cls, roi_x: tuple[MaybeInt, MaybeInt], roi_y: tuple[MaybeInt, MaybeInt]
+    ):
         return cls(roi_x[0], roi_x[1], roi_y[0], roi_y[1])
 
     @staticmethod
@@ -63,6 +87,39 @@ class ROI(NamedTuple):
     @staticmethod
     def fromarray(arr: ArrayLike) -> list[ROI]:
         return [ROI(roi[0], roi[1], roi[2], roi[3]) for roi in arr]
+
+    @staticmethod
+    def plot_rois(
+        ax: Axes,
+        rois: Sequence[ROI],
+        edgecolors: Optional[Sequence[ColorType]] = None,
+        label_sites: Optional[int] = 5,
+        plot_config: Optional[PlotConfig] = None,
+    ):
+        plotconfig = plot_config or PlotConfig()
+        edgecolor_iter = itertools.repeat('yellow') if edgecolors is None else edgecolors
+        patches = tuple(
+            roi.patch(edgecolor=edgecolor, alpha=0.6)
+            for roi, edgecolor in zip(rois, edgecolor_iter)
+        )
+        collection = PatchCollection(patches, match_original=True)
+        ax.add_collection(collection)
+
+        if label_sites is None:
+            return
+        if label_sites <= 0:
+            raise ValueError
+        for j, roi in enumerate(rois):
+            if j % label_sites == 0:
+                # asserts to placate mypy
+                if roi.xmin is None or roi.ymin is None:
+                    raise ValueError
+
+                ax.annotate(
+                    str(j), # The site index to display
+                    xy=(roi.xmin, roi.ymin - 5), # Position of the text
+                    **plotconfig.tweezer_index_label_kw,
+                )
 
 
 @dataclass
@@ -104,26 +161,28 @@ class Image:
     def background_image(self) -> Image:
         return Image(self.bkg_array, background=0, yshift=self.yshift)
 
-    @staticmethod
-    def mean(images: Sequence[Image]) -> Image:
+    @classmethod
+    def mean(cls, images: Sequence[Image]) -> Image:
         """
         This is not a function to average the images across different
         h5 files. The input has to be a list of [Image] instead of [Images]
         """
-        # sho
-        # computed manually to allow for broadcasted backgrounds
-        # use larger ints to avoid overflow
-        background = sum(image.background.astype(np.int32) for image in images) / len(images)
-
         yshift = images[0].yshift
         if any(image.yshift != yshift for image in images[1:]):
             raise ValueError('All images must have the same yshift.')
 
         return Image(
             np.mean([image.array for image in images], axis=0),
-            background,
+            cls.mean_background(images),
             yshift,
         )
+
+    @staticmethod
+    def mean_background(images: Sequence[Image]) -> NDArray:
+        # computed manually to allow for broadcasted backgrounds
+        # use larger ints to avoid overflow
+        bkg_generator = (np.asarray(image.background).astype(np.int32) for image in images)
+        return sum(bkg_generator, start=np.array(0)) / len(images)  # need np.array in start to guarantee NDArray output
 
     def roi_view(self, roi: ROI):
         '''
@@ -138,7 +197,13 @@ class Image:
             roi.xmin:roi.xmax,
         ]
 
-    def imshow_view(self, roi: ROI = None, scale_factor: float = 1.0, ax: Optional[Axes] = None, **kwargs):
+    def imshow_view(
+            self,
+            roi: Optional[ROI] = None,
+            scale_factor: float = 1.0,
+            ax: Optional[Axes] = None,
+            **kwargs,
+    ):
         '''
         Parameters
         ----------
@@ -158,9 +223,9 @@ class Image:
             )
         else:
             im = ax.imshow(
-            self.roi_view(roi),
-            extent=(scale_factor * np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin])),
-            **kwargs,
+                self.roi_view(roi),
+                extent=(scale_factor * (np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin]) - 0.5)),
+                **kwargs,
             )
 
 
@@ -178,10 +243,24 @@ class Image:
     def roi_sums(self, rois: Sequence[ROI]):
         return np.array([self.roi_sum(roi) for roi in rois])
 
-    def detect_site_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int):
+    def detect_site_rois(
+            self,
+            neighborhood_size: int,
+            detection_threshold: float,
+            roi_size: int,
+            restricted_ROI = None,
+    ):
         from scipy import ndimage
 
-        data = self.subtracted_array
+        if restricted_ROI is None:
+            data = self.subtracted_array
+            x_shift = 0
+            y_shift = self.yshift
+        else:
+            data = self.roi_view(restricted_ROI)
+            x_shift = restricted_ROI.xmin
+            y_shift = restricted_ROI.ymin
+
         data_maxfilt = ndimage.maximum_filter(data, neighborhood_size)
         data_minfilt = ndimage.minimum_filter(data, neighborhood_size)
 
@@ -199,17 +278,12 @@ class Image:
         )
 
         site_rois: list[ROI] = []
-        halfsize = roi_size / 2
         for dy, dx in slices:
-            center_x = (dx.start + dx.stop) / 2
-            center_y = self.yshift + (dy.start + dy.stop) / 2
+            center_x = x_shift + (dx.start + dx.stop) / 2
+            center_y = y_shift + (dy.start + dy.stop) / 2
 
-            site_rois.append(ROI(
-                int(center_x - halfsize),
-                int(center_x + halfsize),
-                int(center_y - halfsize),
-                int(center_y + halfsize),
-            ))
+            site_rois.append(ROI.from_center(center_x, center_y, roi_size))
+
         # Sort rois by x1 coordinate
         # We want to sort the site rois from x large to x small, because x large corresponds to site 0 for rearrangement
         # (which is also the site with the smallest frquency)
@@ -217,7 +291,7 @@ class Image:
 
         return site_rois
 
-    def roi_fit_gaussian2d(self, roi: ROI, uniform = False):
+    def roi_fit_gaussian2d(self, roi: ROI, uniform = False, small_dot = False):
         """
         Fits a 2D Gaussian function to the image data.
         Mainly intended to fit images of the MOT.
@@ -229,14 +303,18 @@ class Image:
         x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
         width_guess = roi.width/4
         height_guess = roi.height/4
+        if small_dot:
+            width_guess = width_guess/8
+            height_guess = height_guess/8
         z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
         offset_guess = np.min(roiview)
+        print(x0_guess, y0_guess, a_guess)
 
         if uniform:
             p0 = [x0_guess, y0_guess, width_guess, a_guess, offset_guess]
             return optimize.curve_fit(
-                lambda xy, x0, y0, width, peak_height, offset :self.gaussian2d_uniform(xy, x0, y0, width, peak_height, offset),
+                lambda xy, x0, y0, width, peak_height, offset: self.gaussian2d_uniform(xy, x0, y0, width, peak_height, offset),
                 xys,
                 roiview.ravel(),
                 p0=p0,

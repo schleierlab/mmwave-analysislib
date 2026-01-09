@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import ClassVar, Optional
 from pathlib import Path
+from typing import ClassVar, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,25 +11,44 @@ import scipy.optimize
 import seaborn as sns
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
-from sklearn.mixture import GaussianMixture
 from scipy.stats import norm
+from sklearn.mixture import GaussianMixture
 
 from analysislib.common.image import ROI, Image
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
+from analysislib.common.typing import StrPath
 
 
 class TweezerThresholder:
     INDEX_NAME: ClassVar[str] = 'Tweezer index'
     COUNTS_NAME: ClassVar[str] = 'Counts'
     df: pd.DataFrame
-    rois = list[ROI]
+    '''
+    Dataframe of the form
+
+    ``
+            Tweezer index  Counts
+    0                 0      45
+    1                 0     306
+    2                 0     188
+    3                 0     142
+    4                 0      80
+    ...             ...     ...
+    9995             49     398
+    9996             49      82
+    9997             49      41
+    9998             49     531
+    9999             49     143
+    ``
+    '''
+    rois: list[ROI]
     gmms: list[TweezerCountGMM]
     '''gaussian mixture models of the counts for each site'''
 
     def __init__(
             self,
-            images: Sequence[Image],
+            images: Optional[Sequence[Image]],
             rois: Sequence[ROI],
             weights: Sequence[NDArray | float] | float = 1,
             background_subtract: bool = False,
@@ -75,6 +94,9 @@ class TweezerThresholder:
         )
 
     def fit_gmms(self):
+        '''
+        Fit Gaussian mixture models to the tweezer fluorescence histograms.
+        '''
         self.gmms = [
             TweezerCountGMM(self.df[self.df['Tweezer index'] == i]['Counts'])
             for i in range(self.n_sites)
@@ -85,7 +107,7 @@ class TweezerThresholder:
         self.loading_rates = np.array([gmm.weights[1] for gmm in self.gmms])
         self.infidelities = np.array([gmm.infidelity_at_threshold() for gmm in self.gmms])
 
-    def overwrite_thresholds_to_yaml(self, folder: str):
+    def overwrite_thresholds_to_yaml(self, folder: StrPath):
         """
         Overwrite the global and site thresholds in the roi_config.yml file, to be used by all subsequent
         TweezerPreprocessor instances.
@@ -107,7 +129,6 @@ class TweezerThresholder:
         shots_h5s = sequence_dir.glob('20*.h5')
         processor = TweezerPreprocessor(load_type='h5', h5_path=next(shots_h5s))
         atom_roi = processor.atom_roi
-        site_rois = processor.site_rois
         # The only reason we have to load the atom_roi this way, is because atom_roi_ylims is loaded
         # from the globals stored in the shot.h5 as tw_kinetix_roi_row.
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
@@ -115,7 +136,7 @@ class TweezerThresholder:
 
         roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
         output_path = TweezerPreprocessor.dump_to_yaml(
-            site_rois,
+            self.rois,
             atom_roi,
             new_global_threshold,
             new_site_thresholds,
@@ -128,7 +149,13 @@ class TweezerThresholder:
             fig, ax = plt.subplots()
 
         inds = np.arange(self.n_sites)
-        ax.plot(inds, self.thresholds, color='red', linestyle='dashed', label = f'mean = {np.mean(self.thresholds)}')
+        ax.plot(
+            inds,
+            self.thresholds,
+            color='red',
+            linestyle='dashed',
+            label=f'mean: {np.mean(self.thresholds)}',
+        )
         for i in range(2):
             mean_i = self.means[:, i]
             std_i = self.stds[:, i]
@@ -161,6 +188,12 @@ class TweezerThresholder:
         ax.plot(np.arange(self.n_sites), self.infidelities, **plot_kw)
         ax.set_yscale('log')
 
+    def plot_histogram(self, ax: Optional[Axes] = None, **kwargs):
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        hist_kwargs = dict(bins=100) | kwargs
+        ax.hist(self.df['Counts'], **hist_kwargs)
 
 
 class TweezerCountGMM:

@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
 
 import numpy as np
-import yaml
 
 from .image import ROI
 
@@ -35,6 +33,8 @@ class ImagingCamera:
     gain: float
     image_group_name: str
     image_name_stem: str
+    image_group_name2: str = "None"
+
 
 
 @dataclass
@@ -86,7 +86,7 @@ class ImagingSystem:
         cone_half_angle = np.arctan(self.lens_diameter / (2 * self.objective_f))
         return (1 - np.cos(cone_half_angle)) / 2
 
-    def counts_per_atom(self, scattering_rate, exposure_time):
+    def counts_per_atom(self, gamma, exposure_time, saturation_param=np.inf, detuning=0):
         """
         For an image of atoms with given scattering rate taken with a given exposure time,
         find the camera counts per atom we expect with this imaging setup.
@@ -94,18 +94,43 @@ class ImagingSystem:
 
         Parameters
         ----------
-        scattering_rate : float
-            Scattering rate (Γ) for atoms being imaged
+        gamma : float
+            Transition rate (Γ) for atomic transition being imaged, in 1/s
         exposure_time : float
             Exposure time in seconds
+        saturation_param : float, optional
+            The *total* illumination intensity, normalized by the atomic saturation intensity.
+        detuning : float, optional
+            Detuning of the illumination light from the atomic resonance, in Hz
 
         Returns
         -------
         float
             Expected camera counts per atom
+
+        Examples
+        --------
+        >>> counts_per_atom(gamma, exposure_time)
+
+        Compute the count rate in the limit of highly saturated illumination.
+
+        >>> counts_per_atom(gamma, exposure_time, saturation_param=1)
+
+        Compute the count rate on resonance assuming saturation illumination.
+
+        >>> counts_per_atom(gamma, exposure_time, detuning=(-gamma / 2 / np.pi))
+
+        Count rate at a detuning of -\Gamma in the saturated limit.
         """
+        s = saturation_param
+        if s == np.inf:
+            scattering_multiplier = 1
+        else:
+            scattering_multiplier = s / (1 + s + 4 * (2 * np.pi * detuning / gamma)**2)
+        scattering_rate = scattering_multiplier * (gamma / 2)
+
         count_rate_per_atom = (
-            scattering_rate/2
+            scattering_rate
             * self.solid_angle_fraction
             * self.imaging_loss
             * self.camera.quantum_efficiency
@@ -115,7 +140,7 @@ class ImagingSystem:
 
 
 # Pre-configured camera systems
-manta_camera = ImagingCamera(
+manta_mot = ImagingCamera(
     pixel_size=5.5e-6,
     image_size=2048,
     quantum_efficiency=0.4,
@@ -124,12 +149,50 @@ manta_camera = ImagingCamera(
     image_name_stem='manta',
 )
 
-manta_system = ImagingSystem(
+manta_tweezer = ImagingCamera(
+    pixel_size=5.5e-6,
+    image_size=2048,
+    quantum_efficiency=0.4,
+    gain=1,
+    image_group_name='manta419b_tweezer_images',
+    image_name_stem='manta',
+)
+
+manta_local_addr = ImagingCamera(
+    pixel_size=5.5e-6,
+    image_size=2048,
+    quantum_efficiency=0.4,
+    gain=1,
+    image_group_name='manta419b_tweezer_images',
+    image_group_name2='manta419b_local_addr_images',
+    image_name_stem='manta',
+)
+
+
+manta_mot_system = ImagingSystem(
     imaging_f=50e-3,
     objective_f=125e-3,
     lens_diameter=25.4e-3,
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
-    camera=manta_camera,
+    camera=manta_mot,
+)
+
+manta_tweezer_system = ImagingSystem(
+    imaging_f=50e-3,
+    objective_f=125e-3,
+    lens_diameter=25.4e-3,
+    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
+    camera=manta_tweezer,
+)
+
+#Some of these need to be fixed, but it doesn't quite matter if the alignment calibration is just using pixels.
+#Either way, should note down what we're actually using.
+manta_local_addr_align_system = ImagingSystem(
+    imaging_f=50e-3,
+    objective_f=125e-3,
+    lens_diameter=25.4e-3,
+    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
+    camera=manta_local_addr,
 )
 
 kinetix_camera = ImagingCamera(

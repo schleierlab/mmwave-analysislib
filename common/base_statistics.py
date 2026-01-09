@@ -4,6 +4,7 @@ from os import PathLike
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import optimize
+from scipy.constants import pi
 
 # try:
 #     lyse
@@ -68,11 +69,12 @@ class BaseStatistician(ABC):
         unique_params() will only have six entries, each of length 2:
         [[0, 10], [0, 20], [0, 30], ...]
         '''
-        return np.unique(self._loop_params(), axis=0)
+        _, inds = np.unique(self.current_params, axis=0, return_index=True)
+        return self.current_params[sorted(inds)]
 
     @property
     def expansion_ndim(self) -> int:
-        return self._loop_params().ndim
+        return self._loop_params().shape[-1]
 
     # TODO: maybe we can keep all of our fitting functions here, so that both child classes
     # have access to them and we keep fitting functionality in one place.
@@ -84,10 +86,18 @@ class BaseStatistician(ABC):
             return A * np.cos(Omega * t + phi) * np.exp(-t / T2) + C
         else:
             return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C # gaussian decay
+    
+    @staticmethod
+    # Define the damped Rabi oscillation model
+    def quadratic(x, a, offset, x_0):
+        return a * (x - x_0)**2 + offset
 
-    # @staticmethod
-    # def sinc_squared(x, A, B, x0, w):
-    #     return A-B * (np.sinc((x-x0)/w))**2
+    @staticmethod
+    def rabi_spectrum_model(freq, center, rabi_freq, pulse_time):
+        detuning = freq - center
+        gen_rabi_freq_sq = rabi_freq**2 + detuning**2
+
+        return (rabi_freq * np.sin(pi * np.sqrt(gen_rabi_freq_sq) * pulse_time))**2 / gen_rabi_freq_sq
 
     @staticmethod
     def lorentzian(x, x0, width, a, offset):
@@ -114,6 +124,35 @@ class BaseStatistician(ABC):
         """
         detuning = x - x0
         return a * width / ((width / 2)**2 + detuning**2) + offset
+    
+    @staticmethod
+    def exponential(t,a,tau,offset):
+        return a*np.exp(-t/tau) + offset
+
+    def fit_quadratic(self, x_data, y_data, sigma=None, peak_direction=+1):
+        '''
+        peak direction: {-1, +1}
+            +1 means to fit quafratic open up
+        '''
+        # Initial guess
+        # try:
+        #     a_lin, b_lin, c_lin = np.polyfit(x_data, y_data, deg=2, w=1.0/s)
+        #     x0_guess = -b_lin / (2 * a_lin) if a_lin != 0 else x_data[np.argmin(y_data)]
+        #     y0_guess = c_lin - b_lin**2 / (4 * a_lin) if a_lin != 0 else np.min(y_data)
+        #     a_guess = abs(a_lin)*peak_direction
+        # except Exception:
+        #     a_guess = 1e-3
+        #     x0_guess = x_data[np.argmin(y_data)]
+        #     y0_guess = np.min(y_data)
+        y_range = (np.max(y_data) - np.min(y_data))*peak_direction
+        x_range = np.max(x_data) - np.min(x_data)
+        if peak_direction == +1:
+            guess = (y_range/x_range**2, np.min(y_data), np.mean(x_data))
+        elif peak_direction == -1:
+            guess = (y_range/x_range**2, np.max(y_data), np.mean(x_data))
+
+        p0 = guess #[a_guess, x0_guess, y0_guess]
+        return optimize.curve_fit(self.quadratic, x_data, y_data, p0=p0, sigma=sigma)
 
     def fit_lorentzian(self, x_data, y_data, sigma=None, peak_direction=+1):
         """
@@ -224,7 +263,7 @@ class BaseStatistician(ABC):
 
         return data_new
 
-    def get_params_order(self, unique_params):
+    def get_params_order(self, unique_params_unsorted) -> list[int]:
         '''
         Given an array of lattice points formed by some Cartesian product,
         find the order of the Cartesian product.
@@ -235,17 +274,20 @@ class BaseStatistician(ABC):
             List of indices, such that params[scan_order[i]]
             is the i-th innermost scanned parameter.
         '''
-        unique_params = np.asarray(unique_params)
+        unique_params_unsorted = np.asarray(unique_params_unsorted)
         ndim = self.expansion_ndim
 
-        if unique_params.shape[0] <= 1:
+        if unique_params_unsorted.shape[0] <= 1:
             return list(range(ndim))
 
         scan_order = []
         remaining_indices = list(range(ndim))
 
-        for _ in range(ndim - 1):
-            unique_params_remaining_dims = np.unique(unique_params[:, remaining_indices], axis=0)
+        for ind in range(ndim - 1):
+            _, sorted_uniq_inds = np.unique(unique_params_unsorted[:, remaining_indices], axis=0, return_index=True)
+            unique_params_remaining_dims = unique_params_unsorted[:, remaining_indices][sorted(sorted_uniq_inds)]
+            if unique_params_remaining_dims.shape[0] <= 1:
+                break
             site_difference = (unique_params_remaining_dims[1] != unique_params_remaining_dims[0])
             if np.sum(site_difference) != 1:
                 # print(unique_params_remaining_dims)

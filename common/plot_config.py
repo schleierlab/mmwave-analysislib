@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from typing import Literal, Tuple, TypedDict, Union
 
 from matplotlib.axes import Axes
-from matplotlib.typing import ColorType, LineStyleType, MarkerType
+# from matplotlib.typing import ColorType, LineStyleType, MarkerType
+# Define your own type aliases (mimicking Matplotlib's internal typing)
+ColorType = Union[str, Tuple[float, float, float], Tuple[float, float, float, float]]
+LineStyleType = Union[str, None]  # e.g. "-", "--", ":", "-.", None
+MarkerType = Union[str, None]     # e.g. "o", "s", "^", ".", None
 
 
 class ErrorbarKwarg(TypedDict, total=False):

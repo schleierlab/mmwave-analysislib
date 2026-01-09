@@ -70,3 +70,5 @@ Thumbs.db
 *.h5   # HDF5 data files
 #*.csv  # CSV data files
 data/  # Data directory
+multishot/avg_shot_bkg.npy
+multishot/roi_config.yml

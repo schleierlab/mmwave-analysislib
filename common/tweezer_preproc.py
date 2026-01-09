@@ -13,11 +13,12 @@ from matplotlib.collections import PatchCollection
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 
-from .image_preprocessor import ImagePreprocessor
-from .analysis_config import kinetix_system
-from .image import Image, ROI
 from analysislib import multishot
+from analysislib.common.analysis_config import kinetix_system
+from analysislib.common.image import ROI, Image
+from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.plot_config import PlotConfig
+from analysislib.common.typing import StrPath
 
 
 class TweezerPreprocessor(ImagePreprocessor):
@@ -47,13 +48,13 @@ class TweezerPreprocessor(ImagePreprocessor):
     site_rois: Sequence[ROI]
     threshold: float
 
-
     def __init__(
             self,
             load_type: Literal['lyse', 'h5'] = 'lyse',
-            h5_path: Optional[str] = None,
+            h5_path: Optional[StrPath] = None,
             use_averaged_background: bool = False,
             plot_config: Optional[PlotConfig] = None,
+            load_rois_threshs: bool = True,
         ):
         """Initialize TweezerAnalysis with analysis configuration.
 
@@ -74,8 +75,9 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         self.plot_config = plot_config or PlotConfig()
 
-        self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
-        self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
+        if load_rois_threshs:
+            self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
+            self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
         if use_averaged_background:
             average_background_overwrite_path = self.USERLIB_PATH / Path('analysislib/multishot/avg_shot_bkg.npy')
             bkg = np.load(average_background_overwrite_path)
@@ -86,7 +88,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             Image(
                 exposure,
                 background=bkg,
-                yshift=self.atom_roi.ymin,
+                yshift=self.globals["kinetix_roi_row"][0],  # first row of image as spec'd in globals
             )
             for exposure in self.exposures[:-1]
         ]
@@ -95,50 +97,9 @@ class TweezerPreprocessor(ImagePreprocessor):
     def n_sites(self):
         return len(self.site_rois)
 
-    def _load_ylims_from_globals(self):
-        """Load the atom ROI y-coordinates from globals. Sometimes they change...
-        # TODO: further explanation
-
-        Returns
-        -------
-        atom_roi_ylims : list
-            List of y-coordinates for the atom ROI.
-        """
-        try:
-            atom_roi_ymin, atom_roi_height = self.globals["kinetix_roi_row"]
-            atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
-        except KeyError:
-            try:
-                default_params = self._load_default_params_from_yaml(self.DEFAULT_PARAMS_PATH)
-                atom_roi_ymin, atom_roi_height  = np.array(eval(default_params["Tweezers"]["kinetix_roi_row"]['value']))
-                atom_roi_ylims = [atom_roi_ymin, atom_roi_ymin + atom_roi_height]
-            except KeyError:
-                raise KeyError('kinetix_roi_row not found in globals')
-        return atom_roi_ylims
-
     @property
     def target_array(self):
         return self.parameters['TW_target_array']
-
-    @staticmethod
-    def _load_default_params_from_yaml(defaul_params_path: Path):
-        """
-        Load default parameters from YAML file.
-
-        Parameters
-        ----------
-        defaul_params_path : Path
-            Path to the YAML file containing the default parameters.
-
-        Returns
-        -------
-        default_params : dict
-            Dictionary of default parameters.
-        """
-        with defaul_params_path.open('rt') as stream:
-            default_params = yaml.safe_load(stream)
-
-        return default_params
 
     @staticmethod
     def _load_rois_from_yaml(roi_config_path: Path, atom_roi_ylims):
@@ -199,7 +160,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         atom_roi: ROI,
         global_threshold: float,
         site_thresholds: list[float],
-        output_path: str,
+        output_path: StrPath,
     ) -> str:
         """
         Dump site ROIs to a YAML file in the same format as roi_config.yml.
@@ -282,6 +243,11 @@ class TweezerPreprocessor(ImagePreprocessor):
         if run_number == 0:
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
+
+                do_rearrangement = self.parameters['do_rearrangement']
+                if not (isinstance(do_rearrangement, bool) or isinstance(do_rearrangement, np.bool_)):
+                    raise TypeError
+                f.attrs['do_rearrangement'] = self.parameters['do_rearrangement']
                 f.create_dataset(
                     'camera_counts',
                     data=camera_counts[np.newaxis, ...],
@@ -359,23 +325,16 @@ class TweezerPreprocessor(ImagePreprocessor):
             )
             ax.set_title(f'Image {i}')
             if roi_patches:
-                patches = tuple(
-                    roi.patch(edgecolor=('yellow' if self.site_occupancies[i, j] else 'red'), alpha=0.6)
-                    for j, roi in enumerate(self.site_rois)
+                ROI.plot_rois(
+                    ax,
+                    self.site_rois,
+                    edgecolors=[
+                        'yellow' if self.site_occupancies[i, j] else 'red'
+                        for j in range(len(self.site_rois))
+                    ],
+                    label_sites=5,
+                    plot_config=self.plot_config,
                 )
-                collection = PatchCollection(patches, match_original=True)
-                ax.add_collection(collection)
-                if site_index:
-                    [
-                        ax.annotate(
-                            str(j), # The site index to display
-                            xy=(roi.xmin, roi.ymin - 5), # Position of the text
-                            **self.plot_config.tweezer_index_label_kw,
-                        )
-                        # Iterate through sites, but only annotate if j is a multiple of 5
-                        for j, roi in enumerate(self.site_rois)
-                        if j % 5 == 0
-                    ]
 
             fig.suptitle(str(self.h5_path))
 

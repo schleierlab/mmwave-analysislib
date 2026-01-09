@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import ClassVar, Literal, cast, Optional
 
 import h5py
@@ -11,9 +10,10 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 from scipy.constants import pi
 
-from .analysis_config import BulkGasAnalysisConfig
-from .image import Image, ROI
-from .image_preprocessor import ImagePreprocessor
+from analysislib.common.analysis_config import BulkGasAnalysisConfig
+from analysislib.common.image import Image, ROI
+from analysislib.common.image_preprocessor import ImagePreprocessor
+from analysislib.common.typing import StrPath
 
 
 class BulkGasPreprocessor(ImagePreprocessor):
@@ -38,9 +38,11 @@ class BulkGasPreprocessor(ImagePreprocessor):
     def __init__(
             self,
             config: BulkGasAnalysisConfig,
-            load_type: str = 'lyse',
-            h5_path: str = None
-            ):
+            load_type: Literal['lyse', 'h5'] = 'lyse',
+            h5_path: Optional[StrPath] = None,
+            background = True,
+            beam_image = False,
+    ):
         """Initialize BulkGasAnalysis with analysis configuration.
 
         Parameters
@@ -72,20 +74,46 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         # Store config
         self.analysis_config = config
+        self.just_pixels = beam_image
+        self.beam_image = beam_image
 
         # Set class-specific attributes
         self.atoms_roi = config.atoms_roi
         self.background_roi = config.bkg_roi
+
+        # MOT beam cooling light powers at TA AOM = 0.4 V
+        # X: 14.0 mW
+        # Y: 10.6 mW
+        # Z: 11.4 mW
+        # beam is collimated with a 35 mm plano-convex lens out of
+        # Thorlabs P3-780PM-FC-10 fibers (2w_0 = 5.3 +/- 1.0 um mode field diameter)
+        # w_0 * w(f) = f * \lambda / \pi (Siegman 17.24)
+        # w(f) = f * \lambda / \pi w_0
+        # I = 2 P / \pi w^2 = 2 P \pi (w_0 / f \lambda)^2
+        cesium_d2_lambda = 852.34727582e-9  # from Steck
+        fiber_waist = 5.3e-6 / 2
+        collimator_focal_length = 35e-3
+        intensity_per_power = 2 * np.pi * (fiber_waist / (collimator_focal_length * cesium_d2_lambda))**2
+        total_intensity = (14.0 + 10.6 + 11.4) * 1e-3 * intensity_per_power * 2
+        saturation_intensity = 27.059  # W / m^2, Steck
+
         self.counts_per_atom = self.imaging_setup.counts_per_atom(
             self.scattering_rate,
             config.exposure_time,
+            saturation_param=total_intensity/saturation_intensity,
+            detuning=0,
         )
-
-        background_exposure = self.exposures[-1]
-        self.images = tuple(
-            Image(atom_exposure, background_exposure)
-            for atom_exposure in self.exposures[:-1]
-        )
+        if background:
+            background_exposure = self.exposures[-1]
+            self.images = tuple(
+                Image(atom_exposure, background_exposure)
+                for atom_exposure in self.exposures[:-1]
+            )
+        else:
+            self.images = tuple(
+                Image(atom_exposure)
+                for atom_exposure in self.exposures
+            )
 
     def get_atom_numbers(
             self,
@@ -115,7 +143,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         if method == 'fit':
             raise NotImplementedError
 
-        atom_counts = np.asarray([image.roi_sum(self.atoms_roi) for image in self.images]).astype(np.float_)
+        atom_counts = np.asarray([image.roi_sum(self.atoms_roi) for image in self.images]).astype(np.float64)
         if subtraction == 'double':
             area_ratio = self.atoms_roi.pixel_area / self.background_roi.pixel_area
             background_counts = np.asarray([image.roi_sum(self.background_roi) for image in self.images])
@@ -138,17 +166,30 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         upopts = []
         for image in self.images:
-            popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform)
+            if self.beam_image:
+                a = image.subtracted_array
+                y0, x0 = (np.unravel_index(np.argmax(a), a.shape))
+                delta = 20
+                atoms_roi = ROI(xmin=x0-delta, xmax=x0+delta, ymin=y0-delta, ymax=y0+delta)
+                popt_0, pcov = image.roi_fit_gaussian2d(atoms_roi, uniform, small_dot = self.beam_image)
+                correction = np.zeros(np.shape(popt_0))
+                correction[0] = y0
+                correction[1] = x0
+                popt = [p + corr for p, corr in zip (popt_0, correction)]
+            else:
+                popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform, small_dot = self.beam_image)
             upopt = uncertainties.correlated_values(popt, pcov)
             upopts.append(upopt)
 
         pixel_size = self.analysis_config.imaging_system.atom_plane_pixel_size
+        if self.just_pixels:
+            pixel_size = 1
         if uniform:
             return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, 1, 1)
         else:
             return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
 
-    def process_shot(self, cloud_fit=None) -> str:
+    def process_shot(self, cloud_fit=None):# -> str:
         """
         Process a single shot of bulk gas.
 
@@ -166,6 +207,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         """
         if cloud_fit == 'gaussian':
             gauss_params = self.get_gaussian_cloud_params()
+            # print(gauss_params)
             gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
             gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
             # integrated under 2D gaussian: 2 * pi * peak_height * sigma_u * sigma_v
@@ -224,7 +266,6 @@ class BulkGasPreprocessor(ImagePreprocessor):
                         data=[unumpy.std_devs(gauss_atom_num)],
                         maxshape=(self.n_runs, len(self.images)),
                     )
-
                 # save parameters from runmanager globals
                 f.create_dataset(
                     'current_params',
@@ -232,6 +273,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                     maxshape=(self.n_runs, len(self.current_params)),
                     chunks = True,
                 )
+                
                 param_list = []
                 for key in self.params.keys():
                     param_list.append([key, self.params[key][1], self.params[key][0]])
@@ -242,6 +284,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 f['atom_numbers'][run_number] = atom_numbers
 
                 # save parameters from runmanager globals
+                #NOTE: If you pass in a python array with an int, it will cast others as ints. 
                 f['current_params'].resize(run_number + 1, axis=0)
                 f['current_params'][run_number] = self.current_params
 
@@ -254,6 +297,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                     f['gaussian_atom_numbers_nom'][run_number] = unumpy.nominal_values(gauss_atom_num)
                     f['gaussian_atom_numbers_std'].resize(run_number + 1, axis=0)
                     f['gaussian_atom_numbers_std'][run_number] = unumpy.std_devs(gauss_atom_num)
+            
 
         return fname
 
@@ -273,19 +317,22 @@ class BulkGasPreprocessor(ImagePreprocessor):
             axs = fig.subplots(nrows=2, ncols=2)
 
         fig.suptitle(
-            self.h5_path,
+            str(self.h5_path),
             fontsize=8,
         )
         fig.supxlabel('Length (mm)')
         fig.supylabel('Length (mm)')
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+        if self.just_pixels:
+            plot_units_per_pixel = 1
 
         img_obj = self.images[image_index]
 
         axs[0, 0].set_title('Raw, with atoms')
         axs[0, 1].set_title('Raw, without atoms')
         for i, img in enumerate([img_obj.array, img_obj.background]):
+            assert not isinstance(img, int)  # should not use without actual background img
             cast(Axes, axs[0, i]).imshow(
                 img,
                 cmap='magma',
@@ -304,6 +351,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             ax=axs[1, 0],
             cmap='magma',
             vmin=0,
+            vmax=20,
         )
 
         bkg_roi = self.background_roi
@@ -322,8 +370,6 @@ class BulkGasPreprocessor(ImagePreprocessor):
         )
 
     def show_state_sensitive_images(self, fig: Optional[Figure] = None, ):
-        fig.suptitle(self.h5_path, fontsize='x-small')
-
         if fig is None:
             fig, axs = plt.subplots(
                 nrows=2,
@@ -334,8 +380,12 @@ class BulkGasPreprocessor(ImagePreprocessor):
         else:
             axs = fig.subplots(nrows=2, ncols=1)
 
+        fig.suptitle(str(self.h5_path), fontsize='x-small')
+
         plot_unit = 1e-3
         plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+        if self.just_pixels:
+            plot_units_per_pixel = 1
 
         for i, ax in enumerate(axs):
             im = self.images[i].imshow_view(
@@ -345,5 +395,31 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 cmap='magma',
                 vmin=0,
                 vmax=(20 if i == 0 else None),
+            )
+            fig.colorbar(im, ax=ax, location='right')
+    
+    def show_all_images(self, fig: Optional[Figure] = None,):
+        if fig is None:
+            fig, axs = plt.subplots(
+                nrows=2,
+                ncols=1,
+                figsize=(10, 10),
+                layout='constrained',
+            )
+        else:
+            axs = fig.subplots(nrows=1, ncols=np.shape(self.images)[0])
+        
+        plot_unit = 1e-3
+        plot_units_per_pixel = self.imaging_setup.atom_plane_pixel_size / plot_unit
+        if self.just_pixels:
+            plot_units_per_pixel = 1
+
+        for i, ax in enumerate(axs):
+            im = self.images[i].imshow_view(
+                self.atoms_roi,
+                scale_factor=plot_units_per_pixel,
+                ax=ax,
+                cmap='magma',
+                vmin=0,
             )
             fig.colorbar(im, ax=ax, location='right')
