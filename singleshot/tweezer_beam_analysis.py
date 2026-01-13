@@ -6,8 +6,12 @@ from analysislib.common.image import Image
 preprocessor = ImagePreprocessor(imaging_setup=manta_tweezer_system, load_type='lyse')
 
 # make tweezerfinder
-TweezerFinder(images=[Image(preprocessor.exposures[0])])
+finder = TweezerFinder(images=[Image(preprocessor.exposures[0])])
 
+site_rois = finder.detect_rois_by_contours(
+    roi_number=len(preprocessor.parameters['TW_x_freqs']),
+    roi_size=11,
+)
 
 # find site rois
 

@@ -42,6 +42,10 @@ class ROI(NamedTuple):
     @property
     def pixel_area(self):
         return self.width * self.height
+    
+    @property
+    def center(self) -> tuple[int, int]:
+        return (self.xmax + self.xmin - 1) / 2, (self.ymax + self.ymin - 1) / 2
 
     def patch(self, scale_factor: float = 1.0, **kwargs):
         default_kw = dict(linewidth=0.75, edgecolor='r', facecolor='none')
