@@ -991,7 +991,11 @@ class TweezerStatistician(BaseStatistician):
         ax.set_ylabel('Loading rate')
         ax.set_ylim(0, 1)
         ax.axhline(0.5, color='red', linestyle='dashed')
-        ax.axhline(np.average(unp.nominal_values(agg)), color = 'black', label = f'mean = {np.average(unp.nominal_values(agg))}')
+        ax.axhline(
+            np.average(unp.nominal_values(agg)),
+            color='0.5',
+            label=f'Mean: {np.average(agg):S}',
+        )
         ax.legend()
     
     def plot_loading_rate_1d(self, ax: Axes):
@@ -1084,6 +1088,16 @@ class TweezerStatistician(BaseStatistician):
             last_ax.set_xlabel('Shot time')
 
         fig.align_ylabels()
+
+    def counts_scatterplot(self, ax: Axes):
+        ax.scatter(
+            self.camera_counts[:, 0, :].flatten(),
+            self.camera_counts[:, 1, :].flatten(),
+            s=1,
+        )
+        ax.set_aspect(1)
+        ax.set_xlabel('Image 0 counts')
+        ax.set_ylabel('Image 1 counts')
 
     # LEGACY CODE
 
@@ -1411,7 +1425,7 @@ class TweezerStatistician(BaseStatistician):
                 annotation_text = (
                     f'Lifetime: ${upopt[1]:SL}$ s\n'
                     f'Factor: ${upopt[0]:SL}$\n'
-                    # f'Offset: ${upopt[2]:SL}$\n' 
+                    f'Offset: ${upopt[2]:SL}$\n' 
                 )
                 ax.annotate(
                     annotation_text,

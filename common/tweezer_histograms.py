@@ -52,7 +52,7 @@ class TweezerThresholder:
             rois: Sequence[ROI],
             weights: Sequence[NDArray | float] | float = 1,
             background_subtract: bool = False,
-            processed_results_fname: Optional[Path] = None
+            processed_results_fname: Optional[Path] = None,
     ):
         self.rois = list(rois)
         self.thresholds = None
@@ -74,9 +74,9 @@ class TweezerThresholder:
             ]
         else:
             tweezer_statistician = TweezerStatistician(
-                    preproc_h5_path=processed_results_fname,
-                )
-            roi_counts = tweezer_statistician.camera_counts[:,0,:] # the 1st images
+                preproc_h5_path=processed_results_fname,
+            )
+            roi_counts = tweezer_statistician.camera_counts[:, 0, :] # the 1st images
         self.df = pd.DataFrame(roi_counts).melt(var_name=self.INDEX_NAME, value_name=self.COUNTS_NAME)
 
     @property

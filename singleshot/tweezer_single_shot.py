@@ -9,7 +9,7 @@ import numpy as np
 
 SHOW_ROIS = True
 SHOW_INDEX = True  # site index will not show up if show_rois is set to False
-USE_AVERAGED_BACKGROUND = False
+USE_AVERAGED_BACKGROUND = True
 FIT_TYPE_1D = None
 # do a curve fit at the final shot, set to None when don't do curve fit
 # options: 'lorentzian', 'quadratic', None
@@ -51,9 +51,9 @@ folder_path = os.path.dirname(tweezer_preproc.h5_path)
 if not SHOW_IMG_ONLY:
     if SAVE_DATA_CSV_FILE:
         indep_var, survival_rates, survival_rate_errs = (
-            tweezer_statistician.plot_survival_rate(
+            tweezer_statistician.plot_survival_rate_1d(
                 fig=subfigs[1],
-                fit_type_1d=FIT_TYPE_1D,
+                fit_type=FIT_TYPE_1D,
                 require_exact_rearrangement=EXACT_REARRANGEMENT,
                 plot_pair_states=PLOT_PAIR_STATES,
                 show_hist=SHOW_HIST,
@@ -73,7 +73,7 @@ if not SHOW_IMG_ONLY:
             show_hist=SHOW_HIST,
         )
 
-    tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=True)
+    tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
 
     # TODO: this function right now doesn't work with 2d parameter scan
 

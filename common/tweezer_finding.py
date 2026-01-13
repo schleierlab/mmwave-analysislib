@@ -8,6 +8,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.collections import PatchCollection
 from matplotlib.figure import Figure
+from tqdm import tqdm
 
 from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI, Image
@@ -59,14 +60,19 @@ class TweezerFinder:
         site_rois = self.remove_overlapping_rois(site_rois, min_distance=roi_size)
         print(f"Exactly {len(site_rois)} sites found")
 
-        if len(site_rois)>roi_number:
+        if len(site_rois) > roi_number:
             last_index = roi_number - len(site_rois)
             site_rois = site_rois[:last_index]
 
         print(site_rois)
         return site_rois
 
-    def detect_rois_by_contours(self, roi_number: int, roi_size: int) -> list[ROI]:
+    def detect_rois_by_contours(
+            self,
+            roi_number: int,
+            roi_size: int,
+            restriction_roi: ROI = ROI(xmin=0, xmax=2048, ymin=0, ymax=2048),
+    ) -> list[ROI]:
         import cv2
 
         from analysislib.common.contour import Contour
@@ -92,7 +98,17 @@ class TweezerFinder:
         )
         contours = (Contour(contour_raw) for contour_raw in contours_raw)
         contours_filtered = sorted(
-            (contour for contour in contours if contour.area > 0),
+            (
+                contour
+                for contour in contours
+                if (
+                    contour.area > 0 and
+                    restriction_roi.contains(
+                        contour.centroid[0],
+                        contour.centroid[1] + self.averaged_image.yshift,
+                    )
+                )
+            ),
             key=(lambda contour: contour.area),
             reverse=True,
         )
@@ -157,11 +173,15 @@ class TweezerFinder:
     def load_from_h5(cls, h5_path: Union[str, PathLike], use_averaged_background = False, include_2_images = False):
         sequence_dir = Path(h5_path)
         cls.folder = sequence_dir
-        shots_h5s = sequence_dir.glob('20*.h5')
-        print('Loading imagess...')
+
+        print('Loading images...')
+
+        # convert generator to list so we know the length in advance for the progress bar
+        shots_h5s = list(sequence_dir.glob('20*.h5'))
+        pbar = tqdm(shots_h5s)
         images: list[Image] = []
-        for shot in shots_h5s:
-            print(shot)
+        for shot in pbar:
+            pbar.set_description(shot.name)
             processor = TweezerPreprocessor(
                 load_type='h5',
                 h5_path=shot,

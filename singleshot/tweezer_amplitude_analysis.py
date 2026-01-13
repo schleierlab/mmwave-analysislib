@@ -244,9 +244,9 @@ image_types = list(images.keys())
 data = images[image_types[0]]
 
 neighborhood_size = 10#6
-threshold = 200 #85 #100 #100
-roi_y =  [0, 2560]  #[1300,1860] #
-roi_x = [0, 2560]  #[1300,1860] #
+threshold = 90 #85 #100 #100
+roi_y =  [800,1500] #[0, 2560]  #[1300,1860] #
+roi_x = [500, 1500]  #[0, 2560]#[1300,1860] #
 mag = 750/40.4  # 250/40.4
 pix = 5.5  # um
 dx = pix/mag

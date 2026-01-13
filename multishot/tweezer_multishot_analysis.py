@@ -58,7 +58,7 @@ thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
 tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
 tweezer_statistician.plot_survival_rate_by_site_2d()
-tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d_old(group_size = 5, fit_type = None)
+tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d_old(group_size = 50, fit_type = 'exponential')
 # fit_type menu: None, 'rabi_oscillation', 'lorentzian', 'exponential'
 
 axs[0].set_ylabel('Counts')

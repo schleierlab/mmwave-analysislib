@@ -178,8 +178,8 @@ manta_mot_system = ImagingSystem(
 )
 
 manta_tweezer_system = ImagingSystem(
-    imaging_f=50e-3,
-    objective_f=125e-3,
+    imaging_f=750e-3,
+    objective_f=40.4e-3,
     lens_diameter=25.4e-3,
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
     camera=manta_tweezer,

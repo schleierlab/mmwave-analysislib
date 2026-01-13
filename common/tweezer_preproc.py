@@ -310,13 +310,14 @@ class TweezerPreprocessor(ImagePreprocessor):
             fig, axs = plt.subplots(
                 nrows=len(self.images),
                 ncols=1,
+                squeeze=False,
             )
         else:
-            axs = fig.subplots(nrows=len(self.images), ncols=1)
+            axs = fig.subplots(nrows=len(self.images), ncols=1, squeeze=False)
 
         norm = Normalize(vmin=0, vmax=vmax)
         for i, image in enumerate(self.images):
-            ax = cast(Axes, axs[i])
+            ax = cast(Axes, axs[i, 0])
             image.imshow_view(
                 self.atom_roi,
                 ax=ax,
