@@ -40,8 +40,9 @@ class BulkGasPreprocessor(ImagePreprocessor):
             config: BulkGasAnalysisConfig,
             load_type: Literal['lyse', 'h5'] = 'lyse',
             h5_path: Optional[StrPath] = None,
-            background = True,
-            beam_image = False,
+            background: bool = True,
+            beam_image: bool = False,
+            just_pixels: bool = False,
     ):
         """Initialize BulkGasAnalysis with analysis configuration.
 
@@ -74,7 +75,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         # Store config
         self.analysis_config = config
-        self.just_pixels = beam_image
+        self.just_pixels = just_pixels
         self.beam_image = beam_image
 
         # Set class-specific attributes
@@ -151,7 +152,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         return atom_counts / self.counts_per_atom
 
-    def get_gaussian_cloud_params(self, uniform = False):
+    def get_gaussian_cloud_params(self, uniform: bool = False, smoothen: bool = False):
         """
         Returns
         -------
@@ -177,7 +178,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 correction[1] = x0
                 popt = [p + corr for p, corr in zip (popt_0, correction)]
             else:
-                popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform, small_dot = self.beam_image)
+                popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform, small_dot = self.beam_image, smoothen = smoothen)
             upopt = uncertainties.correlated_values(popt, pcov)
             upopts.append(upopt)
 
@@ -189,7 +190,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         else:
             return np.asarray(upopts) * (pixel_size, pixel_size, pixel_size, pixel_size, 1, 1)
 
-    def process_shot(self, cloud_fit=None):# -> str:
+    def process_shot(self, cloud_fit=None, smoothen: bool = False):# -> str:
         """
         Process a single shot of bulk gas.
 
@@ -206,7 +207,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             Path to the processed results file
         """
         if cloud_fit == 'gaussian':
-            gauss_params = self.get_gaussian_cloud_params()
+            gauss_params = self.get_gaussian_cloud_params(smoothen=smoothen)
             # print(gauss_params)
             gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
             gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
@@ -215,7 +216,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             gauss_atom_counts = 2 * pi * np.prod(gauss_params[:, [2, 3, 4]], axis=1) / (self.imaging_setup.atom_plane_pixel_size)**2
             gauss_atom_num = gauss_atom_counts / self.counts_per_atom
         elif cloud_fit == 'gaussian_uniform':
-            gauss_params = self.get_gaussian_cloud_params(uniform=True)
+            gauss_params = self.get_gaussian_cloud_params(uniform=True, smoothen=smoothen)
             gauss_nom = np.asarray([unumpy.nominal_values(params) for params in gauss_params])
             gauss_cov = np.asarray([uncertainties.covariance_matrix(params) for params in gauss_params])
             # integrated under 2D gaussian: 2 * pi * peak_height * sigma^2
@@ -351,7 +352,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             ax=axs[1, 0],
             cmap='magma',
             vmin=0,
-            vmax=20,
+            # vmax=60,
         )
 
         bkg_roi = self.background_roi

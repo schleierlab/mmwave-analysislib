@@ -25,11 +25,14 @@ bulk_gas_preproc = BulkGasPreprocessor(
     config=analysis_config,
     load_type='lyse',
     h5_path=None,
-    # beam_image=True,
+    # just_pixels=True,
 )
 
 if DO_GAUSSIAN_FIT:
-    processed_results_fname = bulk_gas_preproc.process_shot(cloud_fit='gaussian_uniform')
+    processed_results_fname = bulk_gas_preproc.process_shot(
+        cloud_fit='gaussian_uniform',
+        smoothen=False,
+    )
     # cloud_fit='gaussian' or 'gaussian_uniform'
 else:
     processed_results_fname = bulk_gas_preproc.process_shot()

@@ -13,6 +13,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.typing import ColorType
 from numpy.typing import ArrayLike, NDArray
 from scipy import optimize
+import scipy.ndimage as ndimage
 
 from analysislib.common.plot_config import PlotConfig
 
@@ -49,6 +50,9 @@ class ROI(NamedTuple):
             self.width * scale_factor, self.height * scale_factor,
             **(default_kw | kwargs),
         )
+    
+    def contains(self, x, y) -> bool:
+        return (self.xmin <= x < self.xmax) and (self.ymin <= y < self.ymax)
 
     @staticmethod
     def bounding_box(rois: Sequence[ROI]) -> ROI:
@@ -117,7 +121,8 @@ class ROI(NamedTuple):
 
                 ax.annotate(
                     str(j), # The site index to display
-                    xy=(roi.xmin, roi.ymin - 5), # Position of the text
+                    xy=((roi.xmin + roi.xmax) / 2, (roi.ymin + roi.ymax) / 2 - 8), # Position of the text
+                    horizontalalignment='center',
                     **plotconfig.tweezer_index_label_kw,
                 )
 
@@ -223,7 +228,7 @@ class Image:
             )
         else:
             im = ax.imshow(
-                self.roi_view(roi),
+                self.roi_view(roi),#ndimage.gaussian_filter(self.roi_view(roi), sigma=(5, 5), order=0),#self.roi_view(roi),
                 extent=(scale_factor * (np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin]) - 0.5)),
                 **kwargs,
             )
@@ -291,12 +296,16 @@ class Image:
 
         return site_rois
 
-    def roi_fit_gaussian2d(self, roi: ROI, uniform = False, small_dot = False):
+    def roi_fit_gaussian2d(self, roi: ROI, uniform = False, small_dot = False, smoothen = False):
         """
         Fits a 2D Gaussian function to the image data.
         Mainly intended to fit images of the MOT.
         """
-        roiview = self.roi_view(roi)
+        if smoothen:
+            print(self.roi_view(roi))
+            roiview = ndimage.gaussian_filter(self.roi_view(roi), sigma=(5, 5), order=0)
+        else:
+            roiview = self.roi_view(roi)
         y, x = np.mgrid[:roiview.shape[0], :roiview.shape[1]]
         xys = np.vstack([x.ravel(), y.ravel()]).T
 
