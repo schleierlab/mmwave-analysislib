@@ -31,12 +31,18 @@ new_site_rois = finder.detect_rois_by_contours(
     roi_number=50,
     roi_size=5,
     restriction_roi=restriction_roi,
+    blur_block=3,
+    blur_width=1,
+    block_size=11,
+    relative_threshold=4,
+    affine_transform=(lambda x: 4 * x + 40),
 )
 # finder.plot_sites(new_site_rois)
 fig_contours = plt.figure(figsize=(10, 10), layout='constrained')
 finder.plot_contour_site_detection(fig_contours)
-fig_contours.suptitle(str(folder))
-
+fig_contours.suptitle(
+    f'Tweezer site detection ({len(finder.images)} shots averaged)\n{str(folder)}',
+)
 
 thresholder = TweezerThresholder(
     finder.images,

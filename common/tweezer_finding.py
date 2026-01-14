@@ -2,7 +2,7 @@ import warnings
 from collections.abc import Sequence
 from os import PathLike
 from pathlib import Path
-from typing import Union
+from typing import Literal, Union
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -72,24 +72,57 @@ class TweezerFinder:
             roi_number: int,
             roi_size: int,
             restriction_roi: ROI = ROI(xmin=0, xmax=2048, ymin=0, ymax=2048),
+            blur_block: int = 3,
+            blur_width: float = 1,
+            block_size: int = 11,
+            relative_threshold: float = 4,
+            affine_transform = lambda x: x,
     ) -> list[ROI]:
+        """
+        Docstring for detect_rois_by_contours
+        
+        Parameters
+        ----------
+        relative_threshold: float
+            Value *above* weighted mean for adaptive thresholding of pixel values,
+            in scaled units (i.e. after applying affine_transform).
+        """
         import cv2
 
         from analysislib.common.contour import Contour
 
+        if blur_block < 0 or (blur_block != 0 and blur_block % 2 != 1):
+            raise ValueError(f'{blur_block=} should be zero or a positive odd integer')
+        if blur_width <= 0:
+            raise ValueError(f'{blur_width=} should be positive')
+        if block_size < 0 or block_size % 2 != 1:
+            raise ValueError(f'{block_size=} should be a positive odd integer')
+
         image_array_blurred = cv2.GaussianBlur(
             self.averaged_image.subtracted_array,
-            (3, 3),  # kernel size
-            1,  # Gaussian width
+            (blur_block, blur_block),  # kernel size
+            blur_width,  # Gaussian width
         )
-        image_array_u8 = ((image_array_blurred + 10) * 4).astype('uint8')
+
+        min_blurred_value, max_blurred_value = image_array_blurred.min(), image_array_blurred.max()
+        if affine_transform(min_blurred_value) >= affine_transform(max_blurred_value):
+            raise ValueError('affine_transform must be order-preserving!')
+        if affine_transform(max_blurred_value) > 255 or affine_transform(min_blurred_value) < 0:
+            warnings.warn(
+                'affine_transform does not keep all pixel values between 0 and 255; '
+                f'(min, max) = ({min_blurred_value:.3f}, {max_blurred_value:.3f})',
+                UserWarning,
+            )
+
+        # we need 8-bit images for the following adaptive threshold step
+        image_array_u8 = (affine_transform(image_array_blurred)).astype('uint8')
         thresholded = cv2.adaptiveThreshold(
             image_array_u8,
             255,
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY,
-            11,
-            -4,
+            block_size,
+            -relative_threshold,
         )
         contours_raw, hierarchy = cv2.findContours(
             thresholded,
@@ -172,7 +205,6 @@ class TweezerFinder:
     @classmethod
     def load_from_h5(cls, h5_path: Union[str, PathLike], use_averaged_background = False, include_2_images = False):
         sequence_dir = Path(h5_path)
-        cls.folder = sequence_dir
 
         print('Loading images...')
 
@@ -230,32 +262,45 @@ class TweezerFinder:
             label_sites=5,
         )
 
-        fig.savefig(f'{self.folder}/tweezers_averaged_image_with_site_rois.pdf')
+        return fig
 
-    def plot_contour_site_detection(self, fig: Figure):
+
+    def plot_contour_site_detection(
+            self,
+            fig: Figure,
+            ylims: Union[tuple[int, int], Literal['full', 'sites']] = 'full',
+            **kwargs,
+    ):
         axs = fig.subplots(nrows=3)
         # print(self.rois)
 
         rois_bbox = ROI.bounding_box(self.rois)
         padding = 50
         atom_roi_xlims = (rois_bbox.xmin - padding, rois_bbox.xmax + padding)
-        full_ylims = (
-            self.averaged_image.yshift,
-            self.averaged_image.yshift + self.averaged_image.height,
-        )
-        view_roi = ROI.from_roi_xy(atom_roi_xlims, full_ylims)
 
-        fig.suptitle(f'Tweezer site detection ({len(self.images)} shots averaged)')
+        if ylims == 'full':
+            plot_ylims = (
+                self.averaged_image.yshift,
+                self.averaged_image.yshift + self.averaged_image.height,
+            )
+        elif ylims == 'sites':
+            plot_ylims = (rois_bbox.ymin - padding, rois_bbox.ymax + padding)
+        else:
+            plot_ylims = ylims
+
+        view_roi = ROI.from_roi_xy(atom_roi_xlims, plot_ylims)
+
         raw_img_color_kw = dict(
             cmap='viridis',
             vmin=0,
             vmax=np.max(self.averaged_image.subtracted_array),
         )
+        imshow_kw = raw_img_color_kw | kwargs
 
         im = self.averaged_image.imshow_view(
             view_roi,
             ax=axs[0],
-            **raw_img_color_kw,
+            **imshow_kw,
         )
         fig.colorbar(im, ax=axs)
 
@@ -270,14 +315,14 @@ class TweezerFinder:
 
         plot_extent = np.array([view_roi.xmin, view_roi.xmax, view_roi.ymax, view_roi.ymin]) - 0.5
         axs[1].imshow(
-            self.image_blurred[:, view_roi.xmin:view_roi.xmax],
+            self.image_blurred[view_roi.ymin:view_roi.ymax, view_roi.xmin:view_roi.xmax],
             extent=plot_extent,
-            **raw_img_color_kw,
+            **imshow_kw,
         )
 
         axs[2].set_title('Adaptive threshold')
         axs[2].imshow(
-            self.image_thresholded[:, view_roi.xmin:view_roi.xmax],
+            self.image_thresholded[view_roi.ymin:view_roi.ymax, view_roi.xmin:view_roi.xmax],
             extent=plot_extent,
             cmap='Greys_r',
         )

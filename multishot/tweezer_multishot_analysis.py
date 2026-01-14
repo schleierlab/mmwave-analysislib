@@ -22,14 +22,15 @@ tweezer_preproc = TweezerPreprocessor(
     h5_path = next(folder.glob('20*0.h5')), # needed h5 file only to look at kinetix_roi_raw -- is there a better way to do this?
 )
 new_site_rois = tweezer_preproc.site_rois
-preproc_h5_path = Path(folder) / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
+preproc_h5_path = folder / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
 
 if PLOT_AVERAGED_IMAGES:
     finder = TweezerFinder.load_from_h5(folder, use_averaged_background = USE_AVERAGED_BACKGROUND, include_2_images = PLOT_TWO_IMAGES)
     if PLOT_TWO_IMAGES:
         finder.plot_averaged_images(new_site_rois)
     else:
-        finder.plot_sites(new_site_rois)
+        fig = finder.plot_sites(new_site_rois)
+        fig.savefig(folder / 'tweezers_averaged_image_with_site_rois.pdf')
 
 tweezer_statistician = TweezerStatistician(
     preproc_h5_path=preproc_h5_path,
@@ -41,7 +42,7 @@ thresholder = TweezerThresholder(
     new_site_rois,
     background_subtract=background_subtract,
     weights=None,
-    processed_results_fname=preproc_h5_path
+    processed_results_fname=preproc_h5_path,
 )
 
 thresholder.fit_gmms() # gmm stands for Gaussian mixture model

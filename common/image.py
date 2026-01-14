@@ -300,34 +300,58 @@ class Image:
 
         return site_rois
 
-    def roi_fit_gaussian2d(self, roi: ROI, uniform = False, small_dot = False, smoothen = False):
+    def roi_fit_gaussian2d(
+            self,
+            roi: ROI,
+            isotropic: bool = False,
+            small_dot: bool = False,
+            blur: Optional[int] = None,
+    ):
         """
         Fits a 2D Gaussian function to the image data.
         Mainly intended to fit images of the MOT.
+
+        Parameters
+        ----------
+        roi: ROI
+            Area to fit.
+        isotropic: bool
+            If true, constrain the Gaussian to be rotationally symmetric.
+            Otherwise, Gaussian is only constrained to have principal axes
+            along Cartesian axes.
+        blur: int, optional
+            If specified, blur the image with a Gaussian filter of
+            the specified width (in pixels).
+        
         """
-        if smoothen:
-            print(self.roi_view(roi))
-            roiview = ndimage.gaussian_filter(self.roi_view(roi), sigma=(5, 5), order=0)
+        if blur is not None:
+            roiview = ndimage.gaussian_filter(
+                self.roi_view(roi),
+                sigma=(blur, blur),
+                order=0,
+            )
         else:
             roiview = self.roi_view(roi)
+
         y, x = np.mgrid[:roiview.shape[0], :roiview.shape[1]]
         xys = np.vstack([x.ravel(), y.ravel()]).T
 
         x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
         width_guess = roi.width/4
         height_guess = roi.height/4
+
         if small_dot:
             width_guess = width_guess/8
             height_guess = height_guess/8
+
         z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
         offset_guess = np.min(roiview)
-        print(x0_guess, y0_guess, a_guess)
 
-        if uniform:
+        if isotropic:
             p0 = [x0_guess, y0_guess, width_guess, a_guess, offset_guess]
             return optimize.curve_fit(
-                lambda xy, x0, y0, width, peak_height, offset: self.gaussian2d_uniform(xy, x0, y0, width, peak_height, offset),
+                self.gaussian2d_uniform,
                 xys,
                 roiview.ravel(),
                 p0=p0,
@@ -342,7 +366,16 @@ class Image:
         else:
             p0 = [x0_guess, y0_guess, width_guess, height_guess, a_guess, offset_guess]
             return optimize.curve_fit(
-                lambda xy, x0, y0, width, height, peak_height, offset :self.gaussian2d(xy, x0, y0, width, height, rotation = 0, peak_height = peak_height, offset = offset),
+                lambda xy, x0, y0, width, height, peak_height, offset: self.gaussian2d(
+                    xy,
+                    x0,
+                    y0,
+                    width,
+                    height,
+                    rotation = 0,
+                    peak_height = peak_height,
+                    offset = offset,
+                ),
                 xys,
                 roiview.ravel(),
                 p0=p0,
@@ -419,7 +452,7 @@ class Image:
         centered_xy = np.asarray(xy) - np.asarray([x0, y0])  # shape (..., 2)
 
         # shape (..., 2)
-        z_score_vector = centered_xy/ [width, width]
+        z_score_vector = centered_xy / [width, width]
 
         # shape (...,)
         mahalanobis_dist_sq = np.sum(z_score_vector**2, axis=-1)

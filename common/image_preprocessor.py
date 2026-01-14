@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Optional, Literal
 
 import numpy as np
@@ -5,10 +6,8 @@ import yaml
 
 import h5py
 
-from .analysis_config import ImagingSystem
 from analysislib.analysis.data import h5lyze as hz
-from pathlib import Path
-
+from analysislib.common.analysis_config import ImagingSystem
 from analysislib.common.typing import StrPath
 
 
@@ -43,7 +42,8 @@ class ImagePreprocessor:
             self,
             imaging_setup: ImagingSystem,
             load_type: Literal['lyse', 'h5'] = 'lyse',
-            h5_path: Optional[StrPath] = None):
+            h5_path: Optional[StrPath] = None,
+    ):
         """Initialize image preprocessing.
 
         Parameters

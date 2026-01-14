@@ -18,9 +18,9 @@ PLOT_AVERAGED_IMAGES = False # Show averaged images but takes longer time becaus
 folder = select_data_directory()
 
 tweezer_preproc = TweezerPreprocessor(
-        load_type='h5',
-        h5_path = next(folder.glob('20*0.h5')), # needed h5 file only to look at kinetix_roi_raw -- is there a better way to do this?
-    )
+    load_type='h5',
+    h5_path = next(folder.glob('20*0.h5')), # needed h5 file only to look at kinetix_roi_raw -- is there a better way to do this?
+)
 new_site_rois = tweezer_preproc.site_rois
 preproc_h5_path = Path(folder) / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
 
@@ -32,8 +32,8 @@ if PLOT_AVERAGED_IMAGES:
     finder.plot_averaged_images(new_site_rois)
 
 tweezer_statistician = TweezerStatistician(
-                preproc_h5_path=preproc_h5_path,
-            )
+    preproc_h5_path=preproc_h5_path,
+)
 
 fig, axs = plt.subplots(nrows=3, ncols=1, layout='constrained')  # 3 plots in one row
 fig.suptitle(f'{folder}')

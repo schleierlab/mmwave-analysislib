@@ -70,7 +70,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         super().__init__(
             imaging_setup=config.imaging_system,
             load_type=load_type,
-            h5_path=h5_path
+            h5_path=h5_path,
         )
 
         # Store config
@@ -170,15 +170,23 @@ class BulkGasPreprocessor(ImagePreprocessor):
             if self.beam_image:
                 a = image.subtracted_array
                 y0, x0 = (np.unravel_index(np.argmax(a), a.shape))
-                delta = 20
-                atoms_roi = ROI(xmin=x0-delta, xmax=x0+delta, ymin=y0-delta, ymax=y0+delta)
-                popt_0, pcov = image.roi_fit_gaussian2d(atoms_roi, uniform, small_dot = self.beam_image)
+                atoms_roi = ROI.from_center(int(x0), int(y0), size=41)
+                popt_0, pcov = image.roi_fit_gaussian2d(
+                    atoms_roi,
+                    isotropic=uniform,
+                    small_dot=self.beam_image,
+                )
                 correction = np.zeros(np.shape(popt_0))
                 correction[0] = y0
                 correction[1] = x0
                 popt = [p + corr for p, corr in zip (popt_0, correction)]
             else:
-                popt, pcov = image.roi_fit_gaussian2d(self.atoms_roi, uniform, small_dot = self.beam_image, smoothen = smoothen)
+                popt, pcov = image.roi_fit_gaussian2d(
+                    self.atoms_roi,
+                    isotropic=uniform,
+                    small_dot=self.beam_image,
+                    blur=5,
+                )
             upopt = uncertainties.correlated_values(popt, pcov)
             upopts.append(upopt)
 
