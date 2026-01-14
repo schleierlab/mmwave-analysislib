@@ -19,6 +19,7 @@ from analysislib.common.image import ROI, Image
 from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
+from analysislib.common.lab_constants import USERLIB_PATH
 
 
 class TweezerPreprocessor(ImagePreprocessor):
@@ -38,7 +39,6 @@ class TweezerPreprocessor(ImagePreprocessor):
         Path to H5 file for data loading
     """
 
-    USERLIB_PATH: ClassVar[Path] = Path('C:/Users/sslab/labscript-suite/userlib')
     ROI_CONFIG_PATH: ClassVar[Path] = importlib.resources.files(multishot) / 'roi_config.yml'
     PROCESSED_RESULTS_FNAME: ClassVar[str] = 'tweezer_preprocess.h5'
     DEFAULT_PARAMS_PATH: ClassVar[Path] = USERLIB_PATH / Path('labscriptlib/defaults.yml')
@@ -79,7 +79,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
             self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
         if use_averaged_background:
-            average_background_overwrite_path = self.USERLIB_PATH / Path('analysislib/multishot/avg_shot_bkg.npy')
+            average_background_overwrite_path = USERLIB_PATH / Path('analysislib/multishot/avg_shot_bkg.npy')
             bkg = np.load(average_background_overwrite_path)
         else:
             bkg = self.exposures[-1]

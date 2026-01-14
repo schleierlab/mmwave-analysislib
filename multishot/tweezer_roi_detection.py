@@ -1,4 +1,14 @@
+import warnings
+
+# workaround for following warning:
+#     C:\Users\sslab\miniconda3\envs\labscript-env\lib\site-packages\sklearn\cluster\_kmeans.py:1419: UserWarning: 
+#     KMeans is known to have a memory leak on Windows with MKL, when there are less chunks than available threads. 
+#     You can avoid it by setting the environment variable OMP_NUM_THREADS=1.
+# must be imported before numpy
+# os.environ['OMP_NUM_THREADS'] = '1'  # doesn't work since this is run from Lyse rather than from a standalone process
+
 import matplotlib.pyplot as plt
+import numpy as np
 
 from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI
@@ -8,7 +18,6 @@ from analysislib.common.tweezer_histograms import TweezerThresholder
 from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
-import numpy as np
 
 background_subtract = True
 USE_AVERAGED_BACKGROUND = True
@@ -52,7 +61,11 @@ thresholder = TweezerThresholder(
         new_site_rois, background_subtract=background_subtract
     ),
 )
-thresholder.fit_gmms()  # gmm stands for Gaussian mixture model
+
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore', category=UserWarning)
+    print('Fitting histograms...')
+    thresholder.fit_gmms()
 
 # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
 # TODO: Include survival rate if taking two shots

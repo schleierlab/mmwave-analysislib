@@ -1,5 +1,6 @@
 import os
-from typing import TypeAlias, TypedDict, Union
+from typing import TypedDict, Union
+from typing_extensions import TypeAlias
 
 from matplotlib.typing import ColorType
 
