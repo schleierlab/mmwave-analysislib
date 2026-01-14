@@ -4,20 +4,22 @@ import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple, Optional, Union, cast
+from typing_extensions import Unpack
 
 import numpy as np
 from matplotlib import patches
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.collections import PatchCollection
+from matplotlib.patches import Rectangle
 from matplotlib.typing import ColorType
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 from scipy import optimize
 import scipy.ndimage as ndimage
 
 from analysislib.common.plot_config import PlotConfig
+from analysislib.common.typing import Quadruple, RectangleKwargs
 
-MaybeInt = Optional[int]
 
 class ROI(NamedTuple):
     '''
@@ -26,10 +28,10 @@ class ROI(NamedTuple):
     all given in units of pixels. Thus, the center pixel of ROI(xmin=13, xmax=18, ymin=25, ymax=30),
     a 5px x 5px region, is (x, y) = (15, 27).
     '''
-    xmin: MaybeInt
-    xmax: MaybeInt
-    ymin: MaybeInt
-    ymax: MaybeInt
+    xmin: int
+    xmax: int
+    ymin: int
+    ymax: int
 
     @property
     def width(self):
@@ -44,11 +46,11 @@ class ROI(NamedTuple):
         return self.width * self.height
     
     @property
-    def center(self) -> tuple[int, int]:
+    def center(self) -> tuple[float, float]:
         return (self.xmax + self.xmin - 1) / 2, (self.ymax + self.ymin - 1) / 2
 
-    def patch(self, scale_factor: float = 1.0, **kwargs):
-        default_kw = dict(linewidth=0.75, edgecolor='r', facecolor='none')
+    def patch(self, scale_factor: float = 1.0, **kwargs: Unpack[RectangleKwargs]):
+        default_kw = RectangleKwargs(linewidth=0.75, edgecolor='r', facecolor='none')
         return patches.Rectangle(
             ((self.xmin - 0.5) * scale_factor, (self.ymin - 0.5) * scale_factor),
             self.width * scale_factor, self.height * scale_factor,
@@ -83,9 +85,7 @@ class ROI(NamedTuple):
         )
 
     @classmethod
-    def from_roi_xy(
-        cls, roi_x: tuple[MaybeInt, MaybeInt], roi_y: tuple[MaybeInt, MaybeInt]
-    ):
+    def from_roi_xy(cls, roi_x: tuple[int, int], roi_y: tuple[int, int]):
         return cls(roi_x[0], roi_x[1], roi_y[0], roi_y[1])
 
     @staticmethod
@@ -93,7 +93,7 @@ class ROI(NamedTuple):
         return np.array([roi for roi in rois])
 
     @staticmethod
-    def fromarray(arr: ArrayLike) -> list[ROI]:
+    def fromarray(arr) -> list[ROI]:
         return [ROI(roi[0], roi[1], roi[2], roi[3]) for roi in arr]
 
     @staticmethod
@@ -106,7 +106,7 @@ class ROI(NamedTuple):
     ):
         plotconfig = plot_config or PlotConfig()
         edgecolor_iter = itertools.repeat('yellow') if edgecolors is None else edgecolors
-        patches = tuple(
+        patches: tuple[Rectangle, ...] = tuple(
             roi.patch(edgecolor=edgecolor, alpha=0.6)
             for roi, edgecolor in zip(rois, edgecolor_iter)
         )
@@ -231,12 +231,15 @@ class Image:
             **kwargs,
             )
         else:
+            extent = cast(Quadruple, tuple(
+                scale_factor * (value - 0.5)
+                for value in [roi.xmin, roi.xmax, roi.ymax, roi.ymin]
+            ))
             im = ax.imshow(
-                self.roi_view(roi),#ndimage.gaussian_filter(self.roi_view(roi), sigma=(5, 5), order=0),#self.roi_view(roi),
-                extent=(scale_factor * (np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin]) - 0.5)),
+                self.roi_view(roi),
+                extent=extent,
                 **kwargs,
             )
-
 
         return im
 
