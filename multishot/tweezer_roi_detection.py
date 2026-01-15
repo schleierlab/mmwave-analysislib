@@ -15,7 +15,7 @@ from analysislib.common.image import ROI
 from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.tweezer_finding import TweezerFinder
 from analysislib.common.tweezer_histograms import TweezerThresholder
-from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
+from analysislib.common.tweezer_multishot import TweezerMultishotAnalyzer
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
 
@@ -23,38 +23,27 @@ background_subtract = True
 USE_AVERAGED_BACKGROUND = True
 folder = select_data_directory()
 
-finder = TweezerFinder.load_from_h5(
-    folder, use_averaged_background=USE_AVERAGED_BACKGROUND
-)
-
-restriction_roi = ROI(xmin=1100, xmax=1550, ymin=950, ymax=1050)  # None
-# new_site_rois = finder.detect_rois_by_roi_number(
-#     roi_number=50,
-#     neighborhood_size=5,
-#     roi_size=5,
-#     detection_threshold=30,
-#     restricted_ROI=restriction_roi,
-# )
+multishot_analyzer = TweezerMultishotAnalyzer(folder, use_averaged_background=USE_AVERAGED_BACKGROUND)
+finder = TweezerFinder(multishot_analyzer.mean_image())
 
 new_site_rois = finder.detect_rois_by_contours(
     roi_number=50,
     roi_size=5,
-    restriction_roi=restriction_roi,
+    restriction_roi=ROI(xmin=1100, xmax=1550, ymin=950, ymax=1050),
     blur_block=3,
     blur_width=1,
     block_size=11,
     relative_threshold=4,
     affine_transform=(lambda x: 4 * x + 40),
 )
-# finder.plot_sites(new_site_rois)
 fig_contours = plt.figure(figsize=(10, 10), layout='constrained')
 finder.plot_contour_site_detection(fig_contours)
 fig_contours.suptitle(
-    f'Tweezer site detection ({len(finder.images)} shots averaged)\n{str(folder)}',
+    f'Tweezer site detection ({len(multishot_analyzer)} shots averaged)\n{str(folder)}',
 )
 
 thresholder = TweezerThresholder(
-    finder.images,
+    multishot_analyzer.images(),
     new_site_rois,
     background_subtract=background_subtract,
     weights=finder.weight_functions(
@@ -62,6 +51,7 @@ thresholder = TweezerThresholder(
     ),
 )
 
+# ignore KMeans memory leak warnings while fitting Gaussian mixture models
 with warnings.catch_warnings():
     warnings.simplefilter('ignore', category=UserWarning)
     print('Fitting histograms...')
@@ -92,9 +82,7 @@ TweezerPreprocessor.dump_to_yaml(
     output_path=TweezerPreprocessor.ROI_CONFIG_PATH,
 )
 
-multishot_analysis = TweezerMultishotAnalysis(
-    folder, use_averaged_background=USE_AVERAGED_BACKGROUND
-)
+multishot_analyzer.analyze()
 
 fig, ax = plt.subplots(layout='constrained')
 thresholder.violinplot(ax)
@@ -105,10 +93,10 @@ fig.suptitle(folder)
 thresholder.plot_spreads(ax=axs[0])
 thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
-multishot_analysis.tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
+multishot_analyzer.tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
 
 fig, ax = plt.subplots(figsize=(6, 6), layout='constrained')
-multishot_analysis.tweezer_statistician.counts_scatterplot(ax=ax)
+multishot_analyzer.tweezer_statistician.counts_scatterplot(ax=ax)
 fig.suptitle(folder)
 
 axs[0].set_ylabel('Counts')

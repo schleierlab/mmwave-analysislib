@@ -102,6 +102,7 @@ class ROI(NamedTuple):
         rois: Sequence[ROI],
         edgecolors: Optional[Sequence[ColorType]] = None,
         label_sites: Optional[int] = 5,
+        label_displacement: tuple[float, float] = (0, -8),
         plot_config: Optional[PlotConfig] = None,
     ):
         plotconfig = plot_config or PlotConfig()
@@ -119,13 +120,9 @@ class ROI(NamedTuple):
             raise ValueError
         for j, roi in enumerate(rois):
             if j % label_sites == 0:
-                # asserts to placate mypy
-                if roi.xmin is None or roi.ymin is None:
-                    raise ValueError
-
                 ax.annotate(
                     str(j), # The site index to display
-                    xy=((roi.xmin + roi.xmax) / 2, (roi.ymin + roi.ymax) / 2 - 8), # Position of the text
+                    xy=(roi.center[0] + label_displacement[0], roi.center[1] + label_displacement[1]), # Position of the text
                     horizontalalignment='center',
                     **plotconfig.tweezer_index_label_kw,
                 )
@@ -172,10 +169,6 @@ class Image:
 
     @classmethod
     def mean(cls, images: Sequence[Image]) -> Image:
-        """
-        This is not a function to average the images across different
-        h5 files. The input has to be a list of [Image] instead of [Images]
-        """
         yshift = images[0].yshift
         if any(image.yshift != yshift for image in images[1:]):
             raise ValueError('All images must have the same yshift.')

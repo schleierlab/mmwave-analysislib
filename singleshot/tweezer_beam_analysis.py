@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import uncertainties
 import uncertainties.unumpy as unp
-from scipy.constants import pi
 
 from analysislib.common.tweezer_finding import TweezerFinder
 from analysislib.common.image_preprocessor import ImagePreprocessor
@@ -14,7 +13,7 @@ preprocessor = ImagePreprocessor(imaging_setup=manta_tweezer_system, load_type='
 
 # make tweezerfinder
 image = Image(preprocessor.exposures[0])
-finder = TweezerFinder(images=[image])
+finder = TweezerFinder(image)
 site_number = len(preprocessor.parameters['TW_x_freqs'])
 
 site_rois = finder.detect_rois_by_contours(
@@ -26,7 +25,7 @@ site_rois = finder.detect_rois_by_contours(
     relative_threshold=6,
 )
 fig_contours = plt.figure(figsize=(10, 10), layout='constrained')
-finder.plot_contour_site_detection(fig_contours, ylims='sites')
+finder.plot_contour_site_detection(fig_contours, ylims='sites', label_displacement=(-12, -12))
 # fig_contours.suptitle(str(folder))
 
 # fit site rois
@@ -39,14 +38,14 @@ fitted_upopts = np.array([
 
 fig, axs = plt.subplots(nrows=2, layout='constrained', sharex=True)
 x_uopt, y_uopt, width_uopt, amp_uopt, offset_uopt = fitted_upopts.T
-integrated_counts_u = 2 * pi * width_uopt**2 * amp_uopt
+# integrated_counts_u = 2 * pi * width_uopt**2 * amp_uopt
 
 axs[0].errorbar(
     np.arange(site_number),
-    unp.nominal_values(integrated_counts_u),
-    unp.std_devs(integrated_counts_u),
+    unp.nominal_values(amp_uopt),
+    unp.std_devs(amp_uopt),
 )
-axs[0].set_ylabel('Integrated counts (fitted)')
+axs[0].set_ylabel('Peak counts (fitted)')
 
 waists_um_u = 2 * 1e+6 * width_uopt * preprocessor.imaging_setup.atom_plane_pixel_size
 axs[1].errorbar(

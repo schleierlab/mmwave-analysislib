@@ -1,28 +1,16 @@
 import warnings
 from collections.abc import Sequence
-from os import PathLike
-from pathlib import Path
 from typing import Literal, Union
 
 import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.collections import PatchCollection
 from matplotlib.figure import Figure
-from tqdm import tqdm
 
-from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI, Image
-from analysislib.common.image_preprocessor import ImagePreprocessor
-from analysislib.common.tweezer_preproc import TweezerPreprocessor
 
 
 class TweezerFinder:
-    def __init__(self, images: Sequence[Image]):
-        self.images = images
-        self.averaged_image = Image.mean(images)
-        self.avg_1st_img = Image.mean(images[::2])
-        self.avg_2nd_img = Image.mean(images[1::2])
-        # Need to include more images if we take more images per shot
+    def __init__(self, image: Image):
+        self.image = image
 
     def detect_rois_by_roi_number(
         self,
@@ -87,7 +75,7 @@ class TweezerFinder:
             Value *above* weighted mean for adaptive thresholding of pixel values,
             in scaled units (i.e. after applying affine_transform).
         """
-        import cv2
+        import cv2  # type:ignore
 
         from analysislib.common.contour import Contour
 
@@ -99,7 +87,7 @@ class TweezerFinder:
             raise ValueError(f'{block_size=} should be a positive odd integer')
 
         image_array_blurred = cv2.GaussianBlur(
-            self.averaged_image.subtracted_array,
+            self.image.subtracted_array,
             (blur_block, blur_block),  # kernel size
             blur_width,  # Gaussian width
         )
@@ -138,7 +126,7 @@ class TweezerFinder:
                     contour.area > 0 and
                     restriction_roi.contains(
                         contour.centroid[0],
-                        contour.centroid[1] + self.averaged_image.yshift,
+                        contour.centroid[1] + self.image.yshift,
                     )
                 )
             ),
@@ -155,7 +143,7 @@ class TweezerFinder:
         site_rois = [
             ROI.from_center(
                 center_x=contour.centroid[0],
-                center_y=(self.averaged_image.yshift + contour.centroid[1]),
+                center_y=(self.image.yshift + contour.centroid[1]),
                 size=roi_size,
             )
             for contour in site_contours
@@ -193,82 +181,21 @@ class TweezerFinder:
         return filtered
 
     def detect_rois(self, neighborhood_size: int, detection_threshold: float, roi_size: int, restricted_ROI = None,):
-        return self.averaged_image.detect_site_rois(neighborhood_size, detection_threshold, roi_size, restricted_ROI = restricted_ROI)
+        return self.image.detect_site_rois(neighborhood_size, detection_threshold, roi_size, restricted_ROI = restricted_ROI)
 
     def weight_functions(self, rois: Sequence[ROI], background_subtract: bool = False):
-        img = self.averaged_image if background_subtract else self.averaged_image.raw_image()
+        img = self.image if background_subtract else self.image.raw_image()
         return [
             img.roi_view(roi) / img.roi_sum(roi) * roi.pixel_area
             for roi in rois
         ]
 
-    @classmethod
-    def load_from_h5(cls, h5_path: Union[str, PathLike], use_averaged_background = False, include_2_images = False):
-        sequence_dir = Path(h5_path)
-
-        print('Loading images...')
-
-        # convert generator to list so we know the length in advance for the progress bar
-        shots_h5s = list(sequence_dir.glob('20*.h5'))
-        pbar = tqdm(shots_h5s)
-        images: list[Image] = []
-        for shot in pbar:
-            pbar.set_description(shot.name)
-            processor = TweezerPreprocessor(
-                load_type='h5',
-                h5_path=shot,
-                use_averaged_background = use_averaged_background,
-                load_rois_threshs=False,
-            )
-            images.append(processor.images[0])
-            if include_2_images:
-                images.append(processor.images[1])
-
-        return cls(images)
-
-    def plot_sites(self, rois: Sequence[ROI]):
-        '''
-        Plot the average of the 1st image taken from each shot
-        Include rois
-        '''
-        fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
-
-        rois_bbox = ROI.bounding_box(rois)
-        padding = 50
-        atom_roi_xlims = (rois_bbox.xmin - padding, rois_bbox.xmax + padding)
-
-        fig.suptitle(f'Tweezer site detection ({len(self.images)} shots averaged)')
-        raw_img_color_kw = dict(
-            cmap='viridis',
-            vmin=0,
-            vmax=np.max(self.averaged_image.subtracted_array),
-        )
-
-        full_ylims = (
-            self.averaged_image.yshift,
-            self.averaged_image.yshift + self.averaged_image.height,
-        )
-
-        im = self.averaged_image.imshow_view(
-            ROI.from_roi_xy(atom_roi_xlims, full_ylims),
-            ax=ax,
-            **raw_img_color_kw,
-        )
-        fig.colorbar(im, ax=ax)
-
-        ROI.plot_rois(
-            ax,
-            rois,
-            label_sites=5,
-        )
-
-        return fig
-
-
     def plot_contour_site_detection(
             self,
             fig: Figure,
             ylims: Union[tuple[int, int], Literal['full', 'sites']] = 'full',
+            label_sites: int = 5,
+            label_displacement: tuple[float, float] = (0, -8),
             **kwargs,
     ):
         axs = fig.subplots(nrows=3)
@@ -280,8 +207,8 @@ class TweezerFinder:
 
         if ylims == 'full':
             plot_ylims = (
-                self.averaged_image.yshift,
-                self.averaged_image.yshift + self.averaged_image.height,
+                self.image.yshift,
+                self.image.yshift + self.image.height,
             )
         elif ylims == 'sites':
             plot_ylims = (rois_bbox.ymin - padding, rois_bbox.ymax + padding)
@@ -293,91 +220,57 @@ class TweezerFinder:
         raw_img_color_kw = dict(
             cmap='viridis',
             vmin=0,
-            vmax=np.max(self.averaged_image.subtracted_array),
+            vmax=np.max(self.image.subtracted_array),
         )
         imshow_kw = raw_img_color_kw | kwargs
 
-        im = self.averaged_image.imshow_view(
+        im = self.image.imshow_view(
             view_roi,
             ax=axs[0],
             **imshow_kw,
         )
         fig.colorbar(im, ax=axs)
 
-        ROI.plot_rois(
-            axs[0],
-            self.rois,
-            label_sites=5,
-        )
-
         axs[1].set_title('Blurred image')
         # print(self.image_blurred.shape)
 
         plot_extent = np.array([view_roi.xmin, view_roi.xmax, view_roi.ymax, view_roi.ymin]) - 0.5
+
+        image_slice = (
+            slice(view_roi.ymin - self.image.yshift, view_roi.ymax - self.image.yshift),
+            slice(view_roi.xmin, view_roi.xmax),
+        )
+
         axs[1].imshow(
-            self.image_blurred[view_roi.ymin:view_roi.ymax, view_roi.xmin:view_roi.xmax],
+            self.image_blurred[image_slice],
             extent=plot_extent,
             **imshow_kw,
         )
 
         axs[2].set_title('Adaptive threshold')
         axs[2].imshow(
-            self.image_thresholded[view_roi.ymin:view_roi.ymax, view_roi.xmin:view_roi.xmax],
+            self.image_thresholded[image_slice],
             extent=plot_extent,
             cmap='Greys_r',
         )
         
-        ROI.plot_rois(
-            axs[2],
-            self.rois,
-            label_sites=5,
-        )
+        for ax in [axs[0], axs[2]]:
+            ROI.plot_rois(
+                ax,
+                self.rois,
+                label_sites=label_sites,
+                label_displacement=label_displacement,
+            )
 
         centroids = np.array([contour.centroid for contour in self.site_contours])
 
-        # print(centroids + [0, self.averaged_image.yshift])
-        # print(f'{self.averaged_image.yshift=}')
+        # print(centroids + [0, self.image.yshift])
+        # print(f'{self.image.yshift=}')
         
         centroid_x, centroid_y = centroids.T
         axs[2].scatter(
             centroid_x,
-            centroid_y + self.averaged_image.yshift,
+            centroid_y + self.image.yshift,
             s=1,
             color='red',
         )
-
-    def plot_averaged_images(self, rois: Sequence[ROI]):
-        '''
-        Plot the average of the 1st and 2nd images taken from each shot seperately
-        Doesn't include rois for now
-        '''
-        fig, axs = plt.subplots(nrows=2, ncols=1, layout='constrained')
-
-        rois_bbox = ROI.bounding_box(rois)
-        padding = 50
-        atom_roi_xlims = (rois_bbox.xmin - padding, rois_bbox.xmax + padding)
-
-        fig.suptitle(f'Tweezer site detection ({len(self.images[::2])} shots averaged)')
-        raw_img_color_kw = dict(
-            cmap='viridis',
-            vmin=0,
-            vmax=np.max(self.averaged_image.subtracted_array),
-        )
-
-        full_ylims = (
-            self.averaged_image.yshift,
-            self.averaged_image.yshift + self.averaged_image.height,
-        )
-
-        im = self.avg_1st_img.imshow_view(
-            ROI.from_roi_xy(atom_roi_xlims, full_ylims),
-            ax=axs[0],
-            **raw_img_color_kw,
-        )
-        im = self.avg_2nd_img.imshow_view(
-            ROI.from_roi_xy(atom_roi_xlims, full_ylims),
-            ax=axs[1],
-            **raw_img_color_kw,
-        )
-        fig.colorbar(im, ax=axs)
-        fig.savefig(f'{self.folder}/tweezers_averaged_images.pdf')

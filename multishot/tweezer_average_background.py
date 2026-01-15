@@ -2,8 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from analysislib.common.lab_constants import USERLIB_PATH
-from analysislib.common.tweezer_multishot import TweezerMultishotAnalysis
+from analysislib.common.tweezer_multishot import TweezerMultishotAnalyzer
 from analysislib.multishot.util import select_data_directory
+
+from common.tweezer_preproc import TweezerPreprocessor
 
 
 SHOW_ROIS = True
@@ -11,23 +13,24 @@ background_subtract = True
 
 folder = select_data_directory()
 
-multishot_analysis = TweezerMultishotAnalysis(folder)
-atom_roi = multishot_analysis.atom_roi
-averaged_background = multishot_analysis.averaged_background()
+multishot_analyzer = TweezerMultishotAnalyzer(folder)
+averaged_background = multishot_analyzer.mean_background()
+
+# hacky way to get atom roi...
+preproc: TweezerPreprocessor = next(multishot_analyzer.preprocessors.values())
+preproc.load_rois_threshs()
+atom_roi = preproc.atom_roi
 
 fig, ax = plt.subplots(nrows=1, ncols=1, layout='constrained')
-raw_img_color_kw = dict(
-    cmap='viridis',
-    # vmin=-10,
-    # vmax=10,
-)
 im = ax.imshow(
     averaged_background[
         0:atom_roi.ymax - atom_roi.ymin,
         atom_roi.xmin:atom_roi.xmax,
     ],
-    **raw_img_color_kw,
-    )
+    cmap='viridis',
+    # vmin=-10,
+    # vmax=10,
+)
 fig.colorbar(im, ax=ax)
 
 fig.savefig(folder / 'tweezers_average_background.pdf')
