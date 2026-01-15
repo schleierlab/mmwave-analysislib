@@ -14,8 +14,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.patches import Rectangle
 from matplotlib.typing import ColorType
 from numpy.typing import NDArray
-from scipy import optimize
-import scipy.ndimage as ndimage
+from scipy import ndimage, optimize
 
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import Quadruple, RectangleKwargs
@@ -368,9 +367,9 @@ class Image:
                     y0,
                     width,
                     height,
-                    rotation = 0,
-                    peak_height = peak_height,
-                    offset = offset,
+                    rotation=0,
+                    peak_height=peak_height,
+                    offset=offset,
                 ),
                 xys,
                 roiview.ravel(),

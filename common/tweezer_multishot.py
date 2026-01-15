@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 from tqdm import tqdm
 
-from analysislib.common.image import ROI, Image
+from analysislib.common.image import Image, ROI
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
@@ -41,9 +41,6 @@ class TweezerMultishotAnalyzer:
 
         self.preprocessors = preprocessors
 
-    def __len__(self) -> int:
-        return len(self.preprocessors)
-    
     @property
     def n_shots(self) -> int:
         return len(self.preprocessors)

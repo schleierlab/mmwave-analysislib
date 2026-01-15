@@ -39,7 +39,7 @@ new_site_rois = finder.detect_rois_by_contours(
 fig_contours = plt.figure(figsize=(10, 10), layout='constrained')
 finder.plot_contour_site_detection(fig_contours)
 fig_contours.suptitle(
-    f'Tweezer site detection ({len(multishot_analyzer)} shots averaged)\n{str(folder)}',
+    f'Tweezer site detection ({multishot_analyzer.n_shots} shots averaged)\n{str(folder)}',
 )
 
 thresholder = TweezerThresholder(

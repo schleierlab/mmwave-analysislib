@@ -67,13 +67,35 @@ class TweezerFinder:
             affine_transform = lambda x: x,
     ) -> list[ROI]:
         """
-        Docstring for detect_rois_by_contours
+        Detect bright spots using a contour-based approach with OpenCV.
+        The image is blurred to reduce noise, then thresholded.
+        For robustness against local variations in background brightness,
+        this thresholding is adaptive (i.e. determined based on average local brightness).
+        Resulting contours are then filtered and ROIs centered on each are produced as output.
         
         Parameters
         ----------
+        roi_number: int
+            Expected number of bright spots.
+        roi_size: int
+            Size of resulting ROIs.
+        restriction_roi: ROI
+            Region to restrict ROI centers to.
+        blur_block: int
+            Size of block for Gaussian blurring during preprocessing.
+        blur_width: float
+            Characteristic radius for Gaussian blurring.
+        block_size: int
+            Size of block for determining adaptive threshold,
+            which is a Gaussian weighted average within a (block_size, block_size)
+            region around each pixel, with 
         relative_threshold: float
             Value *above* weighted mean for adaptive thresholding of pixel values,
             in scaled units (i.e. after applying affine_transform).
+        affine_transform: optional
+            Affine function for converting blurred image pixel values
+            to a value in [0, 255] to better span 8-bit space
+            (adaptive thresholding requires 8-bit image values).
         """
         import cv2  # type:ignore
 
