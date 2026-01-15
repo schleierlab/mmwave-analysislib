@@ -3,9 +3,8 @@ import numpy as np
 
 from analysislib.common.lab_constants import USERLIB_PATH
 from analysislib.common.tweezer_multishot import TweezerMultishotAnalyzer
+from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
-
-from common.tweezer_preproc import TweezerPreprocessor
 
 
 SHOW_ROIS = True
