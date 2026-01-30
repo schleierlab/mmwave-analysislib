@@ -4,20 +4,21 @@ import itertools
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple, Optional, Union, cast
+from typing_extensions import Unpack
 
 import numpy as np
 from matplotlib import patches
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.collections import PatchCollection
+from matplotlib.patches import Rectangle
 from matplotlib.typing import ColorType
-from numpy.typing import ArrayLike, NDArray
-from scipy import optimize
-import scipy.ndimage as ndimage
+from numpy.typing import NDArray
+from scipy import ndimage, optimize
 
 from analysislib.common.plot_config import PlotConfig
+from analysislib.common.typing import Quadruple, RectangleKwargs
 
-MaybeInt = Optional[int]
 
 class ROI(NamedTuple):
     '''
@@ -26,10 +27,10 @@ class ROI(NamedTuple):
     all given in units of pixels. Thus, the center pixel of ROI(xmin=13, xmax=18, ymin=25, ymax=30),
     a 5px x 5px region, is (x, y) = (15, 27).
     '''
-    xmin: MaybeInt
-    xmax: MaybeInt
-    ymin: MaybeInt
-    ymax: MaybeInt
+    xmin: int
+    xmax: int
+    ymin: int
+    ymax: int
 
     @property
     def width(self):
@@ -42,9 +43,13 @@ class ROI(NamedTuple):
     @property
     def pixel_area(self):
         return self.width * self.height
+    
+    @property
+    def center(self) -> tuple[float, float]:
+        return (self.xmax + self.xmin - 1) / 2, (self.ymax + self.ymin - 1) / 2
 
-    def patch(self, scale_factor: float = 1.0, **kwargs):
-        default_kw = dict(linewidth=0.75, edgecolor='r', facecolor='none')
+    def patch(self, scale_factor: float = 1.0, **kwargs: Unpack[RectangleKwargs]):
+        default_kw = RectangleKwargs(linewidth=0.75, edgecolor='r', facecolor='none')
         return patches.Rectangle(
             ((self.xmin - 0.5) * scale_factor, (self.ymin - 0.5) * scale_factor),
             self.width * scale_factor, self.height * scale_factor,
@@ -79,9 +84,7 @@ class ROI(NamedTuple):
         )
 
     @classmethod
-    def from_roi_xy(
-        cls, roi_x: tuple[MaybeInt, MaybeInt], roi_y: tuple[MaybeInt, MaybeInt]
-    ):
+    def from_roi_xy(cls, roi_x: tuple[int, int], roi_y: tuple[int, int]):
         return cls(roi_x[0], roi_x[1], roi_y[0], roi_y[1])
 
     @staticmethod
@@ -89,7 +92,7 @@ class ROI(NamedTuple):
         return np.array([roi for roi in rois])
 
     @staticmethod
-    def fromarray(arr: ArrayLike) -> list[ROI]:
+    def fromarray(arr) -> list[ROI]:
         return [ROI(roi[0], roi[1], roi[2], roi[3]) for roi in arr]
 
     @staticmethod
@@ -98,11 +101,12 @@ class ROI(NamedTuple):
         rois: Sequence[ROI],
         edgecolors: Optional[Sequence[ColorType]] = None,
         label_sites: Optional[int] = 5,
+        label_displacement: tuple[float, float] = (0, -8),
         plot_config: Optional[PlotConfig] = None,
     ):
         plotconfig = plot_config or PlotConfig()
         edgecolor_iter = itertools.repeat('yellow') if edgecolors is None else edgecolors
-        patches = tuple(
+        patches: tuple[Rectangle, ...] = tuple(
             roi.patch(edgecolor=edgecolor, alpha=0.6)
             for roi, edgecolor in zip(rois, edgecolor_iter)
         )
@@ -115,13 +119,9 @@ class ROI(NamedTuple):
             raise ValueError
         for j, roi in enumerate(rois):
             if j % label_sites == 0:
-                # asserts to placate mypy
-                if roi.xmin is None or roi.ymin is None:
-                    raise ValueError
-
                 ax.annotate(
                     str(j), # The site index to display
-                    xy=((roi.xmin + roi.xmax) / 2, (roi.ymin + roi.ymax) / 2 - 8), # Position of the text
+                    xy=(roi.center[0] + label_displacement[0], roi.center[1] + label_displacement[1]), # Position of the text
                     horizontalalignment='center',
                     **plotconfig.tweezer_index_label_kw,
                 )
@@ -168,10 +168,6 @@ class Image:
 
     @classmethod
     def mean(cls, images: Sequence[Image]) -> Image:
-        """
-        This is not a function to average the images across different
-        h5 files. The input has to be a list of [Image] instead of [Images]
-        """
         yshift = images[0].yshift
         if any(image.yshift != yshift for image in images[1:]):
             raise ValueError('All images must have the same yshift.')
@@ -227,12 +223,15 @@ class Image:
             **kwargs,
             )
         else:
+            extent = cast(Quadruple, tuple(
+                scale_factor * (value - 0.5)
+                for value in [roi.xmin, roi.xmax, roi.ymax, roi.ymin]
+            ))
             im = ax.imshow(
-                self.roi_view(roi),#ndimage.gaussian_filter(self.roi_view(roi), sigma=(5, 5), order=0),#self.roi_view(roi),
-                extent=(scale_factor * (np.array([roi.xmin, roi.xmax, roi.ymax, roi.ymin]) - 0.5)),
+                self.roi_view(roi),
+                extent=extent,
                 **kwargs,
             )
-
 
         return im
 
@@ -296,34 +295,58 @@ class Image:
 
         return site_rois
 
-    def roi_fit_gaussian2d(self, roi: ROI, uniform = False, small_dot = False, smoothen = False):
+    def roi_fit_gaussian2d(
+            self,
+            roi: ROI,
+            isotropic: bool = False,
+            small_dot: bool = False,
+            blur: Optional[int] = None,
+    ):
         """
         Fits a 2D Gaussian function to the image data.
         Mainly intended to fit images of the MOT.
+
+        Parameters
+        ----------
+        roi: ROI
+            Area to fit.
+        isotropic: bool
+            If true, constrain the Gaussian to be rotationally symmetric.
+            Otherwise, Gaussian is only constrained to have principal axes
+            along Cartesian axes.
+        blur: int, optional
+            If specified, blur the image with a Gaussian filter of
+            the specified width (in pixels).
+        
         """
-        if smoothen:
-            print(self.roi_view(roi))
-            roiview = ndimage.gaussian_filter(self.roi_view(roi), sigma=(5, 5), order=0)
+        if blur is not None:
+            roiview = ndimage.gaussian_filter(
+                self.roi_view(roi),
+                sigma=(blur, blur),
+                order=0,
+            )
         else:
             roiview = self.roi_view(roi)
+
         y, x = np.mgrid[:roiview.shape[0], :roiview.shape[1]]
         xys = np.vstack([x.ravel(), y.ravel()]).T
 
         x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
         width_guess = roi.width/4
         height_guess = roi.height/4
+
         if small_dot:
             width_guess = width_guess/8
             height_guess = height_guess/8
+
         z_data_range = np.max(roiview) - np.min(roiview)
         a_guess = z_data_range
         offset_guess = np.min(roiview)
-        print(x0_guess, y0_guess, a_guess)
 
-        if uniform:
+        if isotropic:
             p0 = [x0_guess, y0_guess, width_guess, a_guess, offset_guess]
             return optimize.curve_fit(
-                lambda xy, x0, y0, width, peak_height, offset: self.gaussian2d_uniform(xy, x0, y0, width, peak_height, offset),
+                self.gaussian2d_uniform,
                 xys,
                 roiview.ravel(),
                 p0=p0,
@@ -338,7 +361,16 @@ class Image:
         else:
             p0 = [x0_guess, y0_guess, width_guess, height_guess, a_guess, offset_guess]
             return optimize.curve_fit(
-                lambda xy, x0, y0, width, height, peak_height, offset :self.gaussian2d(xy, x0, y0, width, height, rotation = 0, peak_height = peak_height, offset = offset),
+                lambda xy, x0, y0, width, height, peak_height, offset: self.gaussian2d(
+                    xy,
+                    x0,
+                    y0,
+                    width,
+                    height,
+                    rotation=0,
+                    peak_height=peak_height,
+                    offset=offset,
+                ),
                 xys,
                 roiview.ravel(),
                 p0=p0,
@@ -415,7 +447,7 @@ class Image:
         centered_xy = np.asarray(xy) - np.asarray([x0, y0])  # shape (..., 2)
 
         # shape (..., 2)
-        z_score_vector = centered_xy/ [width, width]
+        z_score_vector = centered_xy / [width, width]
 
         # shape (...,)
         mahalanobis_dist_sq = np.sum(z_score_vector**2, axis=-1)

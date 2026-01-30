@@ -120,7 +120,7 @@ class ImagingSystem:
 
         >>> counts_per_atom(gamma, exposure_time, detuning=(-gamma / 2 / np.pi))
 
-        Count rate at a detuning of -\Gamma in the saturated limit.
+        Count rate at a detuning of -\\Gamma in the saturated limit.
         """
         s = saturation_param
         if s == np.inf:

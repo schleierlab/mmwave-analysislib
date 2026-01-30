@@ -21,9 +21,10 @@ from matplotlib.ticker import MaxNLocator
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 
-from .plot_config import PlotConfig
-from .image import ROI
-from .base_statistics import BaseStatistician
+from analysislib.common.base_statistics import BaseStatistician
+from analysislib.common.image import ROI
+from analysislib.common.plot_config import PlotConfig
+from analysislib.common.typing import StrPath
 
 
 @dataclass(frozen=True)
@@ -124,8 +125,8 @@ class TweezerStatistician(BaseStatistician):
 
     def __init__(
             self,
-            preproc_h5_path: str,
-            shot_h5_path: Optional[str | os.PathLike] = None,
+            preproc_h5_path: StrPath,
+            shot_h5_path: Optional[StrPath] = None,
             plot_config: Optional[PlotConfig] = None,
             *,
             rearrangement: bool = False,

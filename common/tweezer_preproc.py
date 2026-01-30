@@ -1,4 +1,3 @@
-import importlib.resources
 from collections.abc import Sequence
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, cast
@@ -9,14 +8,13 @@ import yaml
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.cm import ScalarMappable
-from matplotlib.collections import PatchCollection
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 
-from analysislib import multishot
 from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI, Image
 from analysislib.common.image_preprocessor import ImagePreprocessor
+from analysislib.common.lab_constants import ROI_CONFIG_PATH, USERLIB_PATH
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
 
@@ -38,8 +36,6 @@ class TweezerPreprocessor(ImagePreprocessor):
         Path to H5 file for data loading
     """
 
-    USERLIB_PATH: ClassVar[Path] = Path('C:/Users/sslab/labscript-suite/userlib')
-    ROI_CONFIG_PATH: ClassVar[Path] = importlib.resources.files(multishot) / 'roi_config.yml'
     PROCESSED_RESULTS_FNAME: ClassVar[str] = 'tweezer_preprocess.h5'
     DEFAULT_PARAMS_PATH: ClassVar[Path] = USERLIB_PATH / Path('labscriptlib/defaults.yml')
 
@@ -52,6 +48,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             self,
             load_type: Literal['lyse', 'h5'] = 'lyse',
             h5_path: Optional[StrPath] = None,
+            initialize: bool = True,
             use_averaged_background: bool = False,
             plot_config: Optional[PlotConfig] = None,
             load_rois_threshs: bool = True,
@@ -70,16 +67,22 @@ class TweezerPreprocessor(ImagePreprocessor):
         super().__init__(
             imaging_setup=kinetix_system,
             load_type=load_type,
-            h5_path=h5_path
+            h5_path=h5_path,
         )
-
         self.plot_config = plot_config or PlotConfig()
 
-        if load_rois_threshs:
-            self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(self.ROI_CONFIG_PATH, self._load_ylims_from_globals())
-            self.threshold, self.site_thresholds = self._load_threshold_from_yaml(self.ROI_CONFIG_PATH)
+        if initialize:
+            if load_rois_threshs:
+                self.load_rois_threshs()
+            self.background_subtraction(use_averaged_background)
+
+    def load_rois_threshs(self):
+        self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(ROI_CONFIG_PATH, self._load_ylims_from_globals())
+        self.threshold, self.site_thresholds = self._load_threshold_from_yaml(ROI_CONFIG_PATH)
+
+    def background_subtraction(self, use_averaged_background: bool = False):
         if use_averaged_background:
-            average_background_overwrite_path = self.USERLIB_PATH / Path('analysislib/multishot/avg_shot_bkg.npy')
+            average_background_overwrite_path = USERLIB_PATH / 'analysislib/multishot/avg_shot_bkg.npy'
             bkg = np.load(average_background_overwrite_path)
         else:
             bkg = self.exposures[-1]
