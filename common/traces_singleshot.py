@@ -1,33 +1,16 @@
-from abc import abstractmethod, ABC
-import os
+from abc import ABC
+from pathlib import Path
 from typing import Any, Optional, Literal
 
 import numpy as np
 
 import h5py
 
-from .analysis_config import ImagingSystem
 from analysislib.analysis.data import h5lyze as hz
-from typing import Union
-from os import PathLike
-from pathlib import Path
+from analysislib.common.typing import StrPath
 
 
 class TraceSingleshotAnalysis(ABC):
-    """Base class for image preprocessing.
-
-    This class handles the basic image loading and preprocessing operations
-    common to both tweezer and bulk gas analysis.
-
-    Parameters
-    ----------
-    imaging_setup : ImagingSystem
-        Configuration object for the imaging system setup
-    load_type : str, default='lyse'
-        Type of data loading to use
-    h5_path : Optional[str], default=None
-        Path to H5 file for data loading
-    """
 
     run_number: int
     h5_path: Path
@@ -37,19 +20,9 @@ class TraceSingleshotAnalysis(ABC):
 
     def __init__(
             self,
-            load_type: str = 'lyse',
-            h5_path: Optional[str] = None):
-        """Initialize image preprocessing.
-
-        Parameters
-        ----------
-        imaging_setup : ImagingSystem
-            Imaging setup configuration
-        load_type : str, default='lyse'
-            'lyse' for h5 file active in lyse, 'h5' for h5 file with input h5_path
-        h5_path : str, optional
-            Path to h5 file, only used if load_type='h5'
-        """
+            load_type: Literal['lyse', 'h5'] = 'lyse',
+            h5_path: Optional[StrPath] = None,
+    ):
         self.h5_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
         self.traces_dict, self.run_number, self.globals = self.load_traces()
         self.traces_name, self.traces_time, self.traces_value = self.convert_dict_to_name_time_value(self.traces_dict)
@@ -58,7 +31,7 @@ class TraceSingleshotAnalysis(ABC):
             self.n_runs = f.attrs['n_runs']
 
     # TODO migrate to using pathlib Paths instead
-    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[str] = None) -> Path:
+    def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[StrPath] = None) -> Path:
         """
         get h5_path based on load_type
         Parameters

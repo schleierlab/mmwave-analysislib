@@ -5,7 +5,7 @@ import numpy as np
 from .image import ROI
 
 
-@dataclass
+@dataclass(frozen=True)
 class ImagingCamera:
     """Configuration class for imaging camera parameters.
 
@@ -33,11 +33,9 @@ class ImagingCamera:
     gain: float
     image_group_name: str
     image_name_stem: str
-    image_group_name2: str = "None"
 
 
-
-@dataclass
+@dataclass(frozen=True)
 class ImagingSystem:
     """Configuration class for imaging system parameters.
 
@@ -163,8 +161,7 @@ manta_local_addr = ImagingCamera(
     image_size=2048,
     quantum_efficiency=0.4,
     gain=1,
-    image_group_name='manta419b_tweezer_images',
-    image_group_name2='manta419b_local_addr_images',
+    image_group_name='manta419b_local_addr_images',
     image_name_stem='manta',
 )
 
@@ -185,6 +182,7 @@ manta_tweezer_system = ImagingSystem(
     camera=manta_tweezer,
 )
 
+# TODO update these numbers...
 #Some of these need to be fixed, but it doesn't quite matter if the alignment calibration is just using pixels.
 #Either way, should note down what we're actually using.
 manta_local_addr_align_system = ImagingSystem(

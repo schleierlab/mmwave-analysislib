@@ -173,6 +173,9 @@ class BaseStatistician(ABC):
             Optimal parameters fit and covariance matrix thereof.
             Parameters are ordered as: [center, full-width-half-max, amplitude, offset]
         """
+        if len(x_data) < 2:
+            raise ValueError
+
         if peak_direction > 0:
             x0_guess = x_data[np.argmax(y_data)]
         else:

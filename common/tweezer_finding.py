@@ -1,16 +1,23 @@
+import logging
 import warnings
 from collections.abc import Sequence
 from typing import Literal, Union
 
 import numpy as np
 from matplotlib.figure import Figure
+from numpy.typing import ArrayLike
 
 from analysislib.common.image import ROI, Image
 
+logger = logging.getLogger(__name__)
+
 
 class TweezerFinder:
-    def __init__(self, image: Image):
-        self.image = image
+    def __init__(self, image: Union[Image, ArrayLike]):
+        if isinstance(image, Image):
+            self.image = image
+        else:
+            self.image = Image(np.array(image))
 
     def detect_rois_by_roi_number(
         self,
@@ -155,11 +162,11 @@ class TweezerFinder:
             key=(lambda contour: contour.area),
             reverse=True,
         )
-        print(f'Identified {len(contours_filtered)} potential sites')
+        logger.info(f'Identified {len(contours_filtered)} potential sites')
         if len(contours_filtered) < roi_number:
             warnings.warn(f'Did not find desired number ({roi_number}) of sites.')
         elif len(contours_filtered) > roi_number:
-            print(f'Keeping largest {roi_number} sites by area.')
+            logger.info(f'Keeping largest {roi_number} sites by area.')
         site_contours = contours_filtered[:roi_number]
 
         site_rois = [
@@ -215,7 +222,7 @@ class TweezerFinder:
     def plot_contour_site_detection(
             self,
             fig: Figure,
-            ylims: Union[tuple[int, int], Literal['full', 'sites']] = 'full',
+            ylims: Union[tuple[int, int], Literal['full', 'sites']] = 'sites',
             label_sites: int = 5,
             label_displacement: tuple[float, float] = (0, -8),
             **kwargs,

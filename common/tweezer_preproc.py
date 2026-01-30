@@ -11,7 +11,7 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 
-from analysislib.common.analysis_config import kinetix_system
+from analysislib.common.analysis_config import ImagingSystem, kinetix_system
 from analysislib.common.image import ROI, Image
 from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.lab_constants import ROI_CONFIG_PATH, USERLIB_PATH
@@ -38,9 +38,11 @@ class TweezerPreprocessor(ImagePreprocessor):
 
     PROCESSED_RESULTS_FNAME: ClassVar[str] = 'tweezer_preprocess.h5'
     DEFAULT_PARAMS_PATH: ClassVar[Path] = USERLIB_PATH / Path('labscriptlib/defaults.yml')
+    imaging_setup: ClassVar[ImagingSystem] = kinetix_system
 
     atom_roi: ROI
     background_roi: ROI
+    exposures: tuple[np.ndarray, ...]
     site_rois: Sequence[ROI]
     threshold: float
 
@@ -65,11 +67,12 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         # Initialize parent class first
         super().__init__(
-            imaging_setup=kinetix_system,
+            imaging_setups=[self.imaging_setup],
             load_type=load_type,
             h5_path=h5_path,
         )
         self.plot_config = plot_config or PlotConfig()
+        self.exposures = self.exposures_dict[kinetix_system]
 
         if initialize:
             if load_rois_threshs:

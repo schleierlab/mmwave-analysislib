@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Optional, Literal
 
@@ -12,25 +13,13 @@ from analysislib.common.typing import StrPath
 
 
 class ImagePreprocessor:
-    """Base class for image preprocessing.
-
-    This class handles the basic image loading and preprocessing operations
-    common to both tweezer and bulk gas analysis.
-
-    Parameters
-    ----------
-    imaging_setup : ImagingSystem
-        Configuration object for the imaging system setup
-    load_type : str, default='lyse'
-        Type of data loading to use
-    h5_path : Optional[str], default=None
-        Path to H5 file for data loading
-    """
-
     run_number: int
     h5_path: Path
-    exposures: tuple[np.ndarray, ...]
+    exposures_dict: dict[ImagingSystem, tuple[np.ndarray, ...]]
+    """All exposures taken during this shot. Indexed by the imaging system used."""
+
     parameters: dict[str, Any]
+    """The effective labscript globals used, which includes default values if not supplied in runmanager"""
 
     n_runs: int
     '''Total number of runs for this runmanager expansion.'''
@@ -40,24 +29,27 @@ class ImagePreprocessor:
 
     def __init__(
             self,
-            imaging_setup: ImagingSystem,
+            imaging_setups: Sequence[ImagingSystem],
             load_type: Literal['lyse', 'h5'] = 'lyse',
             h5_path: Optional[StrPath] = None,
     ):
-        """Initialize image preprocessing.
+        """
+        Base class for image preprocessing.
+        This class handles the basic image loading and preprocessing operations
+        common to both tweezer and bulk gas analysis.
 
         Parameters
         ----------
-        imaging_setup : ImagingSystem
-            Imaging setup configuration
+        imaging_setups : sequence of ImagingSystem
+            Imaging setup configurations for all cameras used in the shot.
         load_type : str, default='lyse'
             'lyse' for h5 file active in lyse, 'h5' for h5 file with input h5_path
         h5_path : str, optional
             Path to h5 file, only used if load_type='h5'
         """
-        self.imaging_setup = imaging_setup
+        self.imaging_setups = imaging_setups
         self.h5_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
-        self.exposures, self.run_number, self.globals, self.default_params = self.load_images()
+        self.exposures_dict, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
 
         self.parameters = self.default_params | self.globals
@@ -66,7 +58,6 @@ class ImagePreprocessor:
             self.n_runs = f.attrs['n_runs']
             self.run_time = f.attrs['run time']
 
-    # TODO migrate to using pathlib Paths instead
     def get_h5_path(self, load_type: Literal['lyse', 'h5'], h5_path: Optional[StrPath] = None) -> Path:
         """
         get h5_path based on load_type
@@ -192,7 +183,7 @@ class ImagePreprocessor:
 
         return params, n_rep
 
-    def load_images(self,) -> tuple[tuple[np.ndarray, ...], int, dict[str, Any], dict[str, Any]]:
+    def load_images(self) -> tuple[dict[ImagingSystem, tuple[np.ndarray, ...]], int, dict[str, Any], dict[str, Any]]:
         """
         load image inside the h5 file, return current run number and globals
 
@@ -209,32 +200,23 @@ class ImagePreprocessor:
         with h5py.File(self.h5_path, mode='r+') as f:
             globals_dict = hz.getGlobalsFromFile(self.h5_path)
             hz.getDefaultParamsFromFile
-            if self.imaging_setup.camera.image_group_name2 == "None":
-                images = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
-            else:
-                images1 = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name], recursive=True)
-                images2 = hz.datasetsToDictionary(f[self.imaging_setup.camera.image_group_name2], recursive=True)
-                images = dict()
-                #With two manta cameras taking images, the keys are the same, so we need to make a new dict with new keys
-                for key in images1.keys():
-                    val1 = images1[key]
-                    images[key] = val1
-                n_per_camera = int(key[-1])+1
-                for key in images2.keys():
-                    val2 = images2[key]
-                    new_key = self.imaging_setup.camera.image_name_stem + str(n_per_camera + int(key[-1]))
-                    images[new_key] = val2
+
+            images_dict: dict[ImagingSystem, tuple[np.ndarray, ...]] = dict()
+            for imaging_setup in self.imaging_setups:
+                single_camera_images = hz.datasetsToDictionary(f[imaging_setup.camera.image_group_name], recursive=True)
+
+                images_dict[imaging_setup] = tuple(
+                    single_camera_images[imaging_setup.camera.image_name_stem + str(i)]
+                    for i in range(len(single_camera_images))
+                )
+
             run_number = f.attrs['run number']
             try:
                 default_params = hz.getDefaultParamsFromFile(self.h5_path)
             except KeyError:
                 default_params = dict()
 
-        images_list = tuple(
-            images[self.imaging_setup.camera.image_name_stem + str(i)]
-            for i in range(len(images))
-        )
-        return images_list, run_number, globals_dict, default_params
+        return images_dict, run_number, globals_dict, default_params
     
     @staticmethod
     def _load_default_params_from_yaml(defaul_params_path: Path):

@@ -154,7 +154,7 @@ class Image:
 
     @property
     def bkg_array(self):
-        return np.broadcast_to(self.background, self.array.shape)
+        return np.broadcast_to(self.background, self.array.shape).astype(self.array.dtype)
 
     @property
     def subtracted_array(self):
@@ -318,6 +318,15 @@ class Image:
             If specified, blur the image with a Gaussian filter of
             the specified width (in pixels).
         
+        Returns
+        -------
+        popt, pcov: arrays
+            Optimal fit parameters and the estimated covariance of popt.
+            Parameter order:
+            If isotropic:
+                x0, y0, width, peak_height, offset
+            else:
+                x0, y0, width, height, peak_height, offset
         """
         if blur is not None:
             roiview = ndimage.gaussian_filter(
@@ -328,10 +337,15 @@ class Image:
         else:
             roiview = self.roi_view(roi)
 
-        y, x = np.mgrid[:roiview.shape[0], :roiview.shape[1]]
+        # y, x = np.mgrid[:roiview.shape[0], :roiview.shape[1]]
+        y, x = np.mgrid[
+            roi.ymin:roi.ymax,
+            roi.xmin:roi.xmax,
+        ]
         xys = np.vstack([x.ravel(), y.ravel()]).T
 
-        x0_guess, y0_guess = np.unravel_index(np.argmax(roiview), roiview.shape)
+        x0_guess_rel, y0_guess_rel = np.unravel_index(np.argmax(roiview), roiview.shape)
+        x0_guess, y0_guess = x0_guess_rel + roi.xmin, y0_guess_rel + roi.ymin
         width_guess = roi.width/4
         height_guess = roi.height/4
 
@@ -351,8 +365,8 @@ class Image:
                 roiview.ravel(),
                 p0=p0,
                 bounds=np.array([
-                    (0, roi.width),
-                    (0, roi.height),
+                    (roi.xmin, roi.xmax),
+                    (roi.ymin, roi.ymax),
                     (0, roi.width),
                     (0, np.inf),
                     (-np.inf, np.inf),
@@ -375,8 +389,8 @@ class Image:
                 roiview.ravel(),
                 p0=p0,
                 bounds=np.array([
-                    (0, roi.width),
-                    (0, roi.height),
+                    (roi.xmin, roi.xmax),
+                    (roi.ymin, roi.ymax),
                     (0, roi.width),
                     (0, roi.height),
                     (0, np.inf),

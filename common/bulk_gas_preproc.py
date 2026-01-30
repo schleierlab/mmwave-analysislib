@@ -10,7 +10,7 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 from scipy.constants import pi
 
-from analysislib.common.analysis_config import BulkGasAnalysisConfig
+from analysislib.common.analysis_config import BulkGasAnalysisConfig, ImagingSystem
 from analysislib.common.image import Image, ROI
 from analysislib.common.image_preprocessor import ImagePreprocessor
 from analysislib.common.typing import StrPath
@@ -31,9 +31,12 @@ class BulkGasPreprocessor(ImagePreprocessor):
     """ Cesium scattering rate, in radians / second """
     # TODO: for what transition? Where did you get this number?
 
+
     atoms_roi: ROI
     background_roi: ROI
+    exposures: tuple[np.ndarray, ...]
     images: tuple[Image, ...]
+    imaging_setup: ImagingSystem
 
     def __init__(
             self,
@@ -68,10 +71,12 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         # Initialize parent class first
         super().__init__(
-            imaging_setup=config.imaging_system,
+            imaging_setups=[config.imaging_system],
             load_type=load_type,
             h5_path=h5_path,
         )
+        self.imaging_setup = config.imaging_system
+        self.exposures = self.exposures_dict[self.imaging_setup]
 
         # Store config
         self.analysis_config = config

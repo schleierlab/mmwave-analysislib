@@ -1,3 +1,5 @@
+import logging
+import sys
 import warnings
 
 # workaround for following warning:
@@ -19,6 +21,9 @@ from analysislib.common.tweezer_multishot import TweezerMultishotAnalyzer
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
 
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
+
 background_subtract = True
 USE_AVERAGED_BACKGROUND = True
 folder = select_data_directory()
@@ -37,7 +42,7 @@ new_site_rois = finder.detect_rois_by_contours(
     affine_transform=(lambda x: 4 * x + 40),
 )
 fig_contours = plt.figure(figsize=(10, 10), layout='constrained')
-finder.plot_contour_site_detection(fig_contours)
+finder.plot_contour_site_detection(fig_contours, ylims='full')
 fig_contours.suptitle(
     f'Tweezer site detection ({multishot_analyzer.n_shots} shots averaged)\n{str(folder)}',
 )
@@ -63,7 +68,11 @@ with warnings.catch_warnings():
 # we use ImagePreprocessor because TweezerPreprocessor requires the existence of roi_config.yml already,
 # which would be circular (we're trying to generate that file here!)
 shots_h5s = folder.glob('20*.h5')
-processor = ImagePreprocessor(imaging_setup=kinetix_system, load_type='h5', h5_path=next(shots_h5s))
+processor = ImagePreprocessor(
+    imaging_setups=[kinetix_system],
+    load_type='h5',
+    h5_path=next(shots_h5s),
+)
 ymin, ymax = processor._load_ylims_from_globals()
 
 padding = 50

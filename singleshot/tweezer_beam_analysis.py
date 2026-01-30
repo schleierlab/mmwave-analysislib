@@ -9,10 +9,10 @@ from analysislib.common.analysis_config import manta_tweezer_system
 from analysislib.common.image import Image
 
 
-preprocessor = ImagePreprocessor(imaging_setup=manta_tweezer_system, load_type='lyse')
+preprocessor = ImagePreprocessor(imaging_setups=[manta_tweezer_system], load_type='lyse')
 
 # make tweezerfinder
-image = Image(preprocessor.exposures[0])
+image = Image(preprocessor.exposures_dict[manta_tweezer_system][0])
 finder = TweezerFinder(image)
 site_number = len(preprocessor.parameters['TW_x_freqs'])
 
@@ -47,7 +47,7 @@ axs[0].errorbar(
 )
 axs[0].set_ylabel('Peak counts (fitted)')
 
-waists_um_u = 2 * 1e+6 * width_uopt * preprocessor.imaging_setup.atom_plane_pixel_size
+waists_um_u = 2 * 1e+6 * width_uopt * manta_tweezer_system.atom_plane_pixel_size
 axs[1].errorbar(
     np.arange(site_number),
     unp.nominal_values(waists_um_u),

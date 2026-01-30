@@ -1,4 +1,4 @@
-import importlib
+import importlib.resources
 from pathlib import Path
 
 from analysislib import multishot
