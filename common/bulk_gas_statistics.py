@@ -50,17 +50,19 @@ class BulkGasStatistician(BaseStatistician):
     current_params: NDArray
     """shape (n_shots, n_looping_params)"""
 
-    def __init__(self,
-                 preproc_h5_path: str,
-                 shot_h5_path: StrPath,
-                 plot_config: Optional[PlotConfig] = None,
-                 multi_image: bool = False
-                 ):
-        super().__init__()
+    def __init__(
+            self,
+            preproc_h5_path: str,
+            shot_h5_path: Optional[StrPath] = None,
+            plot_config: Optional[PlotConfig] = None,
+            multi_image: bool = False
+    ):
+        super().__init__(preproc_h5_path)
         self.multi_image = multi_image
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
-        self._save_mloop_params(shot_h5_path)
+        if shot_h5_path is not None:
+            self._save_mloop_params(shot_h5_path)
         self.folder_path = Path(preproc_h5_path).parent
 
 

@@ -315,7 +315,13 @@ class BulkGasPreprocessor(ImagePreprocessor):
 
         return fname
 
-    def show_images(self, image_index: int = 0, fig: Optional[Figure] = None, raw_img_scale: int = 100) -> None:
+    def show_images(
+            self,
+            image_index: int = 0,
+            fig: Optional[Figure] = None,
+            raw_img_scale: int = 100,
+            roi_img_scale = None,
+    ) -> None:
         """
         Show the images of raw image/background image full frame and background subtracted images in ROIs
         We use the convention show_images() to show camera images at the processing level
@@ -365,7 +371,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
             ax=axs[1, 0],
             cmap='magma',
             vmin=0,
-            # vmax=60,
+            vmax=roi_img_scale,
         )
 
         bkg_roi = self.background_roi

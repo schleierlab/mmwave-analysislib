@@ -18,9 +18,19 @@ class BaseStatistician(ABC):
     '''Shot index, but can be -1'''
 
     """Base class for statistical analysis of tweezer or bulk gas imaging data."""
-    def __init__(self, *, shot_index: int = -1):
+    def __init__(
+            self,
+            preproc_h5_path: str,
+            *,
+            shot_index: int = -1,
+    ):
         # TODO: move common init tasks here from child classes
         self._shot_index = shot_index
+
+    @property
+    @abstractmethod
+    def shots_processed(self) -> int:
+        raise NotImplementedError
 
     @abstractmethod
     def _load_processed_quantities(self, preproc_h5_path: str) -> None:
@@ -88,7 +98,6 @@ class BaseStatistician(ABC):
             return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C # gaussian decay
     
     @staticmethod
-    # Define the damped Rabi oscillation model
     def quadratic(x, a, offset, x_0):
         return a * (x - x_0)**2 + offset
 

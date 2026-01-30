@@ -133,7 +133,7 @@ class TweezerStatistician(BaseStatistician):
             shot_index: int = -1,
             target_sites: Sequence[int] = [],
     ):
-        super().__init__(shot_index=shot_index)
+        super().__init__(preproc_h5_path=preproc_h5_path, shot_index=shot_index)
         self.target_sites = target_sites
 
         self.plot_config = plot_config or PlotConfig()
@@ -459,10 +459,13 @@ class TweezerStatistician(BaseStatistician):
             if len(unique_elements) > 0:
                 ax.set_xticks(unique_elements.astype(int))
 
+        zero_atom_in_target_indices = np.where(atom_count_in_target_list[1] == 0)[0]
         print('n_shots (total experiment)', n_shots)
         print('n_rarrange_shots', n_rearrange_shots)
         print('success_rearrange', success_rearrange)
-        print(f'Rearrange attempts with 0 loaded atoms: {(atom_count_in_target_list[1] == 0).sum()}')
+        print(f"Rearrange attempts with 0 loaded atoms: {zero_atom_in_target_indices.size}")
+        print(f"Indices: {zero_atom_in_target_indices}")
+
 
     def plot_rearrange_site_success_rate(self, target_array, ax: Axes):
         # Site success rate plot

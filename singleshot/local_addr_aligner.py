@@ -29,10 +29,10 @@ subfigs = fig.subfigures(nrows=2, ncols=1, wspace=0.07)
 
 bulk_gas_preproc.show_all_images(fig = subfigs[0])
 
-plotter = BulkGasStatistician(
-    preproc_h5_path=processed_results_fname,
-    shot_h5_path=bulk_gas_preproc.h5_path, # Used only for MLOOP
-    plot_config=PlotConfig(),
-    multi_image=True
-)
-plotter.plot_beam_positions(fig = subfigs[1])
+# plotter = BulkGasStatistician(
+#     preproc_h5_path=processed_results_fname,
+#     shot_h5_path=bulk_gas_preproc.h5_path, # Used only for MLOOP
+#     plot_config=PlotConfig(),
+#     multi_image=True
+# )
+# plotter.plot_beam_positions(fig = subfigs[1])
