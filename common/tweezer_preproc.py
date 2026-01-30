@@ -75,13 +75,12 @@ class TweezerPreprocessor(ImagePreprocessor):
         self.exposures = self.exposures_dict[kinetix_system]
 
         if initialize:
-            if load_rois_threshs:
-                self.load_rois_threshs()
-            self.background_subtraction(use_averaged_background)
+            self.initialize(load_rois_threshs, use_averaged_background)
 
-    def load_rois_threshs(self):
-        self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(ROI_CONFIG_PATH, self._load_ylims_from_globals())
-        self.threshold, self.site_thresholds = self._load_threshold_from_yaml(ROI_CONFIG_PATH)
+    def initialize(self, load_rois_threshs: bool, use_averaged_background: bool):
+        self.background_subtraction(use_averaged_background)
+        if load_rois_threshs:
+            self.load_rois_threshs()
 
     def background_subtraction(self, use_averaged_background: bool = False):
         if use_averaged_background:
@@ -98,6 +97,10 @@ class TweezerPreprocessor(ImagePreprocessor):
             )
             for exposure in self.exposures[:-1]
         ]
+
+    def load_rois_threshs(self):
+        self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(ROI_CONFIG_PATH, self._load_ylims_from_globals())
+        self.threshold, self.site_thresholds = self._load_threshold_from_yaml(ROI_CONFIG_PATH)
 
     @property
     def n_sites(self):

@@ -17,7 +17,7 @@ background_subtract = True
 
 
 def compute_averaged_background(folder: Path, fig: Figure) -> None:
-    multishot_analyzer = TweezerMultishotAnalyzer(folder)
+    multishot_analyzer = TweezerMultishotAnalyzer(folder, background_subtract=False)
     averaged_background = multishot_analyzer.mean_background()
 
     # hacky way to get atom roi...

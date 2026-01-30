@@ -57,7 +57,7 @@ class TweezerThresholder:
         self.rois = list(rois)
         self.thresholds = None
 
-        weight_fns =  weights
+        weight_fns = weights
         if isinstance(weights, float):
             weight_fns = (weights,) * len(self.n_sites)
 

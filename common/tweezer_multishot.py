@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -13,17 +16,36 @@ from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.typing import StrPath
 
 
+def _requires_bg(func):
+    def decorated(self: TweezerMultishotAnalyzer, *args, **kwargs):
+        if not self._backgrounds_subtracted:
+            raise ValueError('Method requires background subtraction to be run first.')
+        return func(self, *args, **kwargs)
+    
+    return decorated
+
+
 class TweezerMultishotAnalyzer:
+    _backgrounds_subtracted: bool = False
     path: Path
     preprocessors: dict[Path, TweezerPreprocessor]
 
-    def __init__(self, path: StrPath, use_averaged_background: bool = False):
+    def __init__(
+            self,
+            path: StrPath,
+            use_averaged_background: Optional[bool] = None,
+            background_subtract: bool = True,
+    ):
         self.path = Path(path)
-        self.use_averaged_background = use_averaged_background
-        self._load_images(use_averaged_background)
+        self._load_exposures()
+        if background_subtract:
+            if use_averaged_background is None:
+                raise ValueError('If doing background subtraction, must specify whether to use averaged background.')
+            self.background_subtraction(use_averaged_background)
 
-    def _load_images(self, use_averaged_background: bool) -> None:
-        print('Loading images...')
+    def _load_exposures(self) -> None:
+        """Load the raw exposure data."""
+        print('Loading exposures...')
 
         shots_h5s = list(self.path.glob('20*.h5'))
         pbar = tqdm(shots_h5s)
@@ -36,7 +58,6 @@ class TweezerMultishotAnalyzer:
                 h5_path=shot,
                 initialize=False,
             )
-            preproc.background_subtraction(use_averaged_background)
             preprocessors[shot] = preproc
 
         self.preprocessors = preprocessors
@@ -45,15 +66,23 @@ class TweezerMultishotAnalyzer:
     def n_shots(self) -> int:
         return len(self.preprocessors)
 
-    def images(self, index: int = 0) -> list[Image]:
-        return [preproc.images[index] for preproc in self.preprocessors.values()]
-
-    def mean_image(self, index: int = 0) -> Image:
-        return Image.mean(self.images(index))
-
     def mean_background(self) -> NDArray:
         return np.mean([preproc.exposures[-1] for preproc in self.preprocessors.values()], axis=0)
 
+    def background_subtraction(self, use_averaged_background: bool):
+        for preproc in self.preprocessors.values():
+            preproc.background_subtraction(use_averaged_background)
+        self._backgrounds_subtracted = True
+
+    @_requires_bg
+    def images(self, index: int = 0) -> list[Image]:
+        return [preproc.images[index] for preproc in self.preprocessors.values()]
+
+    @_requires_bg
+    def mean_image(self, index: int = 0) -> Image:
+        return Image.mean(self.images(index))
+
+    @_requires_bg
     def analyze(self):
         print('Analyzing shots...')
         
@@ -61,7 +90,7 @@ class TweezerMultishotAnalyzer:
         for shot in pbar:
             pbar.set_description(str(shot.name))
             tweezer_preproc = self.preprocessors[shot]
-            tweezer_preproc.initialize()
+            tweezer_preproc.load_rois_threshs()
             processed_results_fname = tweezer_preproc.process_shot(use_global_threshold=True)
 
         self.tweezer_statistician = TweezerStatistician(
@@ -71,6 +100,7 @@ class TweezerMultishotAnalyzer:
         )
     
     # not sure if this belongs here; putting it here to limit scope of present diff
+    @_requires_bg
     def plot_averaged_images(self, rois: Sequence[ROI]):
         '''
         Plot the average of the 1st and 2nd images taken from each shot seperately
@@ -109,6 +139,7 @@ class TweezerMultishotAnalyzer:
 
     # not sure if this belongs here; putting it here to limit scope of present diff
     # TODO should be merged with above function
+    @_requires_bg
     def plot_sites(self, rois: Sequence[ROI]):
         '''
         Plot the average of the 1st image taken from each shot

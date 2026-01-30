@@ -2,6 +2,7 @@ import logging
 import sys
 import warnings
 from pathlib import Path
+from typing import cast
 
 # workaround for following warning:
 #     C:\Users\sslab\miniconda3\envs\labscript-env\lib\site-packages\sklearn\cluster\_kmeans.py:1419: UserWarning: 
@@ -12,32 +13,46 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from analysislib.common.analysis_config import kinetix_system
 from analysislib.common.image import ROI
 from analysislib.common.image_preprocessor import ImagePreprocessor
+from analysislib.common.lab_constants import ROI_CONFIG_PATH, USERLIB_PATH
 from analysislib.common.tweezer_finding import TweezerFinder
 from analysislib.common.tweezer_histograms import TweezerThresholder
 from analysislib.common.tweezer_multishot import TweezerMultishotAnalyzer
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.multishot.util import select_data_directory
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-
 
 background_subtract = True
 USE_AVERAGED_BACKGROUND = False
+weighted_counts = True
 
-# TODO merge these four figures into one and use subfigures.
+
 def detect_rois(
         folder: Path,
-        fig_contours: Figure,
-        fig_violin: Figure,
-        fig_thresholding: Figure,
-        fig_scatter: Figure,
+        fig_summary: Figure,
 ):
-    multishot_analyzer = TweezerMultishotAnalyzer(folder, use_averaged_background=USE_AVERAGED_BACKGROUND)
+    fig_summary.suptitle(str(folder))
+    subfigs = fig_summary.subfigures(nrows=2, ncols=1, hspace=0.07, height_ratios=[2, 1])
+
+    fig_contours_and_bg, fig_thresholding = subfigs[0].subfigures(nrows=1, ncols=2, wspace=0.07)
+    fig_violin, fig_scatter = subfigs[1].subfigures(nrows=1, ncols=2, wspace=0.07, width_ratios=[3, 1])
+    fig_contours, fig_bg = fig_contours_and_bg.subfigures(nrows=2, ncols=1, hspace=0.03, height_ratios=[3, 1])
+
+    multishot_analyzer = TweezerMultishotAnalyzer(
+        folder,
+        use_averaged_background=USE_AVERAGED_BACKGROUND,
+        background_subtract=False,
+    )
+    averaged_background = multishot_analyzer.mean_background()
+    np.save(folder / 'avg_shot_bkg.npy', averaged_background)
+    np.save(USERLIB_PATH / 'analysislib/multishot/avg_shot_bkg.npy', averaged_background)
+
+    multishot_analyzer.background_subtraction(use_averaged_background=USE_AVERAGED_BACKGROUND)
     finder = TweezerFinder(multishot_analyzer.mean_image())
 
     new_site_rois = finder.detect_rois_by_contours(
@@ -55,13 +70,18 @@ def detect_rois(
         f'Tweezer site detection ({multishot_analyzer.n_shots} shots averaged)\n{str(folder)}',
     )
 
+    if weighted_counts:
+        weights = finder.weight_functions(
+            new_site_rois, background_subtract=background_subtract
+        )
+    else:
+        weights = 1
+
     thresholder = TweezerThresholder(
         multishot_analyzer.images(),
         new_site_rois,
         background_subtract=background_subtract,
-        weights=finder.weight_functions(
-            new_site_rois, background_subtract=background_subtract
-        ),
+        weights=weights,
     )
 
     # ignore KMeans memory leak warnings while fitting Gaussian mixture models
@@ -96,17 +116,15 @@ def detect_rois(
         ),
         global_threshold=np.mean(thresholder.thresholds),
         site_thresholds=thresholder.thresholds,
-        output_path=TweezerPreprocessor.ROI_CONFIG_PATH,
+        output_path=ROI_CONFIG_PATH,
     )
 
     multishot_analyzer.analyze()
 
-    ax = fig_violin.subplots()
-    thresholder.violinplot(ax)
-    fig_violin.suptitle(folder)
+    ax_violin = fig_violin.subplots()
+    thresholder.violinplot(ax_violin)
 
     axs = fig_thresholding.subplots(nrows=4, ncols=1, sharex=True)
-    fig_thresholding.suptitle(folder)
     thresholder.plot_spreads(ax=axs[0])
     thresholder.plot_loading_rate(ax=axs[1])
     thresholder.plot_infidelity(ax=axs[2])
@@ -117,22 +135,30 @@ def detect_rois(
     axs[2].set_ylabel('Infidelity')
     axs[-1].set_xlabel('Tweezer index')
 
-    ax = fig_scatter.subplots()
-    multishot_analyzer.tweezer_statistician.counts_scatterplot(ax=ax)
-    fig_scatter.suptitle(folder)
+    ax_scatter = fig_scatter.subplots()
+    multishot_analyzer.tweezer_statistician.counts_scatterplot(ax=ax_scatter)
+
+    # hacky way to get atom roi...
+    preproc: TweezerPreprocessor = next(iter(multishot_analyzer.preprocessors.values()))
+    preproc.load_rois_threshs()
+    atom_roi = preproc.atom_roi
+
+    ax_avg = cast(Axes, fig_bg.subplots())
+    im = ax_avg.imshow(
+        averaged_background[
+            0:atom_roi.ymax - atom_roi.ymin,
+            atom_roi.xmin:atom_roi.xmax,
+        ],
+        cmap='viridis',
+        # vmin=-10,
+        # vmax=10,
+    )
+    fig_bg.colorbar(im, ax=ax_avg)
+    ax_avg.set_title(f'Averaged background ({multishot_analyzer.n_shots} shots)')
 
 
 if __name__ == "__main__":
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     directory = select_data_directory()
-
-    fig_contours = plt.figure(figsize=(10, 10), layout='constrained')
-    fig_violin = plt.figure(layout='constrained')
-    fig_thresholding = plt.figure(layout='constrained')
-    fig_scatter = plt.figure(figsize=(6, 6), layout='constrained')
-    detect_rois(
-        directory,
-        fig_contours,
-        fig_violin,
-        fig_thresholding,
-        fig_scatter,
-    )
+    fig_summary = plt.figure(figsize=(12, 10), layout='constrained')
+    detect_rois(directory, fig_summary)
