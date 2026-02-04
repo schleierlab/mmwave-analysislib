@@ -230,7 +230,10 @@ class TweezerFinder:
         axs = fig.subplots(nrows=3)
         # print(self.rois)
 
-        rois_bbox = ROI.bounding_box(self.rois)
+        if len(self.rois) == 0:
+            rois_bbox = ROI(500, 1500, 500, 1500)
+        else:
+            rois_bbox = ROI.bounding_box(self.rois)
         padding = 50
         atom_roi_xlims = (rois_bbox.xmin - padding, rois_bbox.xmax + padding)
 
