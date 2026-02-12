@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
 import os
+import textwrap
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, cast, overload
@@ -788,9 +789,9 @@ class TweezerStatistician(BaseStatistician):
                 x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
                 ax_plot.plot(x_plot, self.lorentzian(x_plot, *popt))
                 fig.suptitle(
-                    f'Center frequency: ${upopt[0]:SL}$ {self.params[0].unit}; Width: ${1e+3 * upopt[1]:SL}$ {self.params[0].unit}'
+                    f'Center frequency: ${upopt[0]:SL}$ {self.params[0].unit}; Width: ${upopt[1]:SL}$ {self.params[0].unit}, amplitude: ${4 * upopt[2] / upopt[1]:SL}$'
                 )
-            if fit_type == 'quadratic':
+            elif fit_type == 'quadratic':
                 popt, pcov = self.fit_quadratic(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=+1)
                 upopt = uncertainties.correlated_values(popt, pcov)
                 x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
@@ -798,6 +799,21 @@ class TweezerStatistician(BaseStatistician):
                 fig.suptitle(
                     f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; offset: ${upopt[1]:SL}$'
                 )
+            elif fit_type == 'rabispec':
+                popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
+
+                freq_unit = self.params[0].unit
+                label = textwrap.dedent(f'''\
+                    transition at ${upopt[0]:SL}$ {freq_unit}
+                    $\Omega/2\pi = {upopt[1]:SL}$ {freq_unit}
+                    effective pulse length ${upopt[2]:SL}$ ({freq_unit})$^{{-1}}$
+                    contrast ${upopt[3]:SL}$, offset ${upopt[4]:SL}$'''
+                )
+                ax_plot.plot(x_plot, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
+                ax_plot.legend(fontsize='x-small')
+                
 
         if self.is_final_shot and self.params[0].name == 'repetition_index':
             mean_df = self.dataframe_survival(df)

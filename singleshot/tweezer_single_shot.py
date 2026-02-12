@@ -12,7 +12,7 @@ SHOW_INDEX = True  # site index will not show up if show_rois is set to False
 USE_AVERAGED_BACKGROUND = False
 FIT_TYPE_1D = None
 # do a curve fit at the final shot, set to None when don't do curve fit
-# options: 'lorentzian', 'quadratic', None
+# options: 'lorentzian', 'quadratic', 'rabispec', None
 
 SHOW_IMG_ONLY = False
 EXACT_REARRANGEMENT = False
@@ -24,10 +24,8 @@ SAVE_DATA_CSV_FILE = False  # need to be False for 2d scans!
 tweezer_preproc = TweezerPreprocessor(
     load_type='lyse', h5_path=None, use_averaged_background=USE_AVERAGED_BACKGROUND
 )
-doing_rearrangement = bool(tweezer_preproc.parameters['do_rearrangement'])
-print('do rearrangement: ', doing_rearrangement)
 
-fig = plt.figure(layout='constrained')
+fig = plt.figure(figsize=(12, 6), layout='constrained')
 processed_results_fname = tweezer_preproc.process_shot(use_global_threshold=True)
 if SHOW_IMG_ONLY:
     tweezer_preproc.show_image(

@@ -102,11 +102,11 @@ class BaseStatistician(ABC):
         return a * (x - x_0)**2 + offset
 
     @staticmethod
-    def rabi_spectrum_model(freq, center, rabi_freq, pulse_time):
+    def rabi_spectrum_model(freq, center, rabi_freq, pulse_time, amplitude, offset):
         detuning = freq - center
         gen_rabi_freq_sq = rabi_freq**2 + detuning**2
 
-        return (rabi_freq * np.sin(pi * np.sqrt(gen_rabi_freq_sq) * pulse_time))**2 / gen_rabi_freq_sq
+        return offset + amplitude * (rabi_freq * np.sin(pi * np.sqrt(gen_rabi_freq_sq) * pulse_time))**2 / gen_rabi_freq_sq
 
     @staticmethod
     def lorentzian(x, x0, width, a, offset):
@@ -198,6 +198,25 @@ class BaseStatistician(ABC):
         offset_guess = np.min(y_data)
         p0 = [x0_guess, width_guess, a_guess, offset_guess]
         return optimize.curve_fit(self.lorentzian, x_data, y_data, p0=p0, sigma=sigma)
+
+    def fit_rabispec(self, freqs, populations, sigma=None, peak_direction=-1):
+        if len(freqs) < 3:
+            raise ValueError
+
+        if peak_direction > 0:
+            center_guess = freqs[np.argmax(populations)]
+            offset_guess = np.min(populations)
+            amplitude_guess = np.max(populations) - np.min(populations)
+        else:
+            center_guess = freqs[np.argmin(populations)]
+            offset_guess = np.max(populations)
+            amplitude_guess = np.min(populations) - np.max(populations)
+
+        x_resolution = freqs[1] - freqs[0]
+        rabi_freq_guess = 3 * x_resolution
+        p0 = [center_guess, rabi_freq_guess, 0.5 / rabi_freq_guess, amplitude_guess, offset_guess]
+
+        return optimize.curve_fit(self.rabi_spectrum_model, freqs, populations, p0=p0, sigma=sigma)
 
     @staticmethod
     def gaussian_2d(coords, A, x0, y0, sigma_x, sigma_y, theta, offset):
