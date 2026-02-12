@@ -17,6 +17,7 @@ from sklearn.mixture import GaussianMixture
 from analysislib.common.image import ROI, Image
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
+from analysislib.common.lab_constants import ROI_CONFIG_PATH
 from analysislib.common.typing import StrPath
 
 
@@ -134,7 +135,7 @@ class TweezerThresholder:
         # TODO: If we could move the ylims to be stored in the roi_config.yml as the xlims are,
         # we could load the atom_roi to be copied in the same way that the threshold is copied below.
 
-        roi_config_path = TweezerPreprocessor.ROI_CONFIG_PATH.parent / 'roi_config.yml'
+        roi_config_path = ROI_CONFIG_PATH
         output_path = TweezerPreprocessor.dump_to_yaml(
             self.rois,
             atom_roi,
