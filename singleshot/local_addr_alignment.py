@@ -63,7 +63,15 @@ def preprocess_images(load_type: Literal['lyse', 'h5'], h5_path: Optional[StrPat
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     fig_debug = plt.figure(figsize=(10, 10), layout='constrained')
-    preproc = preprocess_images(load_type='lyse', fig_debug=fig_debug)
+    # preproc = preprocess_images(load_type='lyse', fig_debug=fig_debug)
+    preproc = BeamImagePreprocessor(
+        la_align_detection_configs,
+        load_type='lyse',
+    )
+    try:
+        preproc.process_shot(fig_debug)
+    except ValueError:
+        print('oopsy no fit')
     fig = plt.figure(figsize=(6, 6), layout='constrained')
     preproc.plot_beam_locations(fig, crosshairs='all')
     preproc.h5_path.with_name('doneflag.txt').touch()
