@@ -1220,6 +1220,7 @@ class TweezerStatistician(BaseStatistician):
             self,
             ax: Optional[Axes] = None,
             plot_grouped_averaged: bool = False,
+            plot_targets_only: bool = None, # if not specified, will be set to self.rearrangement
     ): #TODO: add grouped averaged option
         """
         Plots the survival rate of atoms in the tweezers, site by site.
@@ -1241,6 +1242,9 @@ class TweezerStatistician(BaseStatistician):
 
         n_sites = survival_rates_matrix.shape[0]
 
+        if plot_targets_only is None :
+            plot_targets_only = self.rearrangement
+
         if plot_grouped_averaged:
             n_groups, averaged_data = self.group_data(survival_rates_matrix, group_size = 10)
             # 2D plot, group averaged
@@ -1248,6 +1252,14 @@ class TweezerStatistician(BaseStatistician):
                 unique_params,
                 np.arange(n_groups),
                 averaged_data,
+            )
+        elif plot_targets_only:
+            # only plot rearrangement target sites
+            print(self.target_sites)
+            pm = ax.pcolormesh(
+                unique_params,
+                np.arange(len(self.target_sites)),
+                survival_rates_matrix[self.target_sites, :],
             )
         else:
             # 2D plot, all sites
