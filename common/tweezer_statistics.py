@@ -1176,11 +1176,11 @@ class TweezerStatistician(BaseStatistician):
         num_unique = len(unique_params)
         num_sites = self.site_occupancies.shape[2]
 
-        initial_atoms = self.site_occupancies[:, 0, :]
+        initial_atoms = self.initial_atoms_array
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1)
+        surviving_atoms = initial_atoms * self.surviving_atoms_array
 
         # Initialize array: (num_sites, num_unique_params, num_groups_per_param)
         survival_rates = np.empty((num_sites, num_unique, num_time_groups))
