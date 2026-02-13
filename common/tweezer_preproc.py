@@ -346,6 +346,6 @@ class TweezerPreprocessor(ImagePreprocessor):
                     plot_config=self.plot_config,
                 )
 
-            fig.suptitle(str(self.h5_path))
+            fig.suptitle(str(self.h5_path.name))
 
         fig.colorbar(ScalarMappable(norm, cmap=cmap), ax=axs, label='Counts')
