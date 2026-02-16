@@ -162,6 +162,18 @@ class BaseStatistician(ABC):
 
         p0 = guess #[a_guess, x0_guess, y0_guess]
         return optimize.curve_fit(self.quadratic, x_data, y_data, p0=p0, sigma=sigma)
+    
+    def fit_rabi_oscillation(self, t_data, y_data, sigma=None, peak_direction=+1):
+        # Initial guess
+        y_range = (np.max(y_data) - np.min(y_data))*peak_direction
+        t_range = np.max(t_data) - np.min(t_data)
+        if peak_direction == +1:
+            guess = (y_range/2, 2*pi/t_range, 0, t_range/10, np.min(y_data))
+        elif peak_direction == -1:
+            guess = (y_range/2, 2*pi/t_range, 0, t_range/10, np.max(y_data))
+
+        p0 = guess #[A_guess, Omega_guess, phi_guess, T2_guess, C_guess]
+        return optimize.curve_fit(self.rabi_model, t_data, y_data, p0=p0, sigma=sigma)
 
     def fit_lorentzian(self, x_data, y_data, sigma=None, peak_direction=+1):
         """

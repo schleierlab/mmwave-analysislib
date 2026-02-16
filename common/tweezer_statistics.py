@@ -799,6 +799,12 @@ class TweezerStatistician(BaseStatistician):
                 fig.suptitle(
                     f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; offset: ${upopt[1]:SL}$'
                 )
+            elif fit_type == 'rabi_oscillation':
+                popt, pcov = self.fit_rabi_oscillation(indep_var, survival_rates, sigma=survival_rate_errs)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
+                ax_plot.plot(x_plot, self.rabi_model(x_plot, *popt), color='r', label=f'$\Omega/2\pi = {upopt[1]/(2*np.pi*1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu s$')
+                ax_plot.legend(fontsize='x-small')
             elif fit_type == 'rabispec':
                 popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
@@ -1212,6 +1218,10 @@ class TweezerStatistician(BaseStatistician):
                 # Laplace method
                 # One shouldn't use laplace method here, because the sums are still small for each site
                 # survival_rates[:, i, g] = (s_sum + 1) / (i_sum + 2)
+        print('self.target_sites:', self.target_sites)
+        print('survival_rates shape:', survival_rates[self.target_sites, :, :].shape)
+        if self.rearrangement:
+            survival_rates = survival_rates[self.target_sites, :, :]
 
         return unique_params, survival_rates
 
@@ -1253,14 +1263,14 @@ class TweezerStatistician(BaseStatistician):
                 np.arange(n_groups),
                 averaged_data,
             )
-        elif plot_targets_only:
-            # only plot rearrangement target sites
-            print(self.target_sites)
-            pm = ax.pcolormesh(
-                unique_params,
-                np.arange(len(self.target_sites)),
-                survival_rates_matrix[self.target_sites, :],
-            )
+        # elif plot_targets_only:
+        #     # only plot rearrangement target sites
+        #     print(self.target_sites)
+        #     pm = ax.pcolormesh(
+        #         unique_params,
+        #         np.arange(len(self.target_sites)),
+        #         survival_rates_matrix[self.target_sites, :],
+        #     )
         else:
             # 2D plot, all sites
             pm = ax.pcolormesh(
@@ -1318,6 +1328,8 @@ class TweezerStatistician(BaseStatistician):
             axs = np.expand_dims(axs, axis=1)  # shape (n_rows, 1)
         # else axs is already 2D
 
+        unique_params_smooth = np.linspace(unique_params.min(), unique_params.max(), 1000)
+
         for row in range(n_rows):
             for col in range(n_cols):
                 ax = axs[row, col]
@@ -1333,7 +1345,7 @@ class TweezerStatistician(BaseStatistician):
                         initial_guess = [1, 2 * np.pi * 2e6, 0, 1e-6, 0.5]
                         params_opt, _ = curve_fit(self.rabi_model, unique_params, y, p0=initial_guess)
                         A_fit, Omega_fit, phi_fit, T2_fit, C_fit = params_opt
-                        ax.plot(unique_params, self.rabi_model(unique_params, *params_opt), 'r-', label='Fit')
+                        ax.plot(unique_params_smooth, self.rabi_model(unique_params_smooth, *params_opt), 'r-', label='Fit')
 
                         annotation_text = (
                             f'p-p Ampl: {A_fit*2:.3f}\n'
