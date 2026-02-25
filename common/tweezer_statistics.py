@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import textwrap
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -28,6 +29,68 @@ from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
 
 
+class bidict(dict):
+    """
+    https://stackoverflow.com/a/21894086
+    """
+    def __init__(self, *args, **kwargs):
+        super(bidict, self).__init__(*args, **kwargs)
+        self.inverse = {}
+        for key, value in self.items():
+            self.inverse.setdefault(value, []).append(key) 
+
+    def __setitem__(self, key, value):
+        if key in self:
+            self.inverse[self[key]].remove(key) 
+        super(bidict, self).__setitem__(key, value)
+        self.inverse.setdefault(value, []).append(key)        
+
+    def __delitem__(self, key):
+        self.inverse.setdefault(self[key], []).remove(key)
+        if self[key] in self.inverse and not self.inverse[self[key]]: 
+            del self.inverse[self[key]]
+        super(bidict, self).__delitem__(key)
+
+
+prefixes = bidict({
+    'p': -12,
+    'n': -9,
+    'u': -6,
+    'm': -3,
+    '': 0,
+    'k': +3,
+    'M': +6,
+    'G': +9,
+})
+
+
+def _decompose_unitstr(unitstr):
+    units = ['Hz', 's']
+    regex = f'({"|".join(prefixes.keys())})({"|".join(units)})'
+    match = re.fullmatch(regex, unitstr)
+    if match is None:
+        raise ValueError(f'Unrecognized SI unit {repr(unitstr)}')
+    prefix, baseunit = match.groups()
+
+    return prefix, baseunit
+
+
+def find_offset_and_scale(values, unitstr):
+    maxval = np.max(np.abs(values))
+    maxlog = np.log10(maxval)
+
+    try:
+        prefix, baseunit = _decompose_unitstr(unitstr)
+    except ValueError:
+        return 0, 1, unitstr
+
+    exponent_offset = ((maxlog + 1) // 3) * 3
+    new_exponent =  (prefixes[prefix] + exponent_offset)
+    newprefix = prefixes.inverse[new_exponent][0]
+
+    return 0, 10**exponent_offset, newprefix + baseunit
+
+
 @dataclass(frozen=True)
 class ScanningParameter:
     name: str
@@ -45,10 +108,13 @@ class ScanningParameter:
         name, units, expr = tup
         return cls(name.decode('utf-8'), units.decode('utf-8'))
 
-    @property
-    def axis_label(self):
+    def axis_label(self, unit: Optional[str] = None):
         namestr = self.friendly_name if self.friendly_name is not None else self.name
-        unitstr = f' ({self.unit})' if self.unit != '' else ''
+        if unit is None:
+            plot_unit = self.unit
+        else:
+            plot_unit = unit
+        unitstr = f' ({plot_unit})' if plot_unit != '' else ''
         return f'{namestr}{unitstr}'
 
 
@@ -739,18 +805,26 @@ class TweezerStatistician(BaseStatistician):
             raise ValueError("plot_survival_rate_1d expects exactly one scanned parameter")
         elif len(self.params) == 1:
             gb = df.groupby([param.name for param in self.params])
-            xlabel = self.params[0].axis_label
+            unitstr = self.params[0].unit
         elif len(self.params) == 0:
             gb = df
-            xlabel = 'Shot number'
-        ax_plot.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
+            unitstr = ''
         survival_df = self.dataframe_survival(gb)
 
         indep_var = survival_df.index
+        offset, xscale, scaled_unit = find_offset_and_scale(indep_var, unitstr)
+
+        if len(self.params) == 1:
+            xlabel = self.params[0].axis_label(unit=scaled_unit)
+        elif len(self.params) == 0:
+            xlabel = 'Shot number'
+        ax_plot.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
+
+        indep_var_scaled = indep_var / xscale
         survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
         survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
         ax_plot.errorbar(
-            indep_var,
+            indep_var_scaled,
             survival_rates,
             yerr=survival_rate_errs,
             **self.plot_config.errorbar_kw,
@@ -776,33 +850,33 @@ class TweezerStatistician(BaseStatistician):
         if averaging_window is not None:
             # TODO add errorbars to this
             ax_plot.plot(
-                indep_var,
+                indep_var_scaled,
                 survival_rates.rolling(averaging_window).mean(),
                 color='C1',
                 marker='.',
             )
 
         if self.is_final_shot and fit_type is not None and len(indep_var) > 2:
+            x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
+            x_plot_scaled = x_plot / xscale
+
             if fit_type == 'lorentzian':
                 popt, pcov = self.fit_lorentzian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
-                x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
-                ax_plot.plot(x_plot, self.lorentzian(x_plot, *popt))
+                ax_plot.plot(x_plot_scaled, self.lorentzian(x_plot, *popt))
                 fig.suptitle(
                     f'Center frequency: ${upopt[0]:SL}$ {self.params[0].unit}; Width: ${upopt[1]:SL}$ {self.params[0].unit}, amplitude: ${4 * upopt[2] / upopt[1]:SL}$'
                 )
             elif fit_type == 'quadratic':
                 popt, pcov = self.fit_quadratic(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=+1)
                 upopt = uncertainties.correlated_values(popt, pcov)
-                x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
-                ax_plot.plot(x_plot, self.quadratic(x_plot, *popt), color = 'r')
+                ax_plot.plot(x_plot_scaled, self.quadratic(x_plot, *popt), color = 'r')
                 fig.suptitle(
                     f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; offset: ${upopt[1]:SL}$'
                 )
             elif fit_type == 'rabispec':
                 popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
-                x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
 
                 freq_unit = self.params[0].unit
                 label = textwrap.dedent(f'''\
@@ -811,9 +885,8 @@ class TweezerStatistician(BaseStatistician):
                     effective pulse length ${upopt[2]:SL}$ ({freq_unit})$^{{-1}}$
                     contrast ${upopt[3]:SL}$, offset ${upopt[4]:SL}$'''
                 )
-                ax_plot.plot(x_plot, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
+                ax_plot.plot(x_plot_scaled, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
                 ax_plot.legend(fontsize='x-small')
-                
 
         if self.is_final_shot and self.params[0].name == 'repetition_index':
             mean_df = self.dataframe_survival(df)
@@ -822,7 +895,7 @@ class TweezerStatistician(BaseStatistician):
             ax_plot.legend()
 
         if plot_pair_states:
-            self._plot_pair_state_population(ax_pairs, indep_var, require_exact_rearrangement, explicit_pairs)
+            self._plot_pair_state_population(ax_pairs, indep_var_scaled, require_exact_rearrangement, explicit_pairs)
 
         return indep_var, survival_rates, survival_rate_errs
 
@@ -889,12 +962,12 @@ class TweezerStatistician(BaseStatistician):
                 raise ValueError
             if subplotspec.is_last_row():
                 ax.set_xlabel(
-                    self.params[cols.name].axis_label,
+                    self.params[cols.name].axis_label(),
                     fontsize=self.plot_config.label_font_size,
                 )
             if subplotspec.is_first_col():
                 ax.set_ylabel(
-                    self.params[ind.name].axis_label,
+                    self.params[ind.name].axis_label(),
                     fontsize=self.plot_config.label_font_size,
                 )
 
@@ -1021,7 +1094,7 @@ class TweezerStatistician(BaseStatistician):
     def plot_loading_rate_1d(self, ax: Axes):
         df = self.dataframe()
         gb = df.groupby([param.name for param in self.params])[self.KEY_INITIAL]
-        xlabel = self.params[0].axis_label
+        xlabel = self.params[0].axis_label()
         loading_rates_unc = gb.agg(self.binomial_rate_uncert)
 
         ax.errorbar(
@@ -1257,7 +1330,7 @@ class TweezerStatistician(BaseStatistician):
                 survival_rates_matrix,
             )
 
-        ax.set_xlabel(self.params[0].axis_label)
+        ax.set_xlabel(self.params[0].axis_label())
         ax.set_ylabel('Site index')
         fig.colorbar(pm, ax=ax)
 
@@ -1490,7 +1563,7 @@ class TweezerStatistician(BaseStatistician):
                 )
 
                 ax.legend(loc='upper right')
-        fig.supxlabel(self.params[0].axis_label)
+        fig.supxlabel(self.params[0].axis_label())
         fig.supylabel('Population')
 
         # fig.suptitle("Rabi Oscillation Fits", fontsize=14)
