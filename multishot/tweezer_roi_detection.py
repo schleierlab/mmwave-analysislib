@@ -28,7 +28,7 @@ from analysislib.multishot.util import select_data_directory
 
 
 background_subtract = True
-USE_AVERAGED_BACKGROUND = False
+USE_AVERAGED_BACKGROUND = True
 weighted_counts = True
 
 
