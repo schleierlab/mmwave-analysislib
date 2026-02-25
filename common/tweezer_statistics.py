@@ -19,6 +19,8 @@ import uncertainties.unumpy as unp  # type: ignore
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.ticker import MaxNLocator
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 
@@ -361,6 +363,39 @@ class TweezerStatistician(BaseStatistician):
         img1 = self.site_occupancies[:, 1, :]  # (shots, sites)
         return np.all(img1 == target_bool[None, :], axis=1)
     # LEGACY CODE
+    def _shot_mask_target_full(self) -> np.ndarray:
+        """
+        True for shots where all target sites are filled in image 1,
+        regardless of whether extra atoms exist outside target.
+        """
+        if (not self.rearrangement) or (len(self.target_sites) == 0):
+            return np.ones(self.shots_processed, dtype=bool)
+
+        img1 = self.site_occupancies[:, 1, :]  # (shots, sites)
+        tgt = np.asarray(self.target_sites, dtype=int)
+        return np.all(img1[:, tgt] == 1, axis=1)
+
+    def _extras_outside_target(self) -> np.ndarray:
+        """
+        For each shot, number of occupied sites outside target_sites in image 1.
+        """
+        if (not self.rearrangement) or (len(self.target_sites) == 0):
+            return np.zeros(self.shots_processed, dtype=int)
+
+        tgt_mask = np.zeros(self.n_sites, dtype=bool)
+        tgt_mask[np.asarray(self.target_sites, dtype=int)] = True
+
+        img1 = self.site_occupancies[:, 1, :]
+        return img1[:, ~tgt_mask].sum(axis=1).astype(int)
+
+    def _extra_sites_mask(self) -> np.ndarray:
+        """
+        (shots, sites) boolean: True where a site is occupied outside target (image 1).
+        """
+        tgt_mask = np.zeros(self.n_sites, dtype=bool)
+        tgt_mask[np.asarray(self.target_sites, dtype=int)] = True
+        img1 = self.site_occupancies[:, 1, :].astype(bool)
+        return img1 & (~tgt_mask[None, :])
 
     def rearragne_statistics(self, target_array):
         n_target = len(target_array)
@@ -391,44 +426,151 @@ class TweezerStatistician(BaseStatistician):
         atom_count_in_target = [atom_count_in_target_all_shots, atom_count_in_target_rearrange_shots]
         return success_rearrange, atom_count_in_target, n_rearrange_shots, avg_site_success_rate
 
-    def plot_rearrange_histagram(self, target_array, ax: Axes, plot_overlapping_histograms: bool = True):
-        '''
-        Plots a histogram of the number of sites in the taerget array after rearrangement.
+    # def plot_rearrange_histagram(self, target_array, ax: Axes, plot_overlapping_histograms: bool = True):
+    #     '''
+    #     Plots a histogram of the number of sites in the taerget array after rearrangement.
 
-        Parameters
-        ----------
-        target_array : array_like
-            Array of target sites.
-        ax : matplotlib.axes.Axes,
-            Axes object to plot on.
-        plot_overlapping_histograms : bool, optional
-            Whether to plot overlapping histograms. The default is True.
-            When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
-            This is helpful when we have bug that causes a lot of rearrangement shots end up with zero atoms in target sites.
-            When set to False, plot only the histogram of all shots.
-        '''
-        # Bar plot: Number of sites after rearrangement
+    #     Parameters
+    #     ----------
+    #     target_array : array_like
+    #         Array of target sites.
+    #     ax : matplotlib.axes.Axes,
+    #         Axes object to plot on.
+    #     plot_overlapping_histograms : bool, optional
+    #         Whether to plot overlapping histograms. The default is True.
+    #         When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
+    #         This is helpful when we have bug that causes a lot of rearrangement shots end up with zero atoms in target sites.
+    #         When set to False, plot only the histogram of all shots.
+    #     '''
+    #     # Bar plot: Number of sites after rearrangement
+    #     success_rearrange, atom_count_in_target_list, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
+
+    #     atom_counts_all_shots = atom_count_in_target_list[0]
+    #     n_target = len(target_array)
+    #     n_shots = len(self.site_occupancies) # For unified title
+
+    #     ax.set_xlabel('Number of loaded target sites after rearrangement')
+    #     ax.set_ylabel('Frequency')
+    #     ax.grid(axis='y')
+
+    #     title_parts = [f'{n_target} target sites']
+    #     if n_shots > 0 and n_rearrange_shots > 0:
+    #         ratio = n_rearrange_shots / n_shots
+    #         rate = success_rearrange / n_rearrange_shots
+    #         title_parts.append(f'rearrange shot ratio: {ratio:.3f}, success rate: {rate:.3f}')
+    #     elif n_rearrange_shots == 0 and n_shots > 0:
+    #          title_parts.append('no rearrangement attempts made')
+    #     else:
+    #         title_parts.append('no shot data for title metrics')
+    #     ax.set_title('\n'.join(title_parts))
+
+    #     if plot_overlapping_histograms:
+    #         atom_counts_rearrange_shots = atom_count_in_target_list[1]
+
+    #         unique_all, counts_all = np.unique(atom_counts_all_shots, return_counts=True)
+    #         unique_rearrange, counts_rearrange = np.unique(atom_counts_rearrange_shots, return_counts=True)
+
+    #         bar_width_all = 0.8
+    #         bar_width_rearrange = bar_width_all * 0.7
+
+    #         x_all = unique_all.astype(int)
+    #         x_rearrange = unique_rearrange.astype(int)
+
+    #         if len(counts_all) > 0:
+    #             ax.bar(x_all, counts_all, width=bar_width_all, label=f'All Shots ({n_shots} shots)', alpha=0.5, color='skyblue')
+    #         if len(counts_rearrange) > 0:
+    #             ax.bar(x_rearrange, counts_rearrange, width=bar_width_rearrange, label=f'Rearrange Attempts ({n_rearrange_shots} shots)', alpha=0.8, color='royalblue')
+
+    #         if len(x_all) > 0:
+    #             ax.set_xticks(x_all)
+
+    #         if len(counts_all) > 0 or len(counts_rearrange) > 0:
+    #             ax.legend()
+    #     else:
+    #         unique_elements, counts = np.unique(atom_counts_all_shots, return_counts=True)
+
+    #         if len(counts) > 0:
+    #             ax.bar(unique_elements, counts, width=0.5)
+
+    #         if len(unique_elements) > 0:
+    #             ax.set_xticks(unique_elements.astype(int))
+
+    #     zero_atom_in_target_indices = np.where(atom_count_in_target_list[1] == 0)[0]
+    #     print('n_shots (total experiment)', n_shots)
+    #     print('n_rarrange_shots', n_rearrange_shots)
+    #     print('success_rearrange', success_rearrange)
+    #     print(f"Rearrange attempts with 0 loaded atoms: {zero_atom_in_target_indices.size}")
+    #     print(f"Indices: {zero_atom_in_target_indices}")
+    def plot_rearrange_histagram(
+        self,
+        target_array,
+        ax,
+        plot_overlapping_histograms: bool = True,
+        split_full_target_bar: bool = True,   # ### NEW ###
+    ):
+        """
+        Histogram of number of loaded target sites after rearrangement (image 1),
+        plus optional breakdown of "full target but extra atoms exist outside".
+        """
+        # Keep your existing stats
         success_rearrange, atom_count_in_target_list, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
 
         atom_counts_all_shots = atom_count_in_target_list[0]
         n_target = len(target_array)
-        n_shots = len(self.site_occupancies) # For unified title
+        n_shots = len(self.site_occupancies)
 
         ax.set_xlabel('Number of loaded target sites after rearrangement')
         ax.set_ylabel('Frequency')
         ax.grid(axis='y')
 
+        # -------------------------
+        # ### NEW: compute masks ###
+        # -------------------------
+        # Make sure target_sites aligns with the passed target_array
+        self.target_sites = list(np.asarray(target_array, dtype=int))
+
+        mask_exact = self._shot_mask_exact_rearrangement()   # perfect: target full AND no extras
+        mask_full  = self._shot_mask_target_full()           # target full regardless of extras
+        mask_full_with_extras = mask_full & (~mask_exact)    # target full BUT extras exist
+        extras_per_shot = self._extras_outside_target()
+
+        n_exact = int(mask_exact.sum())
+        n_full = int(mask_full.sum())
+        n_full_with_extras = int(mask_full_with_extras.sum())
+        n_full_clean = n_full - n_full_with_extras
+
+        # for extra-atom summary when it happens
+        extras_when_happens = extras_per_shot[mask_full_with_extras]
+        mean_extras = float(extras_when_happens.mean()) if extras_when_happens.size else 0.0
+        max_extras = int(extras_when_happens.max()) if extras_when_happens.size else 0
+
+        # -------------
+        # title 
+        # -------------
         title_parts = [f'{n_target} target sites']
         if n_shots > 0 and n_rearrange_shots > 0:
             ratio = n_rearrange_shots / n_shots
             rate = success_rearrange / n_rearrange_shots
             title_parts.append(f'rearrange shot ratio: {ratio:.3f}, success rate: {rate:.3f}')
         elif n_rearrange_shots == 0 and n_shots > 0:
-             title_parts.append('no rearrangement attempts made')
+            title_parts.append('no rearrangement attempts made')
         else:
             title_parts.append('no shot data for title metrics')
+
+        if n_shots > 0:
+            frac_full = n_full / n_shots
+            frac_full_extras = (n_full_with_extras / n_full) if n_full > 0 else 0.0
+            title_parts.append(
+                f'full target: {n_full}/{n_shots} ({frac_full:.3f}); '
+                f'full+extras: {n_full_with_extras}/{n_full if n_full else 1} ({frac_full_extras:.3f})'
+                #f'⟨extras|happens⟩={mean_extras:.2f}, max={max_extras}'
+            )
+
         ax.set_title('\n'.join(title_parts))
 
+        # -------------------------
+        # plot histograms (your code)
+        # -------------------------
         if plot_overlapping_histograms:
             atom_counts_rearrange_shots = atom_count_in_target_list[1]
 
@@ -442,15 +584,32 @@ class TweezerStatistician(BaseStatistician):
             x_rearrange = unique_rearrange.astype(int)
 
             if len(counts_all) > 0:
-                ax.bar(x_all, counts_all, width=bar_width_all, label=f'All Shots ({n_shots} shots)', alpha=0.5, color='skyblue')
+                ax.bar(x_all, counts_all, width=bar_width_all,
+                    label=f'All Shots ({n_shots} shots)', alpha=0.5, color='skyblue')
             if len(counts_rearrange) > 0:
-                ax.bar(x_rearrange, counts_rearrange, width=bar_width_rearrange, label=f'Rearrange Attempts ({n_rearrange_shots} shots)', alpha=0.8, color='royalblue')
+                ax.bar(x_rearrange, counts_rearrange, width=bar_width_rearrange,
+                    label=f'Rearrange Attempts ({n_rearrange_shots} shots)', alpha=0.8, color='royalblue')
 
             if len(x_all) > 0:
                 ax.set_xticks(x_all)
 
+            # ----------------------------------------------------
+            # ### NEW: split the n_target bar (All shots) ###
+            # ----------------------------------------------------
+            if split_full_target_bar and n_shots > 0:
+                # Draw a stacked bar at x=n_target that represents:
+                # bottom = full clean (exact), top = full with extras
+                # Put it slightly offset so it doesn't completely hide your existing bar.
+                x0 = int(n_target) + 0.25
+                w = 0.35
+                ax.bar([x0], [n_full_clean], width=w, alpha=0.95,
+                    label='Full target (clean)', color='tab:green')
+                ax.bar([x0], [n_full_with_extras], width=w, bottom=[n_full_clean], alpha=0.95,
+                    label='Full target (+extras)', color='tab:orange')
+
             if len(counts_all) > 0 or len(counts_rearrange) > 0:
                 ax.legend()
+
         else:
             unique_elements, counts = np.unique(atom_counts_all_shots, return_counts=True)
 
@@ -460,6 +619,7 @@ class TweezerStatistician(BaseStatistician):
             if len(unique_elements) > 0:
                 ax.set_xticks(unique_elements.astype(int))
 
+        # keep your debug prints
         zero_atom_in_target_indices = np.where(atom_count_in_target_list[1] == 0)[0]
         print('n_shots (total experiment)', n_shots)
         print('n_rarrange_shots', n_rearrange_shots)
@@ -467,7 +627,126 @@ class TweezerStatistician(BaseStatistician):
         print(f"Rearrange attempts with 0 loaded atoms: {zero_atom_in_target_indices.size}")
         print(f"Indices: {zero_atom_in_target_indices}")
 
+        # ### NEW: print extra diagnostics ###
+        print(f"Full target shots: {n_full}")
+        print(f"  - clean (exact): {n_full_clean}")
+        print(f"  - full + extras: {n_full_with_extras}")
+    
+    def plot_extras_count_when_target_full(self, target_array, ax):
+        self.target_sites = list(np.asarray(target_array, dtype=int))
+        mask_exact = self._shot_mask_exact_rearrangement()
+        mask_full  = self._shot_mask_target_full()
+        mask_full_with_extras = mask_full & (~mask_exact)
 
+        extras = self._extras_outside_target()[mask_full_with_extras]
+        if extras.size == 0:
+            ax.text(0.5, 0.5, "No shots with full target + extras", ha='center', va='center')
+            ax.set_axis_off()
+            return
+
+        vals, cnts = np.unique(extras, return_counts=True)
+        ax.bar(vals.astype(int), cnts)
+        ax.set_xlabel('# extra atoms outside target (given target full)')
+        ax.set_ylabel('Frequency')
+        ax.set_title(f'Extras count | full target + extras (N={extras.size})')
+        ax.set_xticks(vals.astype(int))
+        ax.grid(axis='y')
+
+    # def plot_extras_where_when_target_full(self, target_array, ax):
+    #     self.target_sites = list(np.asarray(target_array, dtype=int))
+    #     mask_exact = self._shot_mask_exact_rearrangement()
+    #     mask_full  = self._shot_mask_target_full()
+    #     mask_full_with_extras = mask_full & (~mask_exact)
+
+    #     extra_sites = self._extra_sites_mask()  # (shots, sites) True for occupied outside target
+    #     extra_sites_sel = extra_sites[mask_full_with_extras]
+
+    #     if extra_sites_sel.shape[0] == 0:
+    #         ax.text(0.5, 0.5, "No shots with full target + extras", ha='center', va='center')
+    #         ax.set_axis_off()
+    #         return
+
+    #     p = extra_sites_sel.mean(axis=0)  # probability each site has an extra atom, conditioned on event
+    #     im = ax.imshow(p[None, :], aspect='auto')  # 1 x n_sites strip
+    #     ax.set_yticks([])
+    #     ax.set_xlabel('Site index')
+    #     ax.set_title(f'P(extra at site | target full + extras), N={extra_sites_sel.shape[0]}')
+    #     ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+    def _indices_to_spans(self, indices: np.ndarray):
+        """
+        Convert sorted unique integer indices into contiguous spans [start, end] (inclusive).
+        Example: [2,3,4, 7,8] -> [(2,4), (7,8)]
+        """
+        if indices.size == 0:
+            return []
+
+        spans = []
+        start = prev = int(indices[0])
+
+        for v in indices[1:]:
+            v = int(v)
+            if v == prev + 1:
+                prev = v
+            else:
+                spans.append((start, prev))
+                start = prev = v
+
+        spans.append((start, prev))
+        return spans
+
+    def plot_extras_where_when_target_full(self, target_array, ax, mark_target=True, neighbor_radius=1):
+        target_array = np.asarray(target_array, dtype=int)
+        self.target_sites = list(target_array)
+
+        mask_exact = self._shot_mask_exact_rearrangement()
+        mask_full  = self._shot_mask_target_full()
+        mask_event = mask_full & (~mask_exact)
+
+        extra_sites = self._extra_sites_mask()
+        extra_sel = extra_sites[mask_event]
+
+        if extra_sel.shape[0] == 0:
+            ax.text(0.5, 0.5, "No shots with full target + extras", ha='center', va='center')
+            ax.set_axis_off()
+            return
+
+        p_extra = extra_sel.mean(axis=0)
+
+        x = np.arange(self.n_sites)
+        ax.bar(x, p_extra, width=0.9, alpha=0.9)
+
+        ax.set_xlabel("Site index")
+        ax.set_ylabel("P(extra at site | target full + extras)")
+        ax.set_title(f"Where extra atoms appear (1D), N={extra_sel.shape[0]} shots")
+        ax.grid(axis='y')
+
+        if mark_target and target_array.size > 0:
+            offsets = np.arange(-neighbor_radius, neighbor_radius + 1, dtype=int)
+            halo = (target_array[:, None] + offsets[None, :]).ravel()
+            halo = np.unique(halo[(halo >= 0) & (halo < self.n_sites)])
+
+            # MERGE into contiguous spans so continuous targets don't "overmark"
+            spans = self._indices_to_spans(halo)
+
+            # Keep the original matplotlib default color look
+            halo_alpha = 0.12
+            line_alpha = 0.35
+            line_width = 1.0
+
+            # Shade halo spans
+            for a, b in spans:
+                ax.axvspan(a - 0.5, b + 0.5, alpha=halo_alpha)  # default color
+
+            # Mark actual target sites
+            ytop = ax.get_ylim()[1]
+            ax.vlines(target_array, ymin=0, ymax=ytop, alpha=line_alpha, linewidth=line_width)  # default color
+
+            # --- Legend: use proxy artists so symbols show up ---
+            halo_patch = Patch(facecolor='C0', alpha=halo_alpha, label=f"Target ±{neighbor_radius}")
+            target_line = Line2D([0], [0], color='C0', alpha=line_alpha, linewidth=1.5, label="Target sites")
+            ax.legend(handles=[halo_patch, target_line], loc="upper right")
+    
     def plot_rearrange_site_success_rate(self, target_array, ax: Axes):
         # Site success rate plot
         _, _, n_rearrange_shots, avg_site_success_rate = self.rearragne_statistics(target_array)
@@ -636,7 +915,7 @@ class TweezerStatistician(BaseStatistician):
         ax.legend()
         ax.tick_params(axis="both", which="major", labelsize=self.plot_config.label_font_size)
 
-        # file_path = os.path.join(f"{self.folder_path}/", '2025-10-01-0004_ramsey_dimer_data.npz')
+        # file_path = os.path.join(f"{self.folder_path}/", '2026-02-12-0150_ramsey_dimer_data.npz')
         # np.savez(file_path,
         #  x_arr=x_arr,
         #  pSS=pSS, eSS=eSS,

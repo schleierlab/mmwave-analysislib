@@ -15,10 +15,10 @@ FIT_TYPE_1D = 'None'
 # options: 'lorentzian', 'quadratic', 'rabispec', None
 
 SHOW_IMG_ONLY = False
-EXACT_REARRANGEMENT = False
-PLOT_PAIR_STATES = False
+EXACT_REARRANGEMENT = True
+PLOT_PAIR_STATES = True
 SHOW_HIST = False  # show histogram for survival rate
-SAVE_DATA_CSV_FILE = False  # need to be False for 2d scans!
+SAVE_DATA_CSV_FILE = True  # need to be False for 2d scans!
 
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_preproc = TweezerPreprocessor(
@@ -71,7 +71,7 @@ if not SHOW_IMG_ONLY:
             show_hist=SHOW_HIST,
         )
 
-    tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
+    # tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
 
     # TODO: this function right now doesn't work with 2d parameter scan
 
