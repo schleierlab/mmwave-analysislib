@@ -1074,11 +1074,10 @@ class TweezerStatistician(BaseStatistician):
         run_time_series = self.run_time_series()
         '''index: shot number; values: run times'''
 
-        ax.errorbar(
+        ax.plot(
             run_time_series,
             unp.nominal_values(agg),
-            yerr=unp.std_devs(agg),
-            **self.plot_config.errorbar_kw,
+            **self.plot_config.plot_kw,
         )
 
         ax.set_ylabel('Loading rate')
@@ -1097,11 +1096,10 @@ class TweezerStatistician(BaseStatistician):
         xlabel = self.params[0].axis_label()
         loading_rates_unc = gb.agg(self.binomial_rate_uncert)
 
-        ax.errorbar(
+        ax.plot(
             loading_rates_unc.index,
             unp.nominal_values(loading_rates_unc),
-            yerr=unp.std_devs(loading_rates_unc),
-            **self.plot_config.errorbar_kw,
+            **self.plot_config.plot_kw,
         )
 
         ax.set_ylabel('Loading rate')
@@ -1151,8 +1149,7 @@ class TweezerStatistician(BaseStatistician):
         ax.plot(
             self.run_time_series(),
             target_loading_rates,
-            marker='.',
-            linestyle='',
+            **self.plot_config.plot_kw,
         )
         ax.set_ylabel('Array preparation fidelity')
 

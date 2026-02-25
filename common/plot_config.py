@@ -11,6 +11,14 @@ LineStyleType = Union[str, None]  # e.g. "-", "--", ":", "-.", None
 MarkerType = Union[str, None]     # e.g. "o", "s", "^", ".", None
 
 
+class PlotKwarg(TypedDict, total=False):
+    marker: MarkerType
+    markersize: float
+    linestyle: LineStyleType
+    alpha: float
+    color: ColorType
+
+
 class ErrorbarKwarg(TypedDict, total=False):
     marker: MarkerType
     linestyle: LineStyleType
@@ -61,6 +69,12 @@ class PlotConfig:
     constrained_layout: bool = True
     raw_image_scale: float = 100
     roi_image_scale: float = 100
+
+    plot_kw = PlotKwarg(
+        marker='.',
+        markersize=3,
+        linestyle='None',
+    )
 
     errorbar_kw = ErrorbarKwarg(
         marker='.',
