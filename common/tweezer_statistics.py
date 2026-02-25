@@ -671,14 +671,23 @@ class TweezerStatistician(BaseStatistician):
 
         def prop_and_std(k, n):
             p = division(k, n)
+            # Laplace / Jeffreys-ish smoothing you were using
             lap = division(k + 1, n + 2)
-            std = np.sqrt(lap * (1 - lap) / (n + 2,))
+            std = np.sqrt(lap * (1 - lap) / (n + 2))
             return p, std
 
         pSS, eSS = prop_and_std(k_SS, N)
         pPP, ePP = prop_and_std(k_PP, N)
         pPS, ePS = prop_and_std(k_PS, N)
         pSP, eSP = prop_and_std(k_SP, N)
+
+        k_even = k_SS + k_PP          # counts in even sector
+        pEven, eEven = prop_and_std(k_even, N)   # even fraction out of all outcomes
+
+        # Conditional within even: P(SS | even) and P(PP | even)
+        # Use the same Laplace smoothing but with denominator = k_even
+        pSS_even, eSS_even = prop_and_std(k_SS, k_even)
+        pPP_even, ePP_even = prop_and_std(k_PP, k_even)
 
         pD = pPP - pSS # differences
         pEO = pPP + pSS - pSP - pPS  # even-odd
@@ -696,21 +705,28 @@ class TweezerStatistician(BaseStatistician):
         # ax.errorbar(x_arr, pD, yerr = eD, label = 'PP-SS', **self.plot_config.errorbar_kw)
         # ax.errorbar(x_arr, pEO, yerr = eEO, label = 'Even-Odd', **self.plot_config.errorbar_kw)
 
-        ax.set_xlabel(self.params[0].axis_label, fontsize=self.plot_config.label_font_size)
+        ax.set_xlabel(self.params[0].axis_label(), fontsize=self.plot_config.label_font_size)
         ax.set_ylabel("Pair population", fontsize=self.plot_config.label_font_size)
         ax.set_ylim(0, 1)
         ax.legend()
         ax.tick_params(axis="both", which="major", labelsize=self.plot_config.label_font_size)
 
-        # file_path = os.path.join(f"{self.folder_path}/", '2025-10-01-0004_ramsey_dimer_data.npz')
-        # np.savez(file_path,
-        #  x_arr=x_arr,
-        #  pSS=pSS, eSS=eSS,
-        #  pPP=pPP, ePP=ePP,
-        #  pPS=pPS, ePS=ePS,
-        #  pSP=pSP, eSP=eSP,
-        #  pD=pD, eD=eD,
-        #  pEO=pEO, eEO=eEO, N=N)
+        # file_path = os.path.join(f"{self.folder_path}/", '2026-02-23-0150_ramsey_dimer_data.npz')
+        # np.savez(
+        #     file_path,
+        #     x_arr=x_arr,
+        #     pSS=pSS, eSS=eSS,
+        #     pPP=pPP, ePP=ePP,
+        #     pPS=pPS, ePS=ePS,
+        #     pSP=pSP, eSP=eSP,
+        #     pEven=pEven, eEven=eEven,
+        #     pSS_even=pSS_even, eSS_even=eSS_even,
+        #     pPP_even=pPP_even, ePP_even=ePP_even,
+        #     pD=pD, eD=eD,
+        #     pEO=pEO, eEO=eEO,
+        #     N=N,
+        #     k_even=k_even
+        # )
 
     def _save_mloop_params(self, shot_h5_path: str | os.PathLike) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -782,8 +798,8 @@ class TweezerStatistician(BaseStatistician):
             ax_hist = cast(Axes, _ax_hist)
         elif plot_pair_states:
             _ax_plot, _ax_pairs = fig.subplots(
-                ncols=2,
-                nrows=1,
+                ncols=1,
+                nrows=2,
                 sharey=True,
             )
             ax_plot = cast(Axes, _ax_plot)
