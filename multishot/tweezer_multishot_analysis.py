@@ -34,6 +34,7 @@ if PLOT_AVERAGED_IMAGES:
 tweezer_statistician = TweezerStatistician(
     preproc_h5_path=preproc_h5_path,
     rearrangement=True,
+    target_sites=tweezer_preproc.target_array,
 )
 
 thresholder = TweezerThresholder(
@@ -57,10 +58,14 @@ thresholder.plot_spreads(ax=axs[0])
 thresholder.plot_loading_rate(ax=axs[1])
 thresholder.plot_infidelity(ax=axs[2])
 tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
+
+fig = plt.figure(figsize=(10, 6))
+tweezer_statistician.plot_survival_rate_1d(fig, plot_pair_states = True)#fit_type = "rabi_oscillation")
+
 tweezer_statistician.plot_survival_rate_by_site_2d()
 # tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d_old(group_size = 50, fit_type = 'rabi_oscillation')
 # fit_type menu: None, 'rabi_oscillation', 'lorentzian', 'exponential'
-tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d(group_size = 50, fit_type='rabi_oscillation', num_time_groups = 5)
+tweezer_statistician.plot_avg_survival_rate_by_grouped_sites_1d(group_size = 7, fit_type='rabi_oscillation', num_time_groups = 1)
 
 axs[0].set_ylabel('Counts')
 axs[1].set_ylabel('Loading rate')

@@ -35,12 +35,20 @@ tweezer_statistician = TweezerStatistician(
     preproc_h5_path=preproc_h5_path,
 )
 
-fig, axs = plt.subplots(nrows=3, ncols=1, layout='constrained')  # 3 plots in one row
+fig, axs = plt.subplots(nrows=5, ncols=1, layout='constrained')  # 3 plots in one row
 fig.suptitle(f'{folder}')
-tweezer_statistician.plot_rearrange_histagram(target_array, ax = axs[0], plot_overlapping_histograms = True)
+# tweezer_statistician.plot_rearrange_histagram(target_array, ax = axs[0], plot_overlapping_histograms = True)
 # When "plot_overlapping_histograms" set to False, plot only the histogram of all shots
-tweezer_statistician.plot_rearrange_site_success_rate(target_array, ax = axs[1])
-tweezer_statistician.plot_site_loading_rates(ax = axs[2])
+tweezer_statistician.plot_rearrange_histagram(
+    target_array, ax=axs[0],
+    plot_overlapping_histograms=True,
+    split_full_target_bar=True
+)
+
+tweezer_statistician.plot_extras_count_when_target_full(target_array, ax=axs[1])
+tweezer_statistician.plot_extras_where_when_target_full(target_array, ax=axs[2])
+tweezer_statistician.plot_rearrange_site_success_rate(target_array, ax = axs[3])
+tweezer_statistician.plot_site_loading_rates(ax = axs[4])
 plt.tight_layout()
 plt.show()
 
