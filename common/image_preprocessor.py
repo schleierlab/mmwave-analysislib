@@ -128,9 +128,9 @@ class ImagePreprocessor:
                 rep = eval(rep_str)
                 n_rep = rep.shape[0]
                 del params[repetition_param_name]
-                if len([key for key in params if 'do' not in key]) == 0:
+                if len([key for key in params if key[:3] != 'do_']) == 0:
                     params[repetition_param_name] = [rep_str, 'Shots']
-                    for key in [key for key in params if 'do' in key]:
+                    for key in [key for key in params if key[:3] == 'do_']:
                         del params[key]
                     n_rep = 1
             else:
