@@ -2,15 +2,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from analysislib.common.tweezer_histograms import TweezerThresholder
-from analysislib.common.tweezer_multishot import TweezerMultishotAnalyzer
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
-from analysislib.common.tweezer_statistics import TweezerStatistician
-from analysislib.common.tweezer_correlator import TweezerCorrelator
+from analysislib.common.tweezer_correlator import TweezerCorrelatorVibed
 from analysislib.multishot.util import select_data_directory
 
-# shot_mask = np.array([0,1])
+shot_mask = np.array([0,1])
 # shot_mask = np.array([[0,1], [2,3], [4,5], [6,7], [8,9], [10,11]])
-shot_mask = np.array([[0,1,2], [3,4,5], [6,7,8] ,[9,10,11]])
+# shot_mask = np.array([[0,1,2], [3,4,5], [6,7,8] ,[9,10,11]])
+# shot_mask = np.array([[0,1,2,3], [4,5,6,7], [8,9,10,11]])
+# shot_mask = np.array([0,1,2,3,4,5])
 
 background_subtract = True
 USE_AVERAGED_BACKGROUND = False
@@ -23,7 +23,7 @@ tweezer_preproc = TweezerPreprocessor(
 site_rois = tweezer_preproc.site_rois
 preproc_h5_path = folder / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
 
-tweezer_correlator = TweezerCorrelator(
+tweezer_correlator = TweezerCorrelatorVibed(
     preproc_h5_path=preproc_h5_path,
     target_sites=tweezer_preproc.target_array,
 )
@@ -55,18 +55,19 @@ tweezer_correlator.plot_survival_rate_by_site(ax=axs[3])
 
 
 #Correlation stuff
-fig = plt.figure(figsize=(10, 6))
-tweezer_correlator.plot_bitstring_populations_heatmap(
-        fig = fig,
-        shot_mask = shot_mask,
-        require_exact_rearrangement = True,
-        average_shot_masks = False,
-)
+# fig = plt.figure(figsize=(10, 6))
+# tweezer_correlator.plot_bitstring_populations_heatmap(
+#         fig = fig,
+#         shot_mask = shot_mask,
+#         require_exact_rearrangement = True,
+#         average_shot_masks = False,
+# )
 
 fig = plt.figure(figsize=(10, 6))
 tweezer_correlator.plot_bitstring_populations_curves(
         fig = fig,
         shot_mask = shot_mask,
         require_exact_rearrangement = True,
-        average_shot_masks = False,
+        average_shot_masks = True,
+        group_by_magnetization = False,
 )

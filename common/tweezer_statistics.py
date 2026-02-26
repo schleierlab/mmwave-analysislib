@@ -115,7 +115,7 @@ class TweezerStatistician(BaseStatistician):
     site_occupancies is of shape (num_shots, num_images, num_sites)
     '''
 
-    target_sites: Sequence[int]
+    target_sites: NDArray
 
     # TODO clean this up
     KEY_SHOT: ClassVar[str] = 'shot'
@@ -137,7 +137,7 @@ class TweezerStatistician(BaseStatistician):
             target_sites: Sequence[int] = [],
     ):
         super().__init__(preproc_h5_path=preproc_h5_path, shot_index=shot_index)
-        self.target_sites = target_sites
+        self.target_sites = np.asarray(target_sites)
 
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
@@ -203,6 +203,10 @@ class TweezerStatistician(BaseStatistician):
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
         inds = slice(1, 3) if self.rearrangement else slice(0, 2)
         return self.site_occupancies[:, inds, :].prod(axis=-2)
+
+    @property
+    def target_sites_mask(self):
+        return np.isin(np.arange(self.n_sites), self.target_sites)
 
     def dataframe(
         self,
@@ -362,6 +366,7 @@ class TweezerStatistician(BaseStatistician):
 
         img1 = self.site_occupancies[:, 1, :]  # (shots, sites)
         return np.all(img1 == target_bool[None, :], axis=1)
+
     # LEGACY CODE
     def _shot_mask_target_full(self) -> np.ndarray:
         """
