@@ -728,6 +728,161 @@ class TweezerStatistician(BaseStatistician):
         #     k_even=k_even
         # )
 
+    def _plot_nmer_kexcited_population(
+        self,
+        ax,
+        indep_var,
+        nmer_size: int,
+        require_exact_rearrangement: bool = True,
+        explicit_groups: Optional[Sequence[Sequence[int]]] = None,
+        parity_postselect: Optional[str] = None,  # None | "even" | "odd"
+        save_data: bool = False,
+    ):
+        """
+        Plot P(k excited) for k=0..nmer_size, where "excited" means occupied in image-3.
+
+        If parity_postselect is "even" or "odd", we keep only shots with that parity
+        (k even/odd) and renormalize probabilities within the kept subset.
+        """
+
+        if parity_postselect not in (None, "even", "odd"):
+            raise ValueError('parity_postselect must be one of: None, "even", "odd".')
+
+        if not self.rearrangement:
+            raise ValueError("Requires rearrangement=True and 3 images (0,1,2).")
+        if self.n_images < 3:
+            raise ValueError("Expected 3 images (indices 0,1,2).")
+        if nmer_size < 2:
+            raise ValueError("nmer_size must be >= 2.")
+
+        # Shot mask
+        if require_exact_rearrangement:
+            mask = self._shot_mask_exact_rearrangement()
+            if not mask.any():
+                ax.text(0.5, 0.5, "No exact-matching rearranged shots",
+                        ha="center", va="center", transform=ax.transAxes)
+                ax.set_axis_off()
+                return
+        else:
+            mask = np.ones(self.shots_processed, dtype=bool)
+
+        # Build groups
+        if explicit_groups is not None:
+            groups = [tuple(map(int, g)) for g in explicit_groups]
+            if any(len(g) != nmer_size for g in groups):
+                raise ValueError("All explicit_groups must have length == nmer_size.")
+        else:
+            ts = list(map(int, self.target_sites))
+            n_groups = len(ts) // nmer_size
+            groups = [tuple(ts[i*nmer_size:(i+1)*nmer_size]) for i in range(n_groups)]
+
+        if len(groups) == 0:
+            raise ValueError("No n-mer groups could be formed (provide explicit_groups or more target_sites).")
+
+        img_after_rearr   = self.site_occupancies[mask, 1, :].astype(bool, copy=False)
+        img_after_science = self.site_occupancies[mask, 2, :].astype(bool, copy=False)
+
+        xvals = self.current_params[mask, 0]
+        x_arr = np.asarray(indep_var)
+        use_isclose = (np.issubdtype(xvals.dtype, np.floating) or np.issubdtype(x_arr.dtype, np.floating))
+
+        K = nmer_size
+        counts_k = np.zeros((K + 1, x_arr.size), dtype=float)
+        N = np.zeros(x_arr.size, dtype=float)  # denominator AFTER any post-selection
+
+        for g in groups:
+            g = np.asarray(g, dtype=int)
+
+            # require cluster loaded at start of science
+            loaded = np.all(img_after_rearr[:, g], axis=1)
+
+            # k excited from image-3
+            k_exc = np.sum(img_after_science[:, g], axis=1).astype(int)
+
+            # parity mask per shot (only if post-selecting)
+            if parity_postselect is None:
+                parity_mask = np.ones_like(loaded, dtype=bool)
+            elif parity_postselect == "even":
+                parity_mask = (k_exc % 2 == 0)
+            else:  # "odd"
+                parity_mask = (k_exc % 2 == 1)
+
+            for i, xv in enumerate(x_arr):
+                bin_idx = np.isclose(xvals, xv) if use_isclose else (xvals == xv)
+
+                # apply all selection conditions
+                sel = bin_idx & loaded & parity_mask
+                n_sel = int(sel.sum())
+                if n_sel == 0:
+                    continue
+
+                # denominator is number of KEPT trials
+                N[i] += n_sel
+
+                kk = k_exc[sel]
+                h = np.bincount(kk, minlength=K+1)
+                counts_k[:, i] += h
+
+        def division(a, b):
+            return np.divide(a, b, out=np.full_like(a, np.nan, dtype=float), where=(b > 0))
+
+        def prop_and_std(k, n):
+            # Laplace-smoothed posterior mean + beta std
+            a = k + 1.0
+            b = (n - k) + 1.0
+            p = division(a, a + b)
+            var = division(a * b, (a + b) ** 2 * (a + b + 1.0))
+            return p, np.sqrt(var)
+
+        p_k = np.full_like(counts_k, np.nan, dtype=float)  # shape (K+1, len(x))
+        e_k = np.full_like(counts_k, np.nan, dtype=float)
+
+        for k in range(K + 1):
+            p_k[k, :], e_k[k, :] = prop_and_std(counts_k[k, :], N)
+
+        # Plot
+        for k in range(K + 1):
+            # hide the parity-forbidden curves to avoid confusing legends
+            if parity_postselect == "even" and (k % 2 == 1):
+                continue
+            if parity_postselect == "odd" and (k % 2 == 0):
+                continue
+
+            pk = p_k[k, :]
+            ek = e_k[k, :]
+            label = f"{k} excited"
+            if parity_postselect is not None:
+                label += f" (postsel {parity_postselect})"
+            ax.errorbar(x_arr, pk, yerr=ek, label=label, **self.plot_config.errorbar_kw)
+
+        ax.set_xlabel(self.params[0].axis_label, fontsize=self.plot_config.label_font_size)
+        ax.set_ylabel(f"{nmer_size}-mer population", fontsize=self.plot_config.label_font_size)
+        ax.set_ylim(0, 1)
+        ax.legend()
+        ax.tick_params(axis="both", which="major", labelsize=self.plot_config.label_font_size)
+
+        if save_data:
+            parity_tag = "nopostsel" if parity_postselect is None else f"{parity_postselect}_parity"
+            save_filename = f"ramsey_{nmer_size}mer_kexcited_{parity_tag}.npz"
+
+            file_path = os.path.join(f"{self.folder_path}/", save_filename)
+
+            np.savez(
+                file_path,
+                x_arr=x_arr,
+                p_k=p_k,              # shape (K+1, len(x))
+                e_k=e_k,
+                counts_k=counts_k,
+                N=N,
+                nmer_size=nmer_size,
+                parity_postselect=parity_postselect,
+                groups=np.array(groups, dtype=object),
+            )
+
+            print(f"Saved N-mer population data to:\n{file_path}")
+
+        # return x_arr, p_k, e_k, counts_k, N, groups
+
     def _save_mloop_params(self, shot_h5_path: str | os.PathLike) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
 
@@ -911,7 +1066,8 @@ class TweezerStatistician(BaseStatistician):
             ax_plot.legend()
 
         if plot_pair_states:
-            self._plot_pair_state_population(ax_pairs, indep_var_scaled, require_exact_rearrangement, explicit_pairs)
+            self._plot_pair_state_population(ax_pairs, indep_var, require_exact_rearrangement, explicit_pairs)
+            # self._plot_nmer_kexcited_population(ax_pairs, indep_var, 2, require_exact_rearrangement, parity_postselect="even")
 
         return indep_var, survival_rates, survival_rate_errs
 
