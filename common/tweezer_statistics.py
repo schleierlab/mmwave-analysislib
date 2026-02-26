@@ -506,93 +506,17 @@ class TweezerStatistician(BaseStatistician):
         atom_count_in_target = [atom_count_in_target_all_shots, atom_count_in_target_rearrange_shots]
         return success_rearrange, atom_count_in_target, n_rearrange_shots, avg_site_success_rate
 
-    # def plot_rearrange_histagram(self, target_array, ax: Axes, plot_overlapping_histograms: bool = True):
-    #     '''
-    #     Plots a histogram of the number of sites in the taerget array after rearrangement.
-
-    #     Parameters
-    #     ----------
-    #     target_array : array_like
-    #         Array of target sites.
-    #     ax : matplotlib.axes.Axes,
-    #         Axes object to plot on.
-    #     plot_overlapping_histograms : bool, optional
-    #         Whether to plot overlapping histograms. The default is True.
-    #         When set to True, plot both the histogram of all shots and the histogram of rearrange shots.
-    #         This is helpful when we have bug that causes a lot of rearrangement shots end up with zero atoms in target sites.
-    #         When set to False, plot only the histogram of all shots.
-    #     '''
-    #     # Bar plot: Number of sites after rearrangement
-    #     success_rearrange, atom_count_in_target_list, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
-
-    #     atom_counts_all_shots = atom_count_in_target_list[0]
-    #     n_target = len(target_array)
-    #     n_shots = len(self.site_occupancies) # For unified title
-
-    #     ax.set_xlabel('Number of loaded target sites after rearrangement')
-    #     ax.set_ylabel('Frequency')
-    #     ax.grid(axis='y')
-
-    #     title_parts = [f'{n_target} target sites']
-    #     if n_shots > 0 and n_rearrange_shots > 0:
-    #         ratio = n_rearrange_shots / n_shots
-    #         rate = success_rearrange / n_rearrange_shots
-    #         title_parts.append(f'rearrange shot ratio: {ratio:.3f}, success rate: {rate:.3f}')
-    #     elif n_rearrange_shots == 0 and n_shots > 0:
-    #          title_parts.append('no rearrangement attempts made')
-    #     else:
-    #         title_parts.append('no shot data for title metrics')
-    #     ax.set_title('\n'.join(title_parts))
-
-    #     if plot_overlapping_histograms:
-    #         atom_counts_rearrange_shots = atom_count_in_target_list[1]
-
-    #         unique_all, counts_all = np.unique(atom_counts_all_shots, return_counts=True)
-    #         unique_rearrange, counts_rearrange = np.unique(atom_counts_rearrange_shots, return_counts=True)
-
-    #         bar_width_all = 0.8
-    #         bar_width_rearrange = bar_width_all * 0.7
-
-    #         x_all = unique_all.astype(int)
-    #         x_rearrange = unique_rearrange.astype(int)
-
-    #         if len(counts_all) > 0:
-    #             ax.bar(x_all, counts_all, width=bar_width_all, label=f'All Shots ({n_shots} shots)', alpha=0.5, color='skyblue')
-    #         if len(counts_rearrange) > 0:
-    #             ax.bar(x_rearrange, counts_rearrange, width=bar_width_rearrange, label=f'Rearrange Attempts ({n_rearrange_shots} shots)', alpha=0.8, color='royalblue')
-
-    #         if len(x_all) > 0:
-    #             ax.set_xticks(x_all)
-
-    #         if len(counts_all) > 0 or len(counts_rearrange) > 0:
-    #             ax.legend()
-    #     else:
-    #         unique_elements, counts = np.unique(atom_counts_all_shots, return_counts=True)
-
-    #         if len(counts) > 0:
-    #             ax.bar(unique_elements, counts, width=0.5)
-
-    #         if len(unique_elements) > 0:
-    #             ax.set_xticks(unique_elements.astype(int))
-
-    #     zero_atom_in_target_indices = np.where(atom_count_in_target_list[1] == 0)[0]
-    #     print('n_shots (total experiment)', n_shots)
-    #     print('n_rarrange_shots', n_rearrange_shots)
-    #     print('success_rearrange', success_rearrange)
-    #     print(f"Rearrange attempts with 0 loaded atoms: {zero_atom_in_target_indices.size}")
-    #     print(f"Indices: {zero_atom_in_target_indices}")
     def plot_rearrange_histagram(
         self,
         target_array,
         ax,
         plot_overlapping_histograms: bool = True,
-        split_full_target_bar: bool = True,   # ### NEW ###
+        split_full_target_bar: bool = True,  
     ):
         """
         Histogram of number of loaded target sites after rearrangement (image 1),
         plus optional breakdown of "full target but extra atoms exist outside".
         """
-        # Keep your existing stats
         success_rearrange, atom_count_in_target_list, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
 
         atom_counts_all_shots = atom_count_in_target_list[0]
@@ -603,9 +527,6 @@ class TweezerStatistician(BaseStatistician):
         ax.set_ylabel('Frequency')
         ax.grid(axis='y')
 
-        # -------------------------
-        # ### NEW: compute masks ###
-        # -------------------------
         # Make sure target_sites aligns with the passed target_array
         self.target_sites = list(np.asarray(target_array, dtype=int))
 
@@ -624,9 +545,6 @@ class TweezerStatistician(BaseStatistician):
         mean_extras = float(extras_when_happens.mean()) if extras_when_happens.size else 0.0
         max_extras = int(extras_when_happens.max()) if extras_when_happens.size else 0
 
-        # -------------
-        # title 
-        # -------------
         title_parts = [f'{n_target} target sites']
         if n_shots > 0 and n_rearrange_shots > 0:
             ratio = n_rearrange_shots / n_shots
@@ -649,7 +567,7 @@ class TweezerStatistician(BaseStatistician):
         ax.set_title('\n'.join(title_parts))
 
         # -------------------------
-        # plot histograms (your code)
+        # plot histograms
         # -------------------------
         if plot_overlapping_histograms:
             atom_counts_rearrange_shots = atom_count_in_target_list[1]
@@ -674,7 +592,7 @@ class TweezerStatistician(BaseStatistician):
                 ax.set_xticks(x_all)
 
             # ----------------------------------------------------
-            # ### NEW: split the n_target bar (All shots) ###
+            # split the n_target bar (All shots)
             # ----------------------------------------------------
             if split_full_target_bar and n_shots > 0:
                 # Draw a stacked bar at x=n_target that represents:
@@ -698,8 +616,6 @@ class TweezerStatistician(BaseStatistician):
 
             if len(unique_elements) > 0:
                 ax.set_xticks(unique_elements.astype(int))
-
-        # keep your debug prints
         
         zero_atom_in_target_indices = np.where(atom_count_in_target_list[1] == 0)[0]
         print('n_shots (total experiment)', n_shots)
@@ -707,8 +623,6 @@ class TweezerStatistician(BaseStatistician):
         print('success_rearrange', success_rearrange)
         print(f"Rearrange attempts with 0 loaded atoms: {zero_atom_in_target_indices.size}")
         print(f"Indices: {zero_atom_in_target_indices}")
-
-        # ### NEW: print extra diagnostics ###
         print(f"Full target shots: {n_full}")
         print(f"  - clean (exact): {n_full_clean}")
         print(f"  - full + extras: {n_full_with_extras}")
@@ -732,27 +646,6 @@ class TweezerStatistician(BaseStatistician):
         ax.set_title(f'Extras count | full target + extras (N={extras.size})')
         ax.set_xticks(vals.astype(int))
         ax.grid(axis='y')
-
-    # def plot_extras_where_when_target_full(self, target_array, ax):
-    #     self.target_sites = list(np.asarray(target_array, dtype=int))
-    #     mask_exact = self._shot_mask_exact_rearrangement()
-    #     mask_full  = self._shot_mask_target_full()
-    #     mask_full_with_extras = mask_full & (~mask_exact)
-
-    #     extra_sites = self._extra_sites_mask()  # (shots, sites) True for occupied outside target
-    #     extra_sites_sel = extra_sites[mask_full_with_extras]
-
-    #     if extra_sites_sel.shape[0] == 0:
-    #         ax.text(0.5, 0.5, "No shots with full target + extras", ha='center', va='center')
-    #         ax.set_axis_off()
-    #         return
-
-    #     p = extra_sites_sel.mean(axis=0)  # probability each site has an extra atom, conditioned on event
-    #     im = ax.imshow(p[None, :], aspect='auto')  # 1 x n_sites strip
-    #     ax.set_yticks([])
-    #     ax.set_xlabel('Site index')
-    #     ax.set_title(f'P(extra at site | target full + extras), N={extra_sites_sel.shape[0]}')
-    #     ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
     def _indices_to_spans(self, indices: np.ndarray):
         """
@@ -1672,7 +1565,7 @@ class TweezerStatistician(BaseStatistician):
 
     # LEGACY CODE
 
-    # TODO: this method needs updates that have already been applied to plot_survival_rate
+# TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
     def plot_survival_rate_by_site(self, ax: Optional[Axes] = None):
         """
