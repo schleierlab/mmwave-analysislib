@@ -76,15 +76,24 @@ def _decompose_unitstr(unitstr):
 
 
 def find_offset_and_scale(values, unitstr):
+    noop_retval = (0, 1, unitstr)
     maxval = np.max(np.abs(values))
+    if maxval == 0:
+        return noop_retval
+
     maxlog = np.log10(maxval)
 
     try:
         prefix, baseunit = _decompose_unitstr(unitstr)
     except ValueError:
-        return 0, 1, unitstr
+        return noop_retval
 
-    exponent_offset = ((maxlog + 1) // 3) * 3
+    if baseunit in ['Hz']:
+        min_cutoff = 1
+    elif baseunit in ['s']:
+        min_cutoff = 0.1
+
+    exponent_offset = ((maxlog - np.log10(min_cutoff)) // 3) * 3
     new_exponent =  (prefixes[prefix] + exponent_offset)
     newprefix = prefixes.inverse[new_exponent][0]
 
@@ -532,7 +541,6 @@ class TweezerStatistician(BaseStatistician):
         print('success_rearrange', success_rearrange)
         print(f"Rearrange attempts with 0 loaded atoms: {zero_atom_in_target_indices.size}")
         print(f"Indices: {zero_atom_in_target_indices}")
-
 
     def plot_rearrange_site_success_rate(self, target_array, ax: Axes):
         # Site success rate plot
