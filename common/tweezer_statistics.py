@@ -79,6 +79,9 @@ def _decompose_unitstr(unitstr):
 
 def find_offset_and_scale(values, unitstr):
     noop_retval = (0, 1, unitstr)
+    if len(values) == 0:
+        return noop_retval
+
     maxval = np.max(np.abs(values))
     if maxval == 0:
         return noop_retval
@@ -376,6 +379,27 @@ class TweezerStatistician(BaseStatistician):
 
     # this is intended to supersede the above dataframe() eventually, since it has shot number information
     def series(self) -> pd.Series:
+        """
+        Pandas Series describing site occupancy across all shots and images in this run.
+
+        Example
+        -------
+        ```
+        shot  image  site
+        0     0      0        True
+                     1       False
+                     2        True
+                     3        True
+                     4        True
+                             ...  
+        999   1      45       True
+                     46      False
+                     47      False
+                     48      False
+                     49      False
+        Name: occupancy, Length: 100000, dtype: bool
+        ```
+        """
         # ignoring typechecker pending pandas-stubs#1285
         mi = pd.MultiIndex.from_product(
             [range(self.shots_processed), range(self.n_images), range(self.n_sites)],  # type: ignore
@@ -385,6 +409,28 @@ class TweezerStatistician(BaseStatistician):
         return pd.Series(data=self.site_occupancies.flatten(), index=mi, name='occupancy', dtype=bool)
 
     def scan_param_df(self) -> pd.DataFrame:
+        """
+        Pandas DataFrame containing experimental parameters corresponding to each shot,
+        indexed by shot number. Only varied parameters are provided.
+
+        Example
+        -------
+              ryd_456_duration
+        shot                  
+        0         0.000000e+00
+        1         1.428571e-07
+        2         2.857143e-07
+        3         4.285714e-07
+        4         5.714286e-07
+        ...                ...
+        995       6.428571e-06
+        996       6.571429e-06
+        997       6.714286e-06
+        998       6.857143e-06
+        999       7.000000e-06
+
+        [1000 rows x 1 columns]
+        """
         index = pd.RangeIndex(self.shots_processed, name=self.KEY_SHOT)
         return pd.DataFrame(
             self.current_params,
@@ -442,7 +488,10 @@ class TweezerStatistician(BaseStatistician):
         img1 = self.site_occupancies[:, 1, :]  # (shots, sites)
         return np.all(img1 == target_bool[None, :], axis=1)
 
-    # LEGACY CODE
+    # ==========================
+    # Move elsewhere in codebase
+    # ==========================
+
     def _shot_mask_target_full(self) -> np.ndarray:
         """
         True for shots where all target sites are filled in image 1,
@@ -753,167 +802,9 @@ class TweezerStatistician(BaseStatistician):
         ax.set_title(f'Tweezer site loading rates, {n_shots} shots average')
         ax.legend()
 
-    def _pairs_from_targets(
-        self,
-        drop_last_incomplete: bool = True,
-        explicit_pairs: Optional[Sequence[tuple[int, int]]] = None):
-        pair_size = 2
-        if explicit_pairs is not None:
-            pairs = np.asarray(explicit_pairs, dtype=int)
-            if pairs.ndim != 2 or pairs.shape[1] != 2:
-                raise ValueError("explicit_pairs must be a list/tuple of (i,j) pairs.")
-            return pairs
-
-        tgt = list(self.target_sites)  # preserve given order
-        if len(tgt) < pair_size:
-            return np.empty((0, 2), dtype=int)
-
-        remainder = len(tgt) % pair_size
-        if remainder:
-            if drop_last_incomplete:
-                tgt = tgt[:len(tgt) - remainder]
-            else:
-                raise ValueError(
-                    f"target_sites length ({len(self.target_sites)}) not divisible by pair_size={pair_size}"
-                )
-
-        chunks = [tuple(tgt[i:i+pair_size]) for i in range(0, len(tgt), pair_size)]
-        pairs: list[tuple[int, int]] = []
-        for ch in chunks:
-            if len(ch) != 2:
-                raise ValueError("pair_size must be 2 for pair-state populations.")
-            pairs.append((int(ch[0]), int(ch[1])))
-        return np.asarray(pairs, dtype=int)
-
-    def _plot_pair_state_population(
-        self,
-        ax,
-        indep_var,
-        require_exact_rearrangement: bool = True,
-        explicit_pairs: Optional[Sequence[tuple[int, int]]] = None):
-        if not self.rearrangement:
-                raise ValueError("plot_pair_states=True requires rearrangement=True and 3 images (0,1,2).")
-        if self.n_images < 3:
-            raise ValueError("Expected 3 images (indices 0,1,2) for pair-state populations.")
-        if (len(self.target_sites) < 2) and (explicit_pairs is None):
-            raise ValueError("Need at least two target sites or provide explicit_pairs for pair-state plot.")
-
-        # Use the same shot mask logic used in dataframe()
-        if require_exact_rearrangement:
-            mask = self._shot_mask_exact_rearrangement()
-            if not mask.any():
-                ax.text(0.5, 0.5, "No exact-matching rearranged shots", ha="center", va="center",
-                            transform=ax.transAxes)
-                ax.set_axis_off()
-        else:
-            mask = np.ones(self.shots_processed, dtype=bool)
-
-        # Build pairs in GIVEN ORDER (or explicit)
-        pairs = self._pairs_from_targets(explicit_pairs=explicit_pairs)
-        if pairs.size == 0:
-            raise ValueError("No complete pairs could be formed for pair-state plot.")
-        n_pairs = pairs.shape[0]
-
-        # image-2 occupancy (S-survival) and the scan parameter (x-values) for those shots
-        img2 = self.site_occupancies[mask, 2, :] # (shots_kept, n_sites)
-        xvals = self.current_params[mask, 0] # (shots_kept,)
-
-        # per pair per shot
-        SS_list, PP_list, PS_list, SP_list = [], [], [], []
-        for a_idx, b_idx in pairs:
-            a2 = img2[:, a_idx]
-            b2 = img2[:, b_idx]
-            SS_list.append(a2 & b2)
-            PP_list.append((~a2) & (~b2))
-            PS_list.append((~a2) & b2)
-            SP_list.append(a2 & (~b2))
-
-        SS = np.vstack(SS_list)  # (n_pairs, shots_kept)
-        PP = np.vstack(PP_list)
-        PS = np.vstack(PS_list)
-        SP = np.vstack(SP_list)
-
-        x_arr = np.asarray(indep_var)
-        k_SS = np.zeros_like(x_arr, dtype=float)
-        k_PP = np.zeros_like(x_arr, dtype=float)
-        k_PS = np.zeros_like(x_arr, dtype=float)
-        k_SP = np.zeros_like(x_arr, dtype=float)
-        N = np.zeros_like(x_arr, dtype=float)
-
-        for i, xv in enumerate(x_arr):
-            bin_idx = (xvals == xv) # which kept shots belong to this x
-            n_shots_bin = int(bin_idx.sum())
-            N[i] = n_pairs * n_shots_bin
-            if N[i] == 0:
-                continue
-            k_SS[i] = SS[:, bin_idx].sum() # (n_pairs, n_shots_bin)
-            k_PP[i] = PP[:, bin_idx].sum()
-            k_PS[i] = PS[:, bin_idx].sum()
-            k_SP[i] = SP[:, bin_idx].sum()
-
-        def division(a, b):
-            # aviod devision by 0
-            # return a/b if b > 0, else return nan
-            return np.divide(a, b, out=np.full_like(a, np.nan, dtype=float), where=(b > 0))
-
-        def prop_and_std(k, n):
-            p = division(k, n)
-            # Laplace / Jeffreys-ish smoothing you were using
-            lap = division(k + 1, n + 2)
-            std = np.sqrt(lap * (1 - lap) / (n + 2))
-            return p, std
-
-        pSS, eSS = prop_and_std(k_SS, N)
-        pPP, ePP = prop_and_std(k_PP, N)
-        pPS, ePS = prop_and_std(k_PS, N)
-        pSP, eSP = prop_and_std(k_SP, N)
-
-        k_even = k_SS + k_PP          # counts in even sector
-        pEven, eEven = prop_and_std(k_even, N)   # even fraction out of all outcomes
-
-        # Conditional within even: P(SS | even) and P(PP | even)
-        # Use the same Laplace smoothing but with denominator = k_even
-        pSS_even, eSS_even = prop_and_std(k_SS, k_even)
-        pPP_even, ePP_even = prop_and_std(k_PP, k_even)
-
-        pD = pPP - pSS # differences
-        pEO = pPP + pSS - pSP - pPS  # even-odd
-
-        var_D = division(pPP + pSS - pD**2, N)
-        var_EO = division(1-pEO**2, N)
-
-        eD  = np.sqrt(var_D)
-        eEO = np.sqrt(var_EO)
-
-        ax.errorbar(x_arr, pSS, yerr=eSS, label="SS", **self.plot_config.errorbar_kw)
-        ax.errorbar(x_arr, pPS, yerr=ePS, label="PS", **self.plot_config.errorbar_kw)
-        ax.errorbar(x_arr, pSP, yerr=eSP, label="SP", **self.plot_config.errorbar_kw)
-        ax.errorbar(x_arr, pPP, yerr=ePP, label="PP", **self.plot_config.errorbar_kw)
-        # ax.errorbar(x_arr, pD, yerr = eD, label = 'PP-SS', **self.plot_config.errorbar_kw)
-        # ax.errorbar(x_arr, pEO, yerr = eEO, label = 'Even-Odd', **self.plot_config.errorbar_kw)
-
-        ax.set_xlabel(self.params[0].axis_label(), fontsize=self.plot_config.label_font_size)
-        ax.set_ylabel("Pair population", fontsize=self.plot_config.label_font_size)
-        ax.set_ylim(0, 1)
-        ax.legend()
-        ax.tick_params(axis="both", which="major", labelsize=self.plot_config.label_font_size)
-
-        # file_path = os.path.join(f"{self.folder_path}/", '2026-02-23-0150_ramsey_dimer_data.npz')
-        # np.savez(
-        #     file_path,
-        #     x_arr=x_arr,
-        #     pSS=pSS, eSS=eSS,
-        #     pPP=pPP, ePP=ePP,
-        #     pPS=pPS, ePS=ePS,
-        #     pSP=pSP, eSP=eSP,
-        #     pEven=pEven, eEven=eEven,
-        #     pSS_even=pSS_even, eSS_even=eSS_even,
-        #     pPP_even=pPP_even, ePP_even=ePP_even,
-        #     pD=pD, eD=eD,
-        #     pEO=pEO, eEO=eEO,
-        #     N=N,
-        #     k_even=k_even
-        # )
+    # ====================
+    # Correlation analysis
+    # ====================
 
     def _plot_nmer_kexcited_population(
         self,
@@ -1268,8 +1159,7 @@ class TweezerStatistician(BaseStatistician):
             ax_plot.legend()
 
         if plot_pair_states:
-            self._plot_pair_state_population(ax_pairs, indep_var, require_exact_rearrangement, explicit_pairs)
-            # self._plot_nmer_kexcited_population(ax_pairs, indep_var, 2, require_exact_rearrangement, parity_postselect="even")
+            self._plot_nmer_kexcited_population(ax_pairs, indep_var, 2, require_exact_rearrangement, parity_postselect="even")
 
         return indep_var, survival_rates, survival_rate_errs
 
@@ -1565,7 +1455,7 @@ class TweezerStatistician(BaseStatistician):
 
     # LEGACY CODE
 
-# TODO: this method needs updates that have already been applied to plot_survival_rate
+    # TODO: this method needs updates that have already been applied to plot_survival_rate
     # Can redundant code here be consolidated with plot_survival_rate?
     def plot_survival_rate_by_site(self, ax: Optional[Axes] = None):
         """
