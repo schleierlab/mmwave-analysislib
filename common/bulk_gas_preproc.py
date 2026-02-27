@@ -242,7 +242,7 @@ class BulkGasPreprocessor(ImagePreprocessor):
         atom_numbers = self.get_atom_numbers(method='sum', subtraction='double')
         run_number = self.run_number
         fname = self.h5_path.with_name('bulkgas_preprocess.h5')
-        if run_number == 0:
+        if run_number == 0 and not fname.exists():
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
                 f.create_dataset('atom_numbers', data=[atom_numbers], maxshape=(self.n_runs, len(self.images)))
@@ -294,22 +294,25 @@ class BulkGasPreprocessor(ImagePreprocessor):
                 f.create_dataset('params', data=param_list)
         else:
             with h5py.File(fname, 'a') as f:
-                f['atom_numbers'].resize(run_number + 1, axis=0)
+                preproc_size = f['atom_numbers'].shape[0]
+                new_max_size = max(run_number + 1, preproc_size)
+
+                f['atom_numbers'].resize(new_max_size, axis=0)
                 f['atom_numbers'][run_number] = atom_numbers
 
                 # save parameters from runmanager globals
                 #NOTE: If you pass in a python array with an int, it will cast others as ints. 
-                f['current_params'].resize(run_number + 1, axis=0)
+                f['current_params'].resize(new_max_size, axis=0)
                 f['current_params'][run_number] = self.current_params
 
                 if cloud_fit == 'gaussian' or cloud_fit == 'gaussian_uniform':
-                    f['gaussian_cloud_params_nom'].resize(run_number + 1, axis=0)
+                    f['gaussian_cloud_params_nom'].resize(new_max_size, axis=0)
                     f['gaussian_cloud_params_nom'][run_number] = gauss_nom
-                    f['gaussian_cloud_params_cov'].resize(run_number + 1, axis=0)
+                    f['gaussian_cloud_params_cov'].resize(new_max_size, axis=0)
                     f['gaussian_cloud_params_cov'][run_number] = gauss_cov
-                    f['gaussian_atom_numbers_nom'].resize(run_number + 1, axis=0)
+                    f['gaussian_atom_numbers_nom'].resize(new_max_size, axis=0)
                     f['gaussian_atom_numbers_nom'][run_number] = unumpy.nominal_values(gauss_atom_num)
-                    f['gaussian_atom_numbers_std'].resize(run_number + 1, axis=0)
+                    f['gaussian_atom_numbers_std'].resize(new_max_size, axis=0)
                     f['gaussian_atom_numbers_std'][run_number] = unumpy.std_devs(gauss_atom_num)
             
 

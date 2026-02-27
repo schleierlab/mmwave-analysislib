@@ -249,7 +249,7 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         run_number = self.run_number
         fname = self.h5_path.with_name(self.PROCESSED_RESULTS_FNAME)
-        if run_number == 0:
+        if run_number == 0 and not fname.exists():
             with h5py.File(fname, 'w') as f:
                 f.attrs['n_runs'] = self.n_runs
 
@@ -292,17 +292,20 @@ class TweezerPreprocessor(ImagePreprocessor):
                 )
         else:
             with h5py.File(fname, 'a') as f:
-                f['camera_counts'].resize(run_number + 1, axis=0)
+                preproc_size = f['camera_counts'].shape[0]
+                new_max_size = max(run_number + 1, preproc_size)
+                
+                f['camera_counts'].resize(new_max_size, axis=0)
                 f['camera_counts'][run_number] = camera_counts
 
-                f['site_occupancies'].resize(run_number + 1, axis=0)
+                f['site_occupancies'].resize(new_max_size, axis=0)
                 f['site_occupancies'][run_number] = self.site_occupancies
 
                 # save parameters from runmanager globals
-                f['current_params'].resize(run_number + 1, axis=0)
+                f['current_params'].resize(new_max_size, axis=0)
                 f['current_params'][run_number] = self.current_params
 
-                f['run_times'].resize(run_number + 1, axis=0)
+                f['run_times'].resize(new_max_size, axis=0)
                 f['run_times'][run_number] = self.run_time
 
         return fname
