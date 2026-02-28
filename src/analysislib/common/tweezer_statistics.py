@@ -1138,14 +1138,14 @@ class TweezerStatistician(BaseStatistician):
                 popt, pcov = self.fit_rabi_oscillation(indep_var, survival_rates, sigma=survival_rate_errs)
                 upopt = uncertainties.correlated_values(popt, pcov)
                 x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
-                ax_plot.plot(x_plot, self.rabi_model(x_plot, *popt), color='r', label=f'$\Omega/2\pi = {upopt[1]/(2*np.pi*1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu s$')
+                ax_plot.plot(x_plot, self.rabi_model(x_plot, *popt), color='r', label=fR'$\Omega/2\pi = {upopt[1]/(2*np.pi*1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu s$')
                 ax_plot.legend(fontsize='x-small')
             elif fit_type == 'rabispec':
                 popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
 
                 freq_unit = self.params[0].unit
-                label = textwrap.dedent(f'''\
+                label = textwrap.dedent(fR'''\
                     transition at ${upopt[0]:SL}$ {freq_unit}
                     $\Omega/2\pi = {upopt[1]:SL}$ {freq_unit}
                     effective pulse length ${upopt[2]:SL}$ ({freq_unit})$^{{-1}}$
