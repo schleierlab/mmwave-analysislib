@@ -106,9 +106,10 @@ class TweezerPreprocessor(ImagePreprocessor):
     def n_sites(self):
         return len(self.site_rois)
 
+    # TODO remove after 2 wks 2026-02-27, this is only used for backward compatibility
     @property
     def target_array(self):
-        return self.parameters['TW_target_array']
+        return np.asarray(self.parameters['TW_target_array']).flatten()
 
     @staticmethod
     def _load_rois_from_yaml(roi_config_path: Path, atom_roi_ylims):
@@ -257,6 +258,7 @@ class TweezerPreprocessor(ImagePreprocessor):
                 if not (isinstance(do_rearrangement, bool) or isinstance(do_rearrangement, np.bool_)):
                     raise TypeError
                 f.attrs['do_rearrangement'] = self.parameters['do_rearrangement']
+                f.attrs['target_array'] = self.parameters['TW_target_array']
                 f.create_dataset(
                     'camera_counts',
                     data=camera_counts[np.newaxis, ...],

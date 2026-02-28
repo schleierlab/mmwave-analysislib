@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import ClassVar, Literal, Optional, Sequence
 
+import h5py
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import uncertainties.unumpy as unp
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -16,6 +17,7 @@ from scipy.special import comb
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
+
 
 @pd.api.extensions.register_series_accessor("tools")
 class LevelTools:
@@ -55,6 +57,7 @@ class LevelTools:
             return target
         return None
 
+# not really used, deprecate?
 @pd.api.extensions.register_dataframe_accessor("tools")
 class DataFrameTools:
     def __init__(self, pandas_obj):
@@ -67,7 +70,6 @@ class DataFrameTools:
         """
         # Get the unique values in the specified level of the index
         level_values = self._obj.index.get_level_values(level)
-        print(level_values.map(df_other.T))
         return self._obj.groupby(level_values.map(df_other))
 
 class TweezerCorrelator(TweezerStatistician):
@@ -79,33 +81,57 @@ class TweezerCorrelator(TweezerStatistician):
             self,
             preproc_h5_path,
             require_exact_rearrangement: bool,
-            polymer_grouper: Callable,
             shot_h5_path = None,
             plot_config = None,
             *,
+            polymers: Optional[Sequence[Sequence[int]]] = None,
             parity_selection: Literal[0, 1, None] = None,
             shot_index = -1,
-            target_sites = ...,
     ):
+        if polymers is None:
+            target_sites = np.array([], dtype=int)
+        else:
+            target_sites = np.asarray(polymers).flatten()
+
         super().__init__(
             preproc_h5_path,
             shot_h5_path,
             plot_config,
-            rearrangement=True,
             shot_index=shot_index,
-            target_sites=target_sites,
+            target_sites=target_sites,  # remove in 2 wks after 2026-02-27
         )
-        self.polymer_grouper = polymer_grouper
+        if not self.rearrangement:
+            raise ValueError('TweezerCorrelator can only be run on shots with rearrangement')
         self.require_exact_rearrangement = require_exact_rearrangement
         self.parity_selection = parity_selection
 
+        with h5py.File(preproc_h5_path, 'r') as f:
+            try:
+                self.polymers = np.asarray(f.attrs['target_array'][:], dtype=int)
+            except KeyError:
+                # deprecate this soon
+                self.polymers = np.asarray(polymers, dtype=int)
+            if self.polymers.ndim != 2:
+                raise ValueError(
+                    'TW_target_array was not 2D as expected for polymer grouping. '
+                    'Please ensure TW_target_array is a 2D array of shape (n_polymers, polymer_length).'
+                )
+
+    def _polymer_grouper(self, sites):
+        # binary search on the flattened view of self.polymers
+        flat_inds = np.searchsorted(self.polymers.ravel(), np.asarray(sites))
+        
+        # convert 1D indices to 2D (row, col)
+        # np.divmod returns both quotient (row) and remainder (column)
+        return np.divmod(flat_inds, self.polymer_length)
+
     @property
     def n_polymers(self):
-        return np.max(self.polymer_grouper(self.target_sites)[0]) + 1
+        return self.polymers.shape[0]
 
     @property
     def polymer_length(self):
-        return np.max(self.polymer_grouper(self.target_sites)[1]) + 1
+        return self.polymers.shape[1]
 
     def polymer_survivals(self) -> pd.Series:
         """
@@ -165,7 +191,7 @@ class TweezerCorrelator(TweezerStatistician):
 
         return survivals_masked.tools.split_level_custom(
             'site',
-            self.polymer_grouper,
+            self._polymer_grouper,
             new_names=[self.KEY_POLYMER_ID, self.KEY_POLYMER_SITE],
         )
 
@@ -391,7 +417,7 @@ class TweezerCorrelator(TweezerStatistician):
             result_type='expand',
         )
     
-    def _plot_magnetization_on_axis(self, ax: Axes, ufreqs_data, title: Optional[str] = None):
+    def _plot_magnetization_on_axis(self, ax: Axes, ufreqs_data, cmap=None, title: Optional[str] = None):
         """Helper to plot magnetization data on a single axis.
         
         Parameters
@@ -400,9 +426,15 @@ class TweezerCorrelator(TweezerStatistician):
             Axis to plot on.
         ufreqs_data : Series or DataFrame
             Data with errorbar values (uarray).
+        cmap : str or Colormap, optional
+            Colormap for different magnetization levels. If unspecified, a default diverging palette is used.
         title : str, optional
             Title for the axis.
         """
+        colormap = cmap
+        if cmap is None:
+            colormap = sns.diverging_palette(145, 300, s=60, center='dark', as_cmap=True)
+
         norm = matplotlib.colors.Normalize(vmin=0, vmax=self.polymer_length)
         for column_name, column in ufreqs_data.items():
             ax.errorbar(
@@ -410,7 +442,7 @@ class TweezerCorrelator(TweezerStatistician):
                 unp.nominal_values(column.values),
                 yerr=unp.std_devs(column.values),
                 label=f'$S_z = {column_name - self.polymer_length/2:+}$',
-                color=matplotlib.colormaps['PiYG'](norm(column_name)),
+                color=colormap(norm(column_name)),
                 **self.plot_config.errorbar_kw,
             )
         if title:
@@ -420,6 +452,7 @@ class TweezerCorrelator(TweezerStatistician):
     def plot_total_magnetization(
             self,
             axs: Optional[Axes | Sequence[Axes]] = None,
+            cmap: Optional[str | matplotlib.colors.Colormap] = None,
     ):
         """Plot total magnetization survivals vs scan parameters.
         
@@ -433,18 +466,18 @@ class TweezerCorrelator(TweezerStatistician):
         if axs is None:
             fig = plt.figure(constrained_layout=True)
             axs = fig.subplots()
-        
+
         if isinstance(axs, Axes):
             # Single axis mode: aggregate
             ufreqs = self._compute_total_survivals_ufreqs()
-            self._plot_magnetization_on_axis(axs, ufreqs)
+            self._plot_magnetization_on_axis(axs, ufreqs, cmap=cmap)
         else:
             # Sequence of axes: per-polymer
             ufreqs = self._compute_total_survivals_ufreqs(grouped_by=[self.KEY_POLYMER_ID])
             for polymer_id, group in ufreqs.groupby(level=self.KEY_POLYMER_ID):
                 ax = axs[polymer_id]
                 group_data = group.droplevel(self.KEY_POLYMER_ID)
-                self._plot_magnetization_on_axis(ax, group_data, title=f'Polymer {polymer_id}')
+                self._plot_magnetization_on_axis(ax, group_data, cmap=cmap, title=f'Polymer {polymer_id}')
 
     def _plot_heatmap_on_axis(self, ax: Axes, data, ylabel: str, cmap: str = 'viridis', vmin: float = 0, vmax: float = 1, title: Optional[str] = None):
         """Helper to plot heatmap data on a single axis.
@@ -528,7 +561,6 @@ class TweezerCorrelator(TweezerStatistician):
             distance_avgd_corrs = self.distance_averaged_correlation(grouped_by=[self.KEY_POLYMER_ID]).unstack()
             for polymer_id, group in distance_avgd_corrs.groupby(level=self.KEY_POLYMER_ID):
                 ax = axs[polymer_id]
-                print(group)
                 group_data = group.droplevel(self.KEY_POLYMER_ID)
                 group_data.loc(axis=1)[0] = np.nan
                 self._plot_heatmap_on_axis(ax, group_data, ylabel='Distance (sites)', cmap='coolwarm', vmin=-1, vmax=1, title=f'Polymer {polymer_id}')

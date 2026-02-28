@@ -33,8 +33,7 @@ if PLOT_AVERAGED_IMAGES:
 
 tweezer_statistician = TweezerStatistician(
     preproc_h5_path=preproc_h5_path,
-    rearrangement=True,
-    target_sites=tweezer_preproc.target_array,
+    target_sites=tweezer_preproc.target_array,  # deprecate after 2 wks 2026-02-27
 )
 
 thresholder = TweezerThresholder(
