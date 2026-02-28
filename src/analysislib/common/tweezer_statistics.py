@@ -7,7 +7,7 @@ import textwrap
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, cast, overload
+from typing import ClassVar, Literal, Optional, Union, cast, overload
 from typing_extensions import assert_never
 
 import h5py  # type: ignore
@@ -214,7 +214,7 @@ class TweezerStatistician(BaseStatistician):
             plot_config: Optional[PlotConfig] = None,
             *,
             shot_index: int = -1,
-            target_sites: Optional[Sequence[int]] = None,  # deprecate this parameter
+            target_sites: Optional[Union[Sequence[int], NDArray]] = None,  # deprecate this parameter
     ):
         super().__init__(preproc_h5_path=preproc_h5_path, shot_index=shot_index)
 
@@ -244,7 +244,7 @@ class TweezerStatistician(BaseStatistician):
             self.current_params = f['current_params'][:]
             self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
             try:
-                self.target_sites = np.asarray(f.attrs['target_array'][:], dtype=int)
+                self.target_sites = np.asarray(f.attrs['target_array'][:], dtype=int).flatten()
             except KeyError:
                 logger.info('Did not find `target_array` in h5 attributes, defaulting to empty list')
                 self.target_sites = np.array([], dtype=int)
