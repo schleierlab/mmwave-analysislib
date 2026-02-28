@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import ClassVar, Literal, Optional, Sequence
+from collections.abc import Callable
+from typing import Any, ClassVar, Literal, Optional, Sequence
 
 import h5py
 import matplotlib
@@ -11,6 +12,7 @@ import seaborn as sns
 import uncertainties.unumpy as unp
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotlib.typing import ColorType
 from numpy.typing import NDArray
 from scipy.special import comb
 
@@ -417,8 +419,14 @@ class TweezerCorrelator(TweezerStatistician):
             result_type='expand',
         )
 
-    def _plot_magnetization_on_axis(self, ax: Axes, ufreqs_data, cmap=None, title: Optional[str] = None):
-        """Helper to plot magnetization data on a single axis.
+    def _plot_ufreqs(
+            self,
+            ax: Axes,
+            ufreqs_data,
+            label_mapper: Callable[[Any], str] = str,
+            color_mapper: Callable[[Any], Optional[ColorType]] = lambda _: None
+    ) -> None:
+        """Helper to plot frequency data (with errorbars) on a single axis.
 
         Parameters
         ----------
@@ -428,14 +436,8 @@ class TweezerCorrelator(TweezerStatistician):
             Data with errorbar values (uarray).
         cmap : str or Colormap, optional
             Colormap for different magnetization levels. If unspecified, a default diverging palette is used.
-        title : str, optional
-            Title for the axis.
         """
-        colormap = cmap
-        if cmap is None:
-            colormap = sns.diverging_palette(145, 300, s=60, center='dark', as_cmap=True)
 
-        norm = matplotlib.colors.Normalize(vmin=0, vmax=self.polymer_length)
         subplotspec = ax.get_subplotspec()
         if subplotspec is None:
             raise ValueError("Axis must be part of a subplot to determine x-axis labeling.")
@@ -446,12 +448,10 @@ class TweezerCorrelator(TweezerStatistician):
                 variable_scaled,
                 unp.nominal_values(column.values),
                 yerr=unp.std_devs(column.values),
-                label=f'$S_z = {column_name - self.polymer_length/2:+}$',
-                color=colormap(norm(column_name)),
+                label=label_mapper(column_name),
+                color=color_mapper(column_name),
                 **self.plot_config.errorbar_kw,
             )
-        if title:
-            ax.set_title(title)
         if subplotspec.is_last_row():
             ax.set_xlabel(xlabel)
 
@@ -460,7 +460,7 @@ class TweezerCorrelator(TweezerStatistician):
             axs: Optional[Axes | Sequence[Axes]] = None,
             cmap: Optional[str | matplotlib.colors.Colormap] = None,
     ):
-        """Plot total magnetization survivals vs scan parameters.
+        """Plot population in various magnetization states vs scan parameters.
 
         Parameters
         ----------
@@ -473,11 +473,22 @@ class TweezerCorrelator(TweezerStatistician):
             fig = plt.figure(constrained_layout=True)
             axs = fig.subplots()
 
+        def label_mapper(survival_number: int) -> str:
+            return f'$S_z = {survival_number - self.polymer_length/2:+}$'
+
+        colormap = cmap
+        if cmap is None:
+            colormap = sns.diverging_palette(145, 300, s=60, center='dark', as_cmap=True)
+
+        def color_mapper(column_name):
+            norm = matplotlib.colors.Normalize(vmin=0, vmax=self.polymer_length)
+            return colormap(norm(column_name))
+
         if isinstance(axs, Axes):
             ax = axs
             # Single axis mode: aggregate
             ufreqs = self._compute_total_survivals_ufreqs()
-            self._plot_magnetization_on_axis(ax, ufreqs, cmap=cmap)
+            self._plot_ufreqs(ax, ufreqs, label_mapper=label_mapper, color_mapper=color_mapper)
             ax.legend()
         else:
             # Sequence of axes: per-polymer
@@ -485,7 +496,8 @@ class TweezerCorrelator(TweezerStatistician):
             for polymer_id, group in ufreqs.groupby(level=self.KEY_POLYMER_ID):
                 ax = axs[polymer_id]
                 group_data = group.droplevel(self.KEY_POLYMER_ID)
-                self._plot_magnetization_on_axis(ax, group_data, cmap=cmap, title=f'Polymer {polymer_id}')
+                self._plot_ufreqs(ax, group_data, label_mapper=label_mapper, color_mapper=color_mapper)
+                ax.set_ylabel(f'Polymer {polymer_id} population')
             axs[0].legend()
 
     def _plot_heatmap_on_axis(self, ax: Axes, data, ylabel: str, cmap: str = 'viridis', vmin: float = 0, vmax: float = 1, title: Optional[str] = None):
@@ -529,6 +541,34 @@ class TweezerCorrelator(TweezerStatistician):
         if fig is None:
             raise ValueError("Axis must be part of a figure to add colorbar.")
         fig.colorbar(pcmesh, ax=ax)
+
+    def plot_bitstring_populations(self, axs: Optional[Axes | Sequence[Axes]] = None):
+        """Plot bitstring populations.
+
+        Parameters
+        ----------
+        axs : Axes or Sequence[Axes], optional
+            If Axes: aggregate plot on single axes.
+            If Sequence[Axes]: per-polymer plots on axs[polymer_id].
+            If None: creates new figure with single axes.
+        """
+        if axs is None:
+            fig = plt.figure(constrained_layout=True)
+            axs = fig.subplots()
+
+        if isinstance(axs, Axes):
+            # Single axis mode: aggregate
+            bitstring_freqs = self.bitstring_frequencies()
+            self._plot_ufreqs(axs, bitstring_freqs)
+            axs.set_ylabel('Population')
+        else:
+            # Sequence of axes: per-polymer
+            bitstring_freqs = self.bitstring_frequencies(grouped_by=[self.KEY_POLYMER_ID])
+            for polymer_id, group in bitstring_freqs.groupby(level=self.KEY_POLYMER_ID):
+                ax = axs[polymer_id]
+                group_data = group.droplevel(self.KEY_POLYMER_ID)
+                self._plot_ufreqs(ax, group_data)
+                ax.set_ylabel('Population')
 
     def plot_bitstring_heatmap(self, axs: Optional[Axes | Sequence[Axes]] = None):
         """Plot bitstring frequency heatmap.
@@ -621,7 +661,6 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             preproc_h5_path=preproc_h5_path,
             shot_h5_path=shot_h5_path,
             plot_config=plot_config,
-            rearrangement=True,
             shot_index=shot_index,
             target_sites=target_sites,
         )
@@ -1291,7 +1330,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             for bs_tuple in all_bitstrings[1:-1]:
                 pops_other += bitstring_pops[bs_tuple]
 
-            if bitstring_errors != None:
+            if bitstring_errors is not None:
                 errs_0 = bitstring_errors[bs_0]
                 errs_1 = bitstring_errors[bs_1]
                 errs_other = np.zeros(np.size(pops_0))
