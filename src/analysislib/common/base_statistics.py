@@ -6,6 +6,8 @@ import numpy as np
 from scipy import optimize
 from scipy.constants import pi
 
+from analysislib.common.typing import StrPath
+
 # try:
 #     lyse
 # except NameError:
@@ -20,7 +22,7 @@ class BaseStatistician(ABC):
     """Base class for statistical analysis of tweezer or bulk gas imaging data."""
     def __init__(
             self,
-            preproc_h5_path: str,
+            preproc_h5_path: StrPath,
             *,
             shot_index: int = -1,
     ):

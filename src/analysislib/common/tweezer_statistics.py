@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import re
 import textwrap
@@ -30,6 +31,8 @@ from analysislib.common.image import ROI
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
 
+
+logger = logging.getLogger(__name__)
 
 class bidict(dict):
     """
@@ -210,15 +213,16 @@ class TweezerStatistician(BaseStatistician):
             shot_h5_path: Optional[StrPath] = None,
             plot_config: Optional[PlotConfig] = None,
             *,
-            rearrangement: bool = False,
             shot_index: int = -1,
-            target_sites: Sequence[int] = [],
+            target_sites: Optional[Sequence[int]] = None,  # deprecate this parameter
     ):
         super().__init__(preproc_h5_path=preproc_h5_path, shot_index=shot_index)
-        self.target_sites = np.asarray(target_sites)
 
         self.plot_config = plot_config or PlotConfig()
         self._load_processed_quantities(preproc_h5_path)
+        if target_sites is not None:
+            self.target_sites = np.asarray(target_sites)
+
         # if shot_h5_path is not None:
         #     self._save_mloop_params(shot_h5_path)
         self.folder_path = Path(preproc_h5_path).parent
@@ -239,6 +243,11 @@ class TweezerStatistician(BaseStatistician):
             self.n_runs = cast(int, f.attrs['n_runs'])
             self.current_params = f['current_params'][:]
             self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
+            try:
+                self.target_sites = np.asarray(f.attrs['target_array'][:], dtype=int)
+            except KeyError:
+                logger.info('Did not find `target_array` in h5 attributes, defaulting to empty list')
+                self.target_sites = np.array([], dtype=int)
 
             self.params = ScanningParameters.from_h5_tuples(self.params_list)
 

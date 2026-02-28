@@ -257,6 +257,7 @@ class TweezerPreprocessor(ImagePreprocessor):
                 if not (isinstance(do_rearrangement, bool) or isinstance(do_rearrangement, np.bool_)):
                     raise TypeError
                 f.attrs['do_rearrangement'] = self.parameters['do_rearrangement']
+                f.attrs['target_array'] = self.parameters['TW_target_array']
                 f.create_dataset(
                     'camera_counts',
                     data=camera_counts[np.newaxis, ...],

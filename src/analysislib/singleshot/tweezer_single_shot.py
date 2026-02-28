@@ -42,7 +42,7 @@ tweezer_statistician = TweezerStatistician(
     preproc_h5_path=processed_results_fname,
     shot_h5_path=tweezer_preproc.h5_path,  # Used only for MLOOP
     plot_config=PlotConfig(),
-    target_sites=tweezer_preproc.target_array,
+    target_sites=tweezer_preproc.target_array,  # deprecate after 2 wks 2026-02-27
 )
 
 folder_path = os.path.dirname(tweezer_preproc.h5_path)
