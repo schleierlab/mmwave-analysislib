@@ -71,7 +71,7 @@ if not SHOW_IMG_ONLY:
             show_hist=SHOW_HIST,
         )
 
-    # tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
+    tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
 
     # TODO: this function right now doesn't work with 2d parameter scan
 

@@ -84,7 +84,7 @@ class TweezerPreprocessor(ImagePreprocessor):
 
     def background_subtraction(self, use_averaged_background: bool = False):
         if use_averaged_background:
-            average_background_overwrite_path = USERLIB_PATH / 'analysislib/multishot/avg_shot_bkg.npy'
+            average_background_overwrite_path =  ROI_CONFIG_PATH.with_name('avg_shot_bkg.npy')
             bkg = np.load(average_background_overwrite_path)
         else:
             bkg = self.exposures[-1]
