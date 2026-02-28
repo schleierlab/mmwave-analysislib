@@ -1069,21 +1069,15 @@ class TweezerStatistician(BaseStatistician):
 
         if len(self.params) != 1:
             raise ValueError("plot_survival_rate_1d expects exactly one scanned parameter")
-        elif len(self.params) == 1:
-            gb = df.groupby([param.name for param in self.params])
-            unitstr = self.params[0].unit
-        elif len(self.params) == 0:
-            gb = df
-            unitstr = ''
+
+        gb = df.groupby([param.name for param in self.params])
+        unitstr = self.params[0].unit
         survival_df = self.dataframe_survival(gb)
 
         indep_var = survival_df.index
         offset, xscale, scaled_unit = find_offset_and_scale(indep_var, unitstr)
 
-        if len(self.params) == 1:
-            xlabel = self.params[0].axis_label(unit=scaled_unit)
-        elif len(self.params) == 0:
-            xlabel = 'Shot number'
+        xlabel = self.params[0].axis_label(unit=scaled_unit)
         ax_plot.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
 
         indep_var_scaled = indep_var / xscale
