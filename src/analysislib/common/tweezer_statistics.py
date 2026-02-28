@@ -8,7 +8,6 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, Union, cast, overload
-from typing_extensions import assert_never
 
 import h5py  # type: ignore
 import matplotlib.dates as mdates
@@ -20,17 +19,17 @@ import uncertainties  # type: ignore
 import uncertainties.unumpy as unp  # type: ignore
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from matplotlib.ticker import MaxNLocator
-from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
+from matplotlib.ticker import MaxNLocator
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
+from typing_extensions import assert_never
 
 from analysislib.common.base_statistics import BaseStatistician
 from analysislib.common.image import ROI
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
-
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +41,17 @@ class bidict(dict):
         super(bidict, self).__init__(*args, **kwargs)
         self.inverse = {}
         for key, value in self.items():
-            self.inverse.setdefault(value, []).append(key) 
+            self.inverse.setdefault(value, []).append(key)
 
     def __setitem__(self, key, value):
         if key in self:
-            self.inverse[self[key]].remove(key) 
+            self.inverse[self[key]].remove(key)
         super(bidict, self).__setitem__(key, value)
-        self.inverse.setdefault(value, []).append(key)        
+        self.inverse.setdefault(value, []).append(key)
 
     def __delitem__(self, key):
         self.inverse.setdefault(self[key], []).remove(key)
-        if self[key] in self.inverse and not self.inverse[self[key]]: 
+        if self[key] in self.inverse and not self.inverse[self[key]]:
             del self.inverse[self[key]]
         super(bidict, self).__delitem__(key)
 
@@ -400,7 +399,7 @@ class TweezerStatistician(BaseStatistician):
                      2        True
                      3        True
                      4        True
-                             ...  
+                             ...
         999   1      45       True
                      46      False
                      47      False
@@ -425,7 +424,7 @@ class TweezerStatistician(BaseStatistician):
         Example
         -------
               ryd_456_duration
-        shot                  
+        shot
         0         0.000000e+00
         1         1.428571e-07
         2         2.857143e-07
@@ -569,7 +568,7 @@ class TweezerStatistician(BaseStatistician):
         target_array,
         ax,
         plot_overlapping_histograms: bool = True,
-        split_full_target_bar: bool = True,  
+        split_full_target_bar: bool = True,
     ):
         """
         Histogram of number of loaded target sites after rearrangement (image 1),
@@ -674,7 +673,7 @@ class TweezerStatistician(BaseStatistician):
 
             if len(unique_elements) > 0:
                 ax.set_xticks(unique_elements.astype(int))
-        
+
         zero_atom_in_target_indices = np.where(atom_count_in_target_list[1] == 0)[0]
         print('n_shots (total experiment)', n_shots)
         print('n_rarrange_shots', n_rearrange_shots)
@@ -684,7 +683,7 @@ class TweezerStatistician(BaseStatistician):
         print(f"Full target shots: {n_full}")
         print(f"  - clean (exact): {n_full_clean}")
         print(f"  - full + extras: {n_full_with_extras}")
-    
+
     def plot_extras_count_when_target_full(self, target_array, ax):
         self.target_sites = list(np.asarray(target_array, dtype=int))
         mask_exact = self._shot_mask_exact_rearrangement()
@@ -778,7 +777,7 @@ class TweezerStatistician(BaseStatistician):
             halo_patch = Patch(facecolor='C0', alpha=halo_alpha, label=f"Target ±{neighbor_radius}")
             target_line = Line2D([0], [0], color='C0', alpha=line_alpha, linewidth=1.5, label="Target sites")
             ax.legend(handles=[halo_patch, target_line], loc="upper right")
-    
+
     def plot_rearrange_site_success_rate(self, target_array, ax: Axes):
         # Site success rate plot
         _, _, n_rearrange_shots, avg_site_success_rate = self.rearragne_statistics(target_array)
@@ -1034,7 +1033,7 @@ class TweezerStatistician(BaseStatistician):
             a histogram of all the values encountered.
         averaging_window: int, optional
             If provided, also plot the average of the `averaging_window` most recent.
-            
+
         Returns:
             indep_var, survival_rates, survival_rate_errs
         """
@@ -1203,7 +1202,7 @@ class TweezerStatistician(BaseStatistician):
             unstack = twodim_df.unstack()
             if not isinstance(unstack, pd.DataFrame):
                 raise ValueError('df must have a MultiIndex')
-            
+
             pcolor_args = (
                 unstack.columns,
                 unstack.index,
@@ -1230,17 +1229,20 @@ class TweezerStatistician(BaseStatistician):
             '''
             (cols, ind, data), cross_section_info = df_to_pcolor_args(df)
 
+            x_offset, xscale, scaled_xunit = find_offset_and_scale(cols, self.params[cols.name].unit)
+            y_offset, yscale, scaled_yunit = find_offset_and_scale(ind, self.params[ind.name].unit)
+
             subplotspec = ax.get_subplotspec()
             if subplotspec is None:
                 raise ValueError
             if subplotspec.is_last_row():
                 ax.set_xlabel(
-                    self.params[cols.name].axis_label(),
+                    self.params[cols.name].axis_label(unit=scaled_xunit),
                     fontsize=self.plot_config.label_font_size,
                 )
             if subplotspec.is_first_col():
                 ax.set_ylabel(
-                    self.params[ind.name].axis_label(),
+                    self.params[ind.name].axis_label(unit=scaled_yunit),
                     fontsize=self.plot_config.label_font_size,
                 )
 
@@ -1250,7 +1252,7 @@ class TweezerStatistician(BaseStatistician):
                     for param, varval in cross_section_info.items()
                 )
                 ax.set_title(f'(at {cross_section_str})')
-            return ax.pcolormesh(cols, ind, data, shading='nearest')
+            return ax.pcolormesh(cols / xscale, ind / yscale, data, shading='nearest')
 
         pcolor_survival_rate = plot_key_2d(survival_df[self.KEY_SURVIVAL_RATE], ax1)
         pcolor_std = plot_key_2d(survival_df[self.KEY_SURVIVAL_RATE_STD], ax2)
@@ -1362,7 +1364,7 @@ class TweezerStatistician(BaseStatistician):
             label=f'Mean: {np.average(agg):S}',
         )
         ax.legend()
-    
+
     def plot_loading_rate_1d(self, ax: Axes):
         df = self.dataframe()
         gb = df.groupby([param.name for param in self.params])[self.KEY_INITIAL]
@@ -1693,7 +1695,7 @@ class TweezerStatistician(BaseStatistician):
                         ax.annotate(annotation_text,
                                     xy=(0.02, 0.05), xycoords='axes fraction',
                                     fontsize=9, ha='left', va='bottom')
-                    except Exception as e:
+                    except Exception:
                         ax.annotate("Fit failed", xy=(0.02, 0.05), xycoords='axes fraction',
                                     fontsize=9, ha='left', va='bottom')
 
@@ -1806,7 +1808,7 @@ class TweezerStatistician(BaseStatistician):
                 annotation_text = (
                     f'Lifetime: ${upopt[1]:SL}$ s\n'
                     f'Factor: ${upopt[0]:SL}$\n'
-                    f'Offset: ${upopt[2]:SL}$\n' 
+                    f'Offset: ${upopt[2]:SL}$\n'
                 )
                 ax.annotate(
                     annotation_text,
