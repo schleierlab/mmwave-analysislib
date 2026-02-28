@@ -14,8 +14,8 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 from scipy.special import comb
 
-from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.plot_config import PlotConfig
+from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.typing import StrPath
 
 
@@ -120,7 +120,7 @@ class TweezerCorrelator(TweezerStatistician):
     def _polymer_grouper(self, sites):
         # binary search on the flattened view of self.polymers
         flat_inds = np.searchsorted(self.polymers.ravel(), np.asarray(sites))
-        
+
         # convert 1D indices to 2D (row, col)
         # np.divmod returns both quotient (row) and remainder (column)
         return np.divmod(flat_inds, self.polymer_length)
@@ -143,7 +143,7 @@ class TweezerCorrelator(TweezerStatistician):
 
         Example
         -------
-        
+
         ```
         shot  polymer_id  polymer_site
         0     0           0               False
@@ -151,7 +151,7 @@ class TweezerCorrelator(TweezerStatistician):
                           2               False
               1           0               False
                           1               False
-                                          ...  
+                                          ...
         2496  2           1               False
                           2               False
               3           0                True
@@ -167,7 +167,7 @@ class TweezerCorrelator(TweezerStatistician):
             rearranged_unstack = series.xs(1, level=self.KEY_IMAGE).unstack()
             """
             site      0      1      2     3      4      5
-            shot                                         
+            shot
             0     False  False  False  True  False  False
             1     False  False  False  True  False  False
             2     False  False  False  True  False  False
@@ -232,7 +232,7 @@ class TweezerCorrelator(TweezerStatistician):
         ----------
         bools : Sequence[bool]
             Sequence of boolean values.
-        
+
         Returns
         -------
         str
@@ -286,7 +286,7 @@ class TweezerCorrelator(TweezerStatistician):
         """
         Compute frequencies of each bitstring (combination of survivals across polymer sites),
         grouped by specified parameters.
-        
+
         Parameters
         ----------
         grouped_by : list of str
@@ -302,7 +302,7 @@ class TweezerCorrelator(TweezerStatistician):
         >>> tc.bitstring_frequencies()
 
         bitstring                          000            001            010
-        mmwave_ramsey_wait_time                                             
+        mmwave_ramsey_wait_time
         0.000000e+00             0.723+/-0.033  0.085+/-0.021  0.043+/-0.015
         1.458333e-07             0.714+/-0.030  0.100+/-0.020  0.068+/-0.017
         2.916667e-07               0.61+/-0.04  0.103+/-0.023  0.076+/-0.020
@@ -312,7 +312,7 @@ class TweezerCorrelator(TweezerStatistician):
         >>> tc.bitstring_frequencies(grouped_by=['polymer_id'])
 
         bitstring                                   000            001            010
-        polymer_id mmwave_ramsey_wait_time                                           
+        polymer_id mmwave_ramsey_wait_time
         0          0.000000e+00             0.81+/-0.06  0.021+/-0.028  0.043+/-0.034
                    1.458333e-07             0.71+/-0.06    0.13+/-0.05    0.07+/-0.04
                    2.916667e-07             0.70+/-0.07    0.09+/-0.04    0.07+/-0.04
@@ -336,7 +336,7 @@ class TweezerCorrelator(TweezerStatistician):
               2             010
               3             100
         1     0             010
-                           ... 
+                           ...
         2495  3             010
         2496  0             101
               1             110
@@ -389,12 +389,12 @@ class TweezerCorrelator(TweezerStatistician):
         """
         Compute normalized frequencies for total survivals (i.e. z-magnetization) of each polymer,
         grouped by scan parameters and optionally further grouped by polymer_id, with Laplace errorbars.
-        
+
         Parameters
         ----------
         grouped_by : Sequence[str]
             List of parameter names to group by (e.g., ['polymer_id']).
-        
+
         Returns
         -------
         DataFrame of uarrays with index matching groupby dimensions.
@@ -410,16 +410,16 @@ class TweezerCorrelator(TweezerStatistician):
             .groupby(group_cols) \
             .value_counts() \
             .unstack(fill_value=0)
-        
+
         return survivals_counts.apply(
             self._normalize_with_laplace_errors,
             axis=1,
             result_type='expand',
         )
-    
+
     def _plot_magnetization_on_axis(self, ax: Axes, ufreqs_data, cmap=None, title: Optional[str] = None):
         """Helper to plot magnetization data on a single axis.
-        
+
         Parameters
         ----------
         ax : Axes
@@ -436,9 +436,14 @@ class TweezerCorrelator(TweezerStatistician):
             colormap = sns.diverging_palette(145, 300, s=60, center='dark', as_cmap=True)
 
         norm = matplotlib.colors.Normalize(vmin=0, vmax=self.polymer_length)
+        subplotspec = ax.get_subplotspec()
+        if subplotspec is None:
+            raise ValueError("Axis must be part of a subplot to determine x-axis labeling.")
+
+        variable_scaled, xlabel, xscale = self._scale_independent_variable(ufreqs_data.index)
         for column_name, column in ufreqs_data.items():
             ax.errorbar(
-                column.index,
+                variable_scaled,
                 unp.nominal_values(column.values),
                 yerr=unp.std_devs(column.values),
                 label=f'$S_z = {column_name - self.polymer_length/2:+}$',
@@ -447,15 +452,16 @@ class TweezerCorrelator(TweezerStatistician):
             )
         if title:
             ax.set_title(title)
-        ax.legend()
-    
+        if subplotspec.is_last_row():
+            ax.set_xlabel(xlabel)
+
     def plot_total_magnetization(
             self,
             axs: Optional[Axes | Sequence[Axes]] = None,
             cmap: Optional[str | matplotlib.colors.Colormap] = None,
     ):
         """Plot total magnetization survivals vs scan parameters.
-        
+
         Parameters
         ----------
         axs : Axes or Sequence[Axes], optional
@@ -468,9 +474,11 @@ class TweezerCorrelator(TweezerStatistician):
             axs = fig.subplots()
 
         if isinstance(axs, Axes):
+            ax = axs
             # Single axis mode: aggregate
             ufreqs = self._compute_total_survivals_ufreqs()
-            self._plot_magnetization_on_axis(axs, ufreqs, cmap=cmap)
+            self._plot_magnetization_on_axis(ax, ufreqs, cmap=cmap)
+            ax.legend()
         else:
             # Sequence of axes: per-polymer
             ufreqs = self._compute_total_survivals_ufreqs(grouped_by=[self.KEY_POLYMER_ID])
@@ -478,16 +486,17 @@ class TweezerCorrelator(TweezerStatistician):
                 ax = axs[polymer_id]
                 group_data = group.droplevel(self.KEY_POLYMER_ID)
                 self._plot_magnetization_on_axis(ax, group_data, cmap=cmap, title=f'Polymer {polymer_id}')
+            axs[0].legend()
 
     def _plot_heatmap_on_axis(self, ax: Axes, data, ylabel: str, cmap: str = 'viridis', vmin: float = 0, vmax: float = 1, title: Optional[str] = None):
         """Helper to plot heatmap data on a single axis.
-        
+
         Parameters
         ----------
         ax : Axes
             Axis to plot on.
         data : DataFrame
-            Data with columns as x-axis and index as y-axis (should be pre-unstacked).
+            Data with columns as x-axis and index as y-axis.
         ylabel : str
             Label for y-axis.
         cmap : str
@@ -497,23 +506,33 @@ class TweezerCorrelator(TweezerStatistician):
         title : str, optional
             Title for the axis.
         """
+
+        x_scaled, xlabel, _ = self._scale_independent_variable(data.index)
         pcmesh = ax.pcolormesh(
-            data.index,
+            x_scaled,
             data.columns,
             unp.nominal_values(data.T),
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
         )
+
+        subplotspec = ax.get_subplotspec()
+        if subplotspec is None:
+            raise ValueError("Axis must be part of a subplot to determine x-axis labeling.")
+        if subplotspec.is_last_row():
+            ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         if title:
             ax.set_title(title)
         fig = ax.figure
+        if fig is None:
+            raise ValueError("Axis must be part of a figure to add colorbar.")
         fig.colorbar(pcmesh, ax=ax)
 
     def plot_bitstring_heatmap(self, axs: Optional[Axes | Sequence[Axes]] = None):
         """Plot bitstring frequency heatmap.
-        
+
         Parameters
         ----------
         axs : Axes or Sequence[Axes], optional
@@ -524,7 +543,7 @@ class TweezerCorrelator(TweezerStatistician):
         if axs is None:
             fig = plt.figure(constrained_layout=True)
             axs = fig.subplots()
-        
+
         if isinstance(axs, Axes):
             # Single axis mode: aggregate
             bitstring_freqs = self.bitstring_frequencies()
@@ -539,7 +558,7 @@ class TweezerCorrelator(TweezerStatistician):
 
     def plot_distance_averaged_correlation(self, axs: Optional[Axes | Sequence[Axes]] = None):
         """Plot distance-averaged correlation heatmap.
-        
+
         Parameters
         ----------
         axs : Axes or Sequence[Axes], optional
@@ -550,7 +569,7 @@ class TweezerCorrelator(TweezerStatistician):
         if axs is None:
             fig = plt.figure(constrained_layout=True)
             axs = fig.subplots()
-        
+
         if isinstance(axs, Axes):
             # Single axis mode: aggregate
             distance_avgd_corrs = self.distance_averaged_correlation().unstack()
@@ -567,11 +586,11 @@ class TweezerCorrelator(TweezerStatistician):
 
 class TweezerCorrelatorVibed(TweezerStatistician):
     """Analyze multi-site correlations using bitstring basis {0,1}^n.
-    
+
     Extends TweezerStatistician for multi-site correlation analysis beyond pairs.
     Automatically uses target_sites as selected_sites in rearrangement mode.
-    
-    Parametersall 
+
+    Parameters
     ----------
     preproc_h5_path : str
         Path to the processed quantities h5 file
@@ -584,10 +603,10 @@ class TweezerCorrelatorVibed(TweezerStatistician):
     shot_index : int, default=-1
         Shot index to analyze
     """
-    
+
     selected_sites: Sequence[int]
     '''Indices of sites selected for correlation analysis (same as target_sites)'''
-    
+
     def __init__(
             self,
             preproc_h5_path: StrPath,
@@ -608,7 +627,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         )
         # selected_sites = target_sites for correlation analysis
         self.selected_sites = target_sites
-        
+
         # Validate selected sites
         if len(self.selected_sites) == 0:
             raise ValueError("target_sites must contain at least one site")
@@ -616,7 +635,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             raise ValueError(
                 f"target_sites contains indices >= n_sites ({self.n_sites})"
             )
-    
+
     def extract_bitstrings(
             self,
             image_index: int = -1,
@@ -624,7 +643,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             require_exact_rearrangement: bool = False,
     ) -> NDArray:
         """Extract survival bitstrings for selected sites (site[0] is the most-significant bit).
-        
+
         shot_mask is element-wise data applied uniformly within each shot.
         It filters which elements to consider across all shots.
         Returns shape (shots, n_selected_elements).
@@ -632,7 +651,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
 
         # Use parent class's surviving_atoms_array for correct image indices
         survival_all_sites = self.surviving_atoms_array  # shape: (shots, sites)
-        
+
         # Extract survival for selected sites only
         if require_exact_rearrangement:
             exact_mask = self._shot_mask_exact_rearrangement()
@@ -640,10 +659,10 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             selected_occupancies = occupancies[:, self.selected_sites]
         else:
             selected_occupancies = survival_all_sites[:, self.selected_sites]
-        
+
         # Combine rearrangement mask with any additional shot mask
         combined_mask = shot_mask
-        
+
         # Apply combined mask(s)
         if combined_mask is not None:
             # Check if multiple masks provided
@@ -658,17 +677,17 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             else:
                 # Single mask: apply element-wise mask
                 selected_occupancies = selected_occupancies[:, combined_mask]  # Apply element-wise mask
-        
+
         return selected_occupancies.astype(int)
-    
+
     def _bitstring_to_tuple(self, bitstring_row: NDArray) -> tuple[int, ...]:
         """Convert bitstring array to hashable tuple."""
         return tuple(int(x) for x in bitstring_row)
-    
+
     def _tuple_to_bitstring(self, bitstring_tuple: tuple[int, ...]) -> str:
         """Convert bitstring tuple to string (e.g., (1,0,1) -> '101')."""
         return ''.join(str(int(x)) for x in bitstring_tuple)
-    
+
     def bitstring_populations(
             self,
             image_index: int = -1,
@@ -678,64 +697,64 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         """Return dict of bitstring populations, averaged over masks/reps."""
         from itertools import product
         n_sites = len(self.selected_sites)
-        
+
         # Combine rearrangement mask with any additional shot mask
         combined_mask = shot_mask
-        
+
         # Handle multiple masks by computing populations separately and averaging
         if isinstance(combined_mask, (list, tuple)):
             populations_list = []
             for mask in combined_mask:
                 bitstrings = self.extract_bitstrings(image_index=image_index, shot_mask=None, require_exact_rearrangement=False)
                 bitstrings = bitstrings[mask]  # Apply mask manually
-                
+
                 # Convert each bitstring row to tuple for use as dict key
                 bitstring_tuples = [self._bitstring_to_tuple(bs) for bs in bitstrings]
-                
+
                 # Count occurrences
                 pops = {}
                 for bs_tuple in set(bitstring_tuples):
                     count = bitstring_tuples.count(bs_tuple)
                     pops[bs_tuple] = float(count / len(bitstring_tuples))
-                
+
                 # Ensure all possible bitstrings are represented
                 for bs_tuple in product([0, 1], repeat=n_sites):
                     if bs_tuple not in pops:
                         pops[bs_tuple] = 0.0
-                
+
                 populations_list.append(pops)
-            
+
             # Average populations across all masks
             populations = {}
             for bs_tuple in product([0, 1], repeat=n_sites):
                 populations[bs_tuple] = float(np.mean([pops[bs_tuple] for pops in populations_list]))
-            
+
             return populations
         else:
             # Single mask (combined rearrangement + optional filter)
             bitstrings = self.extract_bitstrings(image_index=image_index, shot_mask=shot_mask, require_exact_rearrangement=require_exact_rearrangement)
-            
+
             # Convert each bitstring row to tuple for use as dict key
             bitstring_tuples = [self._bitstring_to_tuple(bs) for bs in bitstrings]
-            
+
             # Count occurrences
             populations = {}
             for bs_tuple in set(bitstring_tuples):
                 count = bitstring_tuples.count(bs_tuple)
                 populations[bs_tuple] = float(count / len(bitstring_tuples))
-            
+
             # Ensure all possible bitstrings are represented (with 0 population if absent)
             for bs_tuple in product([0, 1], repeat=n_sites):
                 if bs_tuple not in populations:
                     populations[bs_tuple] = 0.0
-            
+
             return populations
-    
+
     def _validate_shot_masks(self, shot_mask: Sequence[np.ndarray]):
         """Validate that all masks have the same shape for averaging."""
         if not isinstance(shot_mask, (list, tuple)) or len(shot_mask) <= 1:
             return
-        
+
         first_shape = shot_mask[0].shape
         for i, mask in enumerate(shot_mask[1:], start=1):
             if mask.shape != first_shape:
@@ -743,7 +762,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                     f"All shot masks must have the same shape for averaging. "
                     f"Mask 0 has shape {first_shape}, but mask {i} has shape {mask.shape}."
                 )
-    
+
     def plot_bitstring_populations_heatmap(
             self,
             ax: Optional[Axes] = None,
@@ -754,9 +773,9 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             save_fig = True,
     ):
         """Heatmap of bitstring populations vs parameter (lexicographic order).
-        
+
         X-axis: unique parameter values, Y-axis: bitstrings, Color: population.
-        
+
         Parameters
         ----------
         ax : Axes, optional
@@ -774,24 +793,24 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         # Validate masks if averaging
         if average_shot_masks:
             self._validate_shot_masks(shot_mask)
-        
+
         has_multiple = (isinstance(shot_mask, (list, tuple)) and len(shot_mask) > 1) or \
                        (isinstance(shot_mask, np.ndarray) and shot_mask.ndim == 2 and shot_mask.shape[0] > 1)
         plot_separately = has_multiple and not average_shot_masks
-        
+
         if plot_separately:
             # Create subplots for each mask
             n_masks = len(shot_mask)
             if fig is None:
                 fig = plt.figure(
-                    figsize=(self.plot_config.figure_size[0], 
+                    figsize=(self.plot_config.figure_size[0],
                              self.plot_config.figure_size[1] * n_masks),
                     constrained_layout=self.plot_config.constrained_layout,
                 )
             axes = fig.subplots(nrows=1, ncols=n_masks, sharex=True)
             if not isinstance(axes, np.ndarray):
                 axes = np.array([axes])
-            
+
             # Handle both list/tuple and 2D array forms of multiple masks
             masks_iter = shot_mask if isinstance(shot_mask, (list, tuple)) else \
                          [shot_mask[i] for i in range(shot_mask.shape[0])]
@@ -813,7 +832,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                 ax = fig.subplots()
             else:
                 save_fig = False
-            
+
             self._plot_heatmap_single_mask(
                 ax=ax,
                 shot_mask=shot_mask,
@@ -824,12 +843,12 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         fig.suptitle(str(self.folder_path), fontsize=8)
 
         plt.tight_layout()
-            
+
         if save_fig:
             figname = self.folder_path / 'bitstring_populations_heatmap.pdf'
             fig.savefig(figname)
             plt.show()
-    
+
     def _plot_heatmap_single_mask(
             self,
             ax: Axes,
@@ -841,14 +860,14 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         # Determine if we're averaging multiple masks
         average_masks = (isinstance(shot_mask, (list, tuple))) or \
                         (isinstance(shot_mask, np.ndarray) and shot_mask.ndim == 2)
-        
+
         # Get unique scan parameters
         unique_params_arr = self.unique_params()
         if unique_params_arr.ndim == 1:
             unique_params_arr = unique_params_arr[:, np.newaxis]
-        
+
         n_unique = unique_params_arr.shape[0]
-        
+
         # Determine bitstring size from the mask, not from selected_sites
         if average_masks:
             masks_iter = shot_mask if isinstance(shot_mask, (list, tuple)) else \
@@ -856,7 +875,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             first_mask = masks_iter[0]
         else:
             first_mask = shot_mask
-        
+
         # Get mask size
         if first_mask is None:
             n_sites = len(self.selected_sites)
@@ -865,19 +884,19 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         else:
             # Boolean array - count True values
             n_sites = np.sum(first_mask)
-        
+
         n_bitstrings = 2 ** n_sites
-        
+
         from itertools import product
         all_bitstrings = [tuple(bs) for bs in product([0, 1], repeat=n_sites)]
         bitstring_to_idx = {bs: i for i, bs in enumerate(all_bitstrings)}
         populations_heatmap = np.zeros((n_bitstrings, n_unique))
-        
+
         # For each unique parameter value
         loop_params = self._loop_params()
         if loop_params.ndim == 1:
             loop_params = loop_params[:, np.newaxis]
-        
+
         for param_idx, param_val in enumerate(unique_params_arr):
             matches_temp = np.all(loop_params == param_val[np.newaxis, :], axis=1)
             if require_exact_rearrangement:
@@ -887,7 +906,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                 matches = matches_temp
             if not matches.any():
                 continue
-            
+
             if average_masks:
                 # Average populations across multiple masks
                 pops_list = []
@@ -905,7 +924,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                     if len(bitstrings_for_param) > 0:
                         pops, _ = self._compute_populations(bitstrings_for_param, all_bitstrings)
                         pops_list.append(pops)
-                
+
                 if pops_list:
                     for bs_tuple in all_bitstrings:
                         avg = np.mean([pops.get(bs_tuple, 0) for pops in pops_list])
@@ -922,40 +941,40 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                     pops, _ = self._compute_populations(bitstrings_for_param, all_bitstrings)
                     for bs_tuple, pop in pops.items():
                         populations_heatmap[bitstring_to_idx[bs_tuple], param_idx] = pop
-        
-        self._draw_heatmap(ax, populations_heatmap, all_bitstrings, 
+
+        self._draw_heatmap(ax, populations_heatmap, all_bitstrings,
                           unique_params_arr, title_suffix)
-    
+
     def _compute_populations(
             self,
             bitstrings: NDArray,
             all_bitstrings: list,
     ) -> tuple[dict, dict]:
         """Compute bitstring populations and counts from array of bitstrings.
-        
+
         bitstrings: shape (n_shots, n_elements) with binary values
         Returns: (populations_dict, counts_dict)
         """
         # Convert each row to a tuple (bitstring)
         bitstring_tuples = [self._bitstring_to_tuple(bs) for bs in bitstrings]
-        
+
         pops = {}
         counts = {}
         total = len(bitstring_tuples)
-        
+
         for bs_tuple in set(bitstring_tuples):
             count = bitstring_tuples.count(bs_tuple)
             pops[bs_tuple] = count / total
             counts[bs_tuple] = count
-        
+
         # Ensure all bitstrings represented
         for bs_tuple in all_bitstrings:
             if bs_tuple not in pops:
                 pops[bs_tuple] = 0.0
                 counts[bs_tuple] = 0
-        
+
         return pops, counts
-    
+
     def _get_populations_for_mask(
             self,
             shot_mask: np.ndarray,
@@ -968,7 +987,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             require_exact_rearrangement=require_exact_rearrangement,
         )
         return self._compute_populations(bitstrings, all_bitstrings)
-    
+
     def _draw_heatmap(
             self,
             ax: Axes,
@@ -981,7 +1000,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         n_bitstrings = len(all_bitstrings)
         n_unique = unique_params_arr.shape[0]
         bitstring_labels = [self._tuple_to_bitstring(bs) for bs in all_bitstrings]
-        
+
         im = ax.imshow(
             populations_heatmap,
             aspect='auto',
@@ -989,10 +1008,10 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             cmap='viridis',
             interpolation='nearest',
         )
-        
+
         ax.set_yticks(np.arange(n_bitstrings))
         ax.set_yticklabels(bitstring_labels, fontsize=self.plot_config.label_font_size)
-        
+
         ax.set_xticks(np.arange(n_unique))
         if n_unique <= 20:
             param_labels = [f'{param_val[0]:.3g}' for param_val in unique_params_arr]
@@ -1001,15 +1020,15 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             ax.set_xticks(np.arange(0, n_unique, step))
             param_labels = [f'{unique_params_arr[i, 0]:.3g}' for i in range(0, n_unique, step)]
         ax.set_xticklabels(param_labels, fontsize=self.plot_config.label_font_size, rotation=45, ha='right')
-        
+
         ax.set_ylabel('Bitstring', fontsize=self.plot_config.label_font_size)
         ax.set_xlabel(f'{self.params[0].axis_label}', fontsize=self.plot_config.label_font_size)
         # ax.set_title(f'Bitstring Populations (Sites: {list(self.selected_sites)}){title_suffix}',
         #              fontsize=self.plot_config.title_font_size)
-        
+
         cbar = plt.colorbar(im, ax=ax)
         cbar.set_label('Population', fontsize=self.plot_config.label_font_size)
-    
+
     def plot_bitstring_populations_curves(
             self,
             ax: Optional[Axes] = None,
@@ -1021,9 +1040,9 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             save_fig = True,
     ):
         """Plot bitstring populations vs parameter (one curve per bitstring).
-        
+
         X-axis: unique parameter values, Y-axis: population, each bitstring is a curve.
-        
+
         Parameters
         ----------
         ax : Axes, optional
@@ -1041,29 +1060,29 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         # Validate masks if averaging
         if average_shot_masks:
             self._validate_shot_masks(shot_mask)
-        
+
         has_multiple = (isinstance(shot_mask, (list, tuple)) and len(shot_mask) > 1) or \
                        (isinstance(shot_mask, np.ndarray) and shot_mask.ndim == 2 and shot_mask.shape[0] > 1)
         plot_separately = has_multiple and not average_shot_masks
-        
+
         if plot_separately:
             # Create subplots for each mask
             n_masks = len(shot_mask)
 
             if fig is None:
                 fig = plt.figure(
-                    figsize=(self.plot_config.figure_size[0], 
+                    figsize=(self.plot_config.figure_size[0],
                              self.plot_config.figure_size[1] * n_masks),
                     constrained_layout=self.plot_config.constrained_layout,
                 )
             axes = fig.subplots(nrows=1, ncols=n_masks, sharex=True)
             if not isinstance(axes, np.ndarray):
                 axes = np.array([axes])
-            
+
             # Handle both list/tuple and 2D array forms of multiple masks
             masks_iter = shot_mask if isinstance(shot_mask, (list, tuple)) else \
                          [shot_mask[i] for i in range(shot_mask.shape[0])]
-            
+
             for mask_idx, mask in enumerate(masks_iter):
                 self._plot_curves_single_mask(
                     ax=axes[mask_idx],
@@ -1083,7 +1102,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                 ax = fig.subplots()
             else:
                 save_fig = False
-            
+
             self._plot_curves_single_mask(
                 ax=ax,
                 shot_mask=shot_mask,
@@ -1091,16 +1110,16 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                 group_by_magnetization=group_by_magnetization,
                 # title_suffix=""
             )
-            
+
         fig.suptitle(str(self.folder_path), fontsize=8)
 
         plt.tight_layout()
-        
+
         if save_fig:
             figname = self.folder_path / 'bitstring_populations_curves.pdf'
             fig.savefig(figname)
             plt.show()
-    
+
     def _plot_curves_single_mask(
             self,
             ax: Axes,
@@ -1113,14 +1132,14 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         # Determine if we're averaging multiple masks
         average_masks = (isinstance(shot_mask, (list, tuple))) or \
                         (isinstance(shot_mask, np.ndarray) and shot_mask.ndim == 2)
-        
+
         # Get unique scan parameters
         unique_params_arr = self.unique_params()
         if unique_params_arr.ndim == 1:
             unique_params_arr = unique_params_arr[:, np.newaxis]
-        
+
         n_unique = unique_params_arr.shape[0]
-        
+
         # Determine bitstring size from the mask, not from selected_sites
         if average_masks:
             masks_iter = shot_mask if isinstance(shot_mask, (list, tuple)) else \
@@ -1128,7 +1147,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
             first_mask = masks_iter[0]
         else:
             first_mask = shot_mask
-        
+
         # Get mask size
         if first_mask is None:
             n_sites = len(self.selected_sites)
@@ -1137,20 +1156,20 @@ class TweezerCorrelatorVibed(TweezerStatistician):
         else:
             # Boolean array - count True values
             n_sites = np.sum(first_mask)
-        
+
         # Generate all possible bitstrings in lexicographic order
         from itertools import product
         all_bitstrings = [tuple(bs) for bs in product([0, 1], repeat=n_sites)]
-        
+
         # Initialize data: dict[bitstring_tuple] = list of populations for each param
         populations_curves = {bs: np.zeros(n_unique) for bs in all_bitstrings}
         errors_curves = {bs: np.zeros(n_unique) for bs in all_bitstrings}
-        
+
         # For each unique parameter value
         loop_params = self._loop_params()
         if loop_params.ndim == 1:
             loop_params = loop_params[:, np.newaxis]
-        
+
         for param_idx, param_val in enumerate(unique_params_arr):
             matches_temp = np.all(loop_params == param_val[np.newaxis, :], axis=1)
             if require_exact_rearrangement:
@@ -1160,7 +1179,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                 matches = matches_temp
             if not matches.any():
                 continue
-            
+
             if average_masks:
                 # Average populations across multiple masks
                 pops_list = []
@@ -1180,7 +1199,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                         pops, counts = self._compute_populations(bitstrings_for_param, all_bitstrings)
                         pops_list.append(pops)
                         counts_list.append(counts)
-                
+
                 if pops_list:
                     for bs_tuple in all_bitstrings:
                         # Average populations across masks
@@ -1217,7 +1236,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                             laplace_p = (count + 1) / (total + 2)
                             error = np.sqrt(laplace_p * (1 - laplace_p) / (total + 2))
                             errors_curves[bs_tuple][param_idx] = error
-        
+
         # Plot curves with error bars
         param_values = unique_params_arr[:, 0]
 
@@ -1233,20 +1252,20 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                         mag_errors[mag] += errors_curves[bs] / (comb(max_mag-1, mag)**(3/2))# Very bad approx but good enough for now, MUST FIX!!!
 
             for mag in range(max_mag-1, -1, -1):
-                 ax.errorbar(param_values, mag_curves[mag], 
+                 ax.errorbar(param_values, mag_curves[mag],
                        yerr=mag_errors[mag],
                        label=f"$S_z$ = {mag - (max_mag-1)/2}", color=colors[mag],
                        **self.plot_config.errorbar_kw)
-            
+
         else:
             colors = plt.cm.coolwarm(np.linspace(0, 1, len(all_bitstrings)))
             for idx, bs_tuple in enumerate(all_bitstrings):
                 bitstring_label = self._tuple_to_bitstring(bs_tuple)
-                ax.errorbar(param_values, populations_curves[bs_tuple], 
+                ax.errorbar(param_values, populations_curves[bs_tuple],
                         yerr=errors_curves[bs_tuple],
                         label=bitstring_label, color=colors[idx],
                         **self.plot_config.errorbar_kw)
-        
+
         ax.set_xlabel(f'{self.params[0].axis_label}', fontsize=self.plot_config.label_font_size)
         ax.set_ylabel('Population', fontsize=self.plot_config.label_font_size)
         # ax.set_title(f'Bitstring Populations (Sites: {list(self.selected_sites)}){title_suffix}',
@@ -1279,7 +1298,7 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                 for bs_tuple in all_bitstrings[1:-1]:
                     errs_other += bitstring_errors[bs_tuple]
 
-            
+
             def GHZ_oscillations(J, C, B, b, Gamma, t):
                 pops_bad = B*t + b
                 pop1 = 1/2*(1-np.exp(-Gamma*t)*np.cos(J*2*np.pi*t))
@@ -1288,11 +1307,11 @@ class TweezerCorrelatorVibed(TweezerStatistician):
                 pop0 = pop0 - pops_bad/2
 
                 return np.array([pop0, pop1, pops_bad]).flatten()
-            
+
             pops_flat = np.array([pops_0, pops_1, pops_other]).flatten()
 
-            # popt, pconv = 
-            
+            # popt, pconv =
+
 
 
 

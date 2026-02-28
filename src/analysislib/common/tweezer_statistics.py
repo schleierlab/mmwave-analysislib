@@ -1007,6 +1007,33 @@ class TweezerStatistician(BaseStatistician):
 
     # REFACTORED
 
+    def _scale_independent_variable(self, indep_var: pd.Index):
+        """
+        Given an independent variable index and its unit, find a suitable offset and scale
+        to make the plot more readable (e.g. frequencies in MHz instead of Hz,
+        and offset to center around zero if values are large).
+
+        Parameters
+        ----------
+        indep_var: pd.Index
+            The independent variable to be plotted on the x-axis.
+            The name of the index should match one of the parameter names in self.params,
+            and the unit should be specified in that parameter.
+
+        Returns
+        -------
+        indep_var_scaled: pd.Index
+            The scaled independent variable.
+        xlabel: str
+            The x-axis label with appropriate units.
+        scale: float
+            The scale factor that was applied to the independent variable.
+            Note that the scale factor is applied as: indep_var_scaled = indep_var / scale
+        """
+        param = self.params[indep_var.name]
+        offset, scale, scaled_unit = find_offset_and_scale(indep_var, param.unit)
+        return indep_var / scale, param.axis_label(unit=scaled_unit), scale
+
     def plot_survival_rate_1d(
         self,
         fig: Figure,
@@ -1071,16 +1098,11 @@ class TweezerStatistician(BaseStatistician):
             raise ValueError("plot_survival_rate_1d expects exactly one scanned parameter")
 
         gb = df.groupby([param.name for param in self.params])
-        unitstr = self.params[0].unit
         survival_df = self.dataframe_survival(gb)
 
         indep_var = survival_df.index
-        offset, xscale, scaled_unit = find_offset_and_scale(indep_var, unitstr)
-
-        xlabel = self.params[0].axis_label(unit=scaled_unit)
+        indep_var_scaled, xlabel, xscale = self._scale_independent_variable(survival_df.index)
         ax_plot.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
-
-        indep_var_scaled = indep_var / xscale
         survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
         survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
         ax_plot.errorbar(
