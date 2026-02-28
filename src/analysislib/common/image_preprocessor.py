@@ -1,15 +1,15 @@
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Optional, Literal
-
-import numpy as np
-import yaml
+from typing import Any, Literal, Optional
 
 import h5py
+import numpy as np
+import yaml
 
 from analysislib.analysis.data import h5lyze as hz
 from analysislib.common.analysis_config import ImagingSystem
 from analysislib.common.typing import StrPath
+from analysislib.singleshot.util import load_h5_path
 
 
 class ImagePreprocessor:
@@ -48,6 +48,14 @@ class ImagePreprocessor:
             Path to h5 file, only used if load_type='h5'
         """
         self.imaging_setups = imaging_setups
+
+        # if load_type == 'lyse':
+        #     warnings.warn(
+        #         "The 'lyse' load_type is deprecated and will be removed in a future version.",
+        #         category=DeprecationWarning,
+        #         stacklevel=2,
+        #     )
+
         self.h5_path = self.get_h5_path(load_type=load_type, h5_path=h5_path)
         self.exposures_dict, self.run_number, self.globals, self.default_params = self.load_images()
         self.params, self.n_rep, self.current_params = self.get_scanning_params()
@@ -74,15 +82,7 @@ class ImagePreprocessor:
             The actual h5 file path used based on the selected load_type
         """
         if load_type == 'lyse':
-            import lyse
-            # Is this script being run from within an interactive lyse session?
-            if lyse.spinning_top:
-                # If so, use the filepath of the current h5_path
-                h5_path = Path(lyse.path)
-            else:
-                # If not, get the filepath of the last h5_path of the lyse DataFrame
-                df = lyse.data()
-                h5_path = Path(df.filepath.iloc[-1])
+            h5_path = load_h5_path()
         elif load_type == 'h5':
             if h5_path is None:
                 raise ValueError("When load_type is h5, please provide exact h5 path")
@@ -217,7 +217,7 @@ class ImagePreprocessor:
                 default_params = dict()
 
         return images_dict, run_number, globals_dict, default_params
-    
+
     @staticmethod
     def _load_default_params_from_yaml(defaul_params_path: Path):
         """
