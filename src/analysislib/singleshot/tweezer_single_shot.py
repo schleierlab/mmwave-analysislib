@@ -12,7 +12,7 @@ SHOW_INDEX = True  # site index will not show up if show_rois is set to False
 USE_AVERAGED_BACKGROUND = True
 FIT_TYPE_1D = None
 # do a curve fit at the final shot, set to None when don't do curve fit
-# options: 'lorentzian', 'quadratic', 'rabispec', None
+# options: 'lorentzian', 'quadratic', 'decay_exp', 'decay_gauss', 'rabispec', None
 
 SHOW_IMG_ONLY = False
 EXACT_REARRANGEMENT = True

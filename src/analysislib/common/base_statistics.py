@@ -1,10 +1,12 @@
 from abc import abstractmethod, ABC
 from os import PathLike
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import optimize
 from scipy.constants import pi
+from typing_extensions import assert_never
 
 from analysislib.common.typing import StrPath
 
@@ -93,12 +95,17 @@ class BaseStatistician(ABC):
 
     @staticmethod
     # Define the damped Rabi oscillation model
-    def rabi_model(t, A, Omega, phi, T2, C, exp_decay = False):
-        if exp_decay:
-            return A * np.cos(Omega * t + phi) * np.exp(-t / T2) + C
-        else:
-            return A * np.cos(Omega * t + phi) * np.exp(-(t / T2)**2) + C # gaussian decay
-    
+    def rabi_model(t, A, Omega, phi, T2, C):
+        return A * np.cos(Omega * t + phi) * np.exp(-t / T2) + C
+
+    @staticmethod
+    def decaying_fringes_exp(t, amplitude, freq, phase, t2, offset):
+        return amplitude * np.cos(2 * pi * freq * t + phase) * np.exp(- (t / t2)) + offset
+
+    @staticmethod
+    def decaying_fringes_gaussian(t, amplitude, freq, phase, t2star, offset):
+        return amplitude * np.cos(2 * pi * freq * t + phase) * np.exp(- (t / t2star) ** 2) + offset
+
     @staticmethod
     def quadratic(x, a, offset, x_0):
         return a * (x - x_0)**2 + offset
@@ -165,17 +172,55 @@ class BaseStatistician(ABC):
         p0 = guess #[a_guess, x0_guess, y0_guess]
         return optimize.curve_fit(self.quadratic, x_data, y_data, p0=p0, sigma=sigma)
     
+    def fit_decay(self, t_data, y_data, envelope: Literal['gaussian', 'exp'], sigma=None, peak_direction=+1):
+        # Initial guess
+        y_range = (np.max(y_data) - np.min(y_data))*peak_direction
+        t_range = np.max(t_data) - np.min(t_data)
+        t_resolution = t_data[1] - t_data[0]
+
+        if peak_direction == +1:
+            p0 = (y_range/2, 1/t_range, 0, t_range, np.mean(y_data))
+        elif peak_direction == -1:
+            p0 = (y_range/2, 1/t_range, 0, t_range, np.mean(y_data))
+
+        if envelope == 'gaussian':
+            fitfunc = self.decaying_fringes_gaussian
+        elif envelope == 'exp':
+            fitfunc = self.decaying_fringes_exp
+        else:
+            assert_never(envelope)
+
+        return optimize.curve_fit(
+            fitfunc,
+            t_data,
+            y_data,
+            p0=p0,
+            sigma=sigma,
+            bounds=(
+                (-np.inf, 1 / (2 * t_range)     , -2 * pi, t_resolution , -np.inf),
+                (+np.inf, 1 / (2 * t_resolution), +2 * pi, 100 * t_range, +np.inf),
+            ),
+        )
+
     def fit_rabi_oscillation(self, t_data, y_data, sigma=None, peak_direction=+1):
         # Initial guess
         y_range = (np.max(y_data) - np.min(y_data))*peak_direction
         t_range = np.max(t_data) - np.min(t_data)
-        if peak_direction == +1:
-            guess = (y_range/2, 2*pi/t_range, 0, t_range/10, np.min(y_data))
-        elif peak_direction == -1:
-            guess = (y_range/2, 2*pi/t_range, 0, t_range/10, np.max(y_data))
+        t_resolution = t_data[1] - t_data[0]
 
-        p0 = guess #[A_guess, Omega_guess, phi_guess, T2_guess, C_guess]
-        return optimize.curve_fit(self.rabi_model, t_data, y_data, p0=p0, sigma=sigma)
+        p0 = (y_range/2, 2*pi/t_range, 0, t_range, np.mean(y_data))
+
+        return optimize.curve_fit(
+            self.rabi_model,
+            t_data,
+            y_data,
+            p0=p0,
+            sigma=sigma,
+            bounds=(
+                (-np.inf, pi / t_range     , -2 * pi, t_resolution , -np.inf),
+                (+np.inf, pi / t_resolution, +2 * pi, 100 * t_range, +np.inf),
+            ),
+        )
 
     def fit_lorentzian(self, x_data, y_data, sigma=None, peak_direction=+1):
         """
