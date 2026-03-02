@@ -100,17 +100,11 @@ class TweezerCorrelator(TweezerStatistician):
             parity_selection: Literal[0, 1, None] = None,
             shot_index = -1,
     ):
-        if polymers is None:
-            target_sites = np.array([], dtype=int)
-        else:
-            target_sites = np.asarray(polymers).flatten()
-
         super().__init__(
             preproc_h5_path,
             shot_h5_path,
             plot_config,
             shot_index=shot_index,
-            target_sites=target_sites,  # remove in 2 wks after 2026-02-27
         )
         if not self.rearrangement:
             raise ValueError('TweezerCorrelator can only be run on shots with rearrangement')
