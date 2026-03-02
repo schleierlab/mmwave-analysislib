@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, ClassVar, Literal, Optional, Sequence
+from typing import Any, ClassVar, Literal, Optional, Sequence, Union
 
 import h5py
 import matplotlib
@@ -11,6 +11,7 @@ import pandas as pd
 import seaborn as sns
 import uncertainties.unumpy as unp
 from matplotlib.axes import Axes
+from matplotlib.colors import Colormap
 from matplotlib.figure import Figure
 from matplotlib.typing import ColorType
 from numpy.typing import NDArray
@@ -78,6 +79,15 @@ class TweezerCorrelator(TweezerStatistician):
     KEY_POLYMER_ID: ClassVar[str] = 'polymer_id'
     KEY_POLYMER_SITE: ClassVar[str] = 'polymer_site'
     KEY_POLYMER_SURVIVAL: ClassVar[str] = 'polymer_survival'
+
+    CMAP_MAGNETIZATION_DARK: ClassVar[Colormap] = sns.diverging_palette(
+        145, 300, s=60, center='dark', as_cmap=True
+    )
+    CMAP_MAGNETIZATION_LIGHT: ClassVar[Colormap] = sns.diverging_palette(
+        145, 300, s=60, center='light', as_cmap=True
+    )
+
+    DEFAULT_CORRELATION_CMAP: ClassVar[str] = 'coolwarm'
 
     def __init__(
             self,
@@ -455,7 +465,7 @@ class TweezerCorrelator(TweezerStatistician):
         if subplotspec.is_last_row():
             ax.set_xlabel(xlabel)
 
-    def plot_total_magnetization(
+    def plot_magnetization_pops(
             self,
             axs: Optional[Axes | Sequence[Axes]] = None,
             cmap: Optional[str | matplotlib.colors.Colormap] = None,
@@ -478,7 +488,7 @@ class TweezerCorrelator(TweezerStatistician):
 
         colormap = cmap
         if cmap is None:
-            colormap = sns.diverging_palette(145, 300, s=60, center='dark', as_cmap=True)
+            colormap = self.CMAP_MAGNETIZATION_DARK
 
         def color_mapper(column_name):
             norm = matplotlib.colors.Normalize(vmin=0, vmax=self.polymer_length)
@@ -500,7 +510,16 @@ class TweezerCorrelator(TweezerStatistician):
                 ax.set_ylabel(f'Polymer {polymer_id} population')
             axs[0].legend()
 
-    def _plot_heatmap_on_axis(self, ax: Axes, data, ylabel: str, cmap: str = 'viridis', vmin: float = 0, vmax: float = 1, title: Optional[str] = None):
+    def _plot_heatmap_on_axis(
+            self,
+            ax: Axes,
+            data,
+            ylabel: str,
+            cmap: Union[str, Colormap] = 'viridis',
+            vmin: float = 0,
+            vmax: float = 1,
+            title: Optional[str] = None,
+    ):
         """Helper to plot heatmap data on a single axis.
 
         Parameters
@@ -541,6 +560,43 @@ class TweezerCorrelator(TweezerStatistician):
         if fig is None:
             raise ValueError("Axis must be part of a figure to add colorbar.")
         fig.colorbar(pcmesh, ax=ax)
+
+    def plot_local_magnetization(self, ax: Optional[Axes] = None):
+        scan_params = self.scan_param_df()
+        occupancies_with_params = self.polymer_survivals() \
+            .to_frame() \
+            .join(scan_params, on='shot')
+        """
+                                      occupancy  mmwave_ramsey_wait_time
+        shot polymer_id polymer_site
+        0    0          0                 False                 0.000000
+                        1                 False                 0.000000
+             1          0                 False                 0.000000
+                        1                 False                 0.000000
+             2          0                 False                 0.000000
+        ...                                 ...                      ...
+        1499 0          1                 False                 0.000006
+             1          0                 False                 0.000006
+                        1                 False                 0.000006
+             2          0                  True                 0.000006
+                        1                 False                 0.000006
+        """
+
+        local_mags = occupancies_with_params.groupby(scan_params.columns.to_list() + ['polymer_site']) \
+            .mean()['occupancy'] \
+            .unstack()
+
+        if ax is None:
+            fig = plt.figure(constrained_layout=True)
+            ax = fig.subplots()
+        self._plot_heatmap_on_axis(
+            ax,
+            local_mags,
+            ylabel='Polymer site',
+            cmap=self.CMAP_MAGNETIZATION_LIGHT,
+            vmin=0,
+            vmax=1,
+        )
 
     def plot_bitstring_populations(self, axs: Optional[Axes | Sequence[Axes]] = None):
         """Plot bitstring populations.

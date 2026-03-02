@@ -19,8 +19,9 @@ elif tweezer_correlator.polymer_length == 2:
     fig, ax = plt.subplots(figsize=(6, 4), layout='constrained')
     tweezer_correlator.plot_bitstring_populations(ax)
 else:
-    fig, axs = plt.subplots(nrows=2, sharex=True, figsize=(6, 12), layout='constrained')
-    tweezer_correlator.plot_total_magnetization(axs[0])
-    tweezer_correlator.plot_distance_averaged_correlation(axs[1])
+    fig, axs = plt.subplots(nrows=3, sharex=True, figsize=(6, 12), layout='constrained')
+    tweezer_correlator.plot_magnetization_pops(axs[0])
+    tweezer_correlator.plot_local_magnetization(axs[1])
+    tweezer_correlator.plot_distance_averaged_correlation(axs[2])
 
 fig.suptitle(str(tweezer_correlator.folder_path))
