@@ -50,7 +50,7 @@ def detect_rois(
     )
     averaged_background = multishot_analyzer.mean_background()
     np.save(folder / 'avg_shot_bkg.npy', averaged_background)
-    np.save(USERLIB_PATH / 'analysislib/multishot/avg_shot_bkg.npy', averaged_background)
+    np.save(USERLIB_PATH / 'mmwave-analysislib/src/analysislib/multishot/avg_shot_bkg.npy', averaged_background)
 
     multishot_analyzer.background_subtraction(use_averaged_background=USE_AVERAGED_BACKGROUND)
     finder = TweezerFinder(multishot_analyzer.mean_image())
