@@ -607,10 +607,13 @@ class TweezerCorrelator(TweezerStatistician):
             axs = fig.subplots()
 
         if isinstance(axs, Axes):
+            ax = axs
             # Single axis mode: aggregate
             bitstring_freqs = self.bitstring_frequencies()
-            self._plot_ufreqs(axs, bitstring_freqs)
-            axs.set_ylabel('Population')
+            self._plot_ufreqs(ax, bitstring_freqs)
+            ax.set_ylabel('Population')
+            ax.legend()
+            ax.grid()
         else:
             # Sequence of axes: per-polymer
             bitstring_freqs = self.bitstring_frequencies(grouped_by=[self.KEY_POLYMER_ID])
@@ -619,6 +622,8 @@ class TweezerCorrelator(TweezerStatistician):
                 group_data = group.droplevel(self.KEY_POLYMER_ID)
                 self._plot_ufreqs(ax, group_data)
                 ax.set_ylabel('Population')
+                ax.legend()
+                ax.grid()
 
     def plot_bitstring_heatmap(self, axs: Optional[Axes | Sequence[Axes]] = None):
         """Plot bitstring frequency heatmap.
