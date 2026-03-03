@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
 import os
 import winsound
+from typing import Literal
 
+from analysislib.common.tweezer_correlator import TweezerCorrelator
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
-from analysislib.common.tweezer_statistics import TweezerStatistician
-from analysislib.common.plot_config import PlotConfig
 import numpy as np
 
 SHOW_ROIS = True
@@ -19,6 +19,7 @@ EXACT_REARRANGEMENT = True
 PLOT_PAIR_STATES = False
 SHOW_HIST = False  # show histogram for survival rate
 SAVE_DATA_CSV_FILE = False  # need to be False for 2d scans!
+PARITY_SELECTION: Literal[0, 1, None] = 0
 
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_preproc = TweezerPreprocessor(
@@ -37,19 +38,18 @@ else:
         roi_patches=SHOW_ROIS, site_index=SHOW_INDEX, fig=subfigs[0], vmax=80
     )
 
-# Initialize statistician with consistent styling
-tweezer_statistician = TweezerStatistician(
+tweezer_correlator = TweezerCorrelator(
     preproc_h5_path=processed_results_fname,
-    shot_h5_path=tweezer_preproc.h5_path,  # Used only for MLOOP
-    plot_config=PlotConfig(),
-    target_sites=tweezer_preproc.target_array,  # deprecate after 2 wks 2026-02-27
+    require_exact_rearrangement=EXACT_REARRANGEMENT,
+    parity_selection=PARITY_SELECTION,
 )
+
 
 folder_path = os.path.dirname(tweezer_preproc.h5_path)
 if not SHOW_IMG_ONLY:
     if SAVE_DATA_CSV_FILE:
         indep_var, survival_rates, survival_rate_errs = (
-            tweezer_statistician.plot_survival_rate_1d(
+            tweezer_correlator.plot_survival_rate_1d(
                 fig=subfigs[1],
                 fit_type=FIT_TYPE_1D,
                 require_exact_rearrangement=EXACT_REARRANGEMENT,
@@ -63,7 +63,7 @@ if not SHOW_IMG_ONLY:
             delimiter=',',
         )
     else:
-        tweezer_statistician.plot_survival_rate(
+        tweezer_correlator.plot_survival_rate(
             fig=subfigs[1],
             fit_type_1d=FIT_TYPE_1D,
             require_exact_rearrangement=EXACT_REARRANGEMENT,
@@ -71,16 +71,48 @@ if not SHOW_IMG_ONLY:
             show_hist=SHOW_HIST,
         )
 
-    tweezer_statistician.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
+    tweezer_correlator.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
 
     # TODO: this function right now doesn't work with 2d parameter scan
 
-if tweezer_statistician.is_final_shot:
+
+def correlation_plot(correlator):
+    if correlator.polymer_length == 1:
+        raise ValueError
+    elif correlator.polymer_length == 2:
+        fig_corr, ax = plt.subplots(figsize=(6, 4), layout='constrained')
+        correlator.plot_bitstring_populations(ax)
+    else:
+        fig_corr, axs = plt.subplots(nrows=3, sharex=True, figsize=(6, 12), layout='constrained')
+        correlator.plot_magnetization_pops(axs[0])
+        correlator.plot_local_magnetization(axs[1])
+        correlator.plot_distance_averaged_correlation(axs[2])
+
+    if PARITY_SELECTION is None:
+        parity_selection_str = 'parity post-selection: OFF'
+    else:
+        parity_selection_str = f'parity post-selection: {PARITY_SELECTION} mod 2'
+
+    exact_rearr_str = f'perfect rearrangement post-sel: {EXACT_REARRANGEMENT}'
+
+    fig_corr.suptitle('\n'.join([
+        str(correlator.folder_path),
+        parity_selection_str,
+        exact_rearr_str,
+    ]))
+
+    return fig_corr
+
+
+if tweezer_correlator.polymer_length > 1:
+    fig_corr = correlation_plot(tweezer_correlator)
+
+if tweezer_correlator.is_final_shot:
     figname = folder_path + '/tweezer_single_shot.pdf'
     fig.savefig(figname)
 
     # play a sound after a long run
-    if tweezer_statistician.n_runs >= 50:
+    if tweezer_correlator.n_runs >= 50:
         notes = np.array([12, 7, 4, 0])  # do' sol mi do
         freqs = 440 * 2.0 ** ((notes - 9) / 12)
         for freq in freqs:
