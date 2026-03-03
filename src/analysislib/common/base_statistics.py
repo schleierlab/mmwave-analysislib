@@ -174,14 +174,14 @@ class BaseStatistician(ABC):
     
     def fit_decay(self, t_data, y_data, envelope: Literal['gaussian', 'exp'], sigma=None, peak_direction=+1):
         # Initial guess
-        y_range = (np.max(y_data) - np.min(y_data))*peak_direction
+        y_range = (np.max(y_data) - np.min(y_data)) * peak_direction
         t_range = np.max(t_data) - np.min(t_data)
         t_resolution = t_data[1] - t_data[0]
 
         if peak_direction == +1:
-            p0 = (y_range/2, 1/t_range, 0, t_range, np.mean(y_data))
+            p0 = (y_range/2, 3/t_range, pi, t_range, np.mean(y_data))
         elif peak_direction == -1:
-            p0 = (y_range/2, 1/t_range, 0, t_range, np.mean(y_data))
+            p0 = (y_range/2, 3/t_range, pi, t_range, np.mean(y_data))
 
         if envelope == 'gaussian':
             fitfunc = self.decaying_fringes_gaussian
