@@ -339,8 +339,8 @@ class TweezerCorrelator(TweezerStatistician):
         """
         bitstrings = self.polymer_survivals() \
             .unstack() \
-            .agg(self._bools_to_bitstring, axis=1) \
-            .rename('bitstring', inplace=True)
+            .agg(self._bools_to_bitstring, axis=1)
+        bitstrings.rename('bitstring', inplace=True)
         """
         shot  polymer_id
         0     0             000
@@ -361,7 +361,7 @@ class TweezerCorrelator(TweezerStatistician):
         bitstrings_filtered = bitstrings[self._parity_filter()]
         bitstring_totals = bitstrings_filtered.to_frame() \
             .join(scan_params, on=self.KEY_SHOT) \
-            .groupby(grouped_by + scan_params.columns.tolist()) \
+            .groupby(list(grouped_by) + scan_params.columns.tolist()) \
             .value_counts() \
             .unstack(fill_value=0)
 
@@ -415,7 +415,7 @@ class TweezerCorrelator(TweezerStatistician):
         filtered_survivals = total_survivals[self._parity_filter()]
 
         scan_params = self.scan_param_df()
-        group_cols = grouped_by + scan_params.columns.to_list()
+        group_cols = list(grouped_by) + scan_params.columns.to_list()
 
         survivals_counts = filtered_survivals.to_frame() \
             .join(scan_params, on='shot') \
