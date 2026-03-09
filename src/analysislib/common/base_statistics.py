@@ -169,13 +169,22 @@ class BaseStatistician(ABC):
         # Initial guess
         y_range = (np.max(y_data) - np.min(y_data))*peak_direction
         t_range = np.max(t_data) - np.min(t_data)
-        if peak_direction == +1:
-            guess = (y_range/2, 2*pi/t_range, 0, t_range/10, np.min(y_data))
-        elif peak_direction == -1:
-            guess = (y_range/2, 2*pi/t_range, 0, t_range/10, np.max(y_data))
+        t_resolution = t_data[1] - t_data[0]
 
-        p0 = guess #[A_guess, Omega_guess, phi_guess, T2_guess, C_guess]
-        return optimize.curve_fit(self.rabi_model, t_data, y_data, p0=p0, sigma=sigma)
+
+        p0 = (y_range/2, 2*pi/t_range, 0, t_range, np.mean(y_data))
+
+        return optimize.curve_fit(
+            self.rabi_model,
+            t_data,
+            y_data,
+            p0=p0,
+            sigma=sigma,
+            bounds=(
+                (-np.inf, pi / t_range     , -2 * pi, t_resolution , -np.inf),
+                (+np.inf, pi / t_resolution, +2 * pi, 100 * t_range, +np.inf),
+            ),
+        )
 
     def fit_lorentzian(self, x_data, y_data, sigma=None, peak_direction=+1):
         """
