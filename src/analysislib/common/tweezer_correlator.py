@@ -390,14 +390,19 @@ class TweezerCorrelator(TweezerStatistician):
         return bitstring_freqs
 
     def distance_averaged_correlation(self, grouped_by=[]):
+        """
+        The correlation function <Z_i Z_{i+r}> - <Z_i><Z_{i+r}> averaged over all i.
+        (That is, the average of the covariance matrix along diagonals.)
+        Here, Z_i refers to a Pauli operator with value +/-1.
+        """
         scan_params = self.scan_param_df()
 
         grouping = grouped_by + scan_params.columns.tolist()
         survivals_unstacked_filt = self.polymer_survivals().unstack()[self._parity_filter()]
-        corrs = survivals_unstacked_filt \
+        corrs = (2 * survivals_unstacked_filt) \
             .join(scan_params, on=self.KEY_SHOT) \
             .groupby(grouping) \
-            .corr() \
+            .cov(ddof=1) \
             .stack()
         # corrs.index = corrs.index.set_names([self.KEY_POLYMER_SITE + '_1', self.KEY_POLYMER_SITE + '_2'], level=[-2, -1])
 
