@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
-import os
 import winsound
 from typing import Literal
 
 from analysislib.common.tweezer_correlator import TweezerCorrelator
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
+from analysislib.common.tweezer_statistics import TweezerStatistician
 import numpy as np
 
 SHOW_ROIS = True
@@ -12,7 +12,7 @@ SHOW_INDEX = True  # site index will not show up if show_rois is set to False
 USE_AVERAGED_BACKGROUND = True
 FIT_TYPE_1D = None
 # do a curve fit at the final shot, set to None when don't do curve fit
-# options: 'lorentzian', 'quadratic', 'decay_exp', 'decay_gauss', 'rabispec', None
+# options: 'lorentzian', 'quadratic', 'fringe_exp_decay', 'fringe_gauss_decay', 'rabispec', None
 
 SHOW_IMG_ONLY = False
 EXACT_REARRANGEMENT = True
@@ -38,18 +38,16 @@ else:
         roi_patches=SHOW_ROIS, site_index=SHOW_INDEX, fig=subfigs[0], vmax=80
     )
 
-tweezer_correlator = TweezerCorrelator(
+tweezer_stats = TweezerStatistician(
     preproc_h5_path=processed_results_fname,
-    require_exact_rearrangement=EXACT_REARRANGEMENT,
-    parity_selection=PARITY_SELECTION,
 )
 
 
-folder_path = os.path.dirname(tweezer_preproc.h5_path)
+folder_path = tweezer_preproc.h5_path.parent
 if not SHOW_IMG_ONLY:
     if SAVE_DATA_CSV_FILE:
         indep_var, survival_rates, survival_rate_errs = (
-            tweezer_correlator.plot_survival_rate_1d(
+            tweezer_stats.plot_survival_rate_1d(
                 fig=subfigs[1],
                 fit_type=FIT_TYPE_1D,
                 require_exact_rearrangement=EXACT_REARRANGEMENT,
@@ -58,12 +56,12 @@ if not SHOW_IMG_ONLY:
             )
         )
         np.savetxt(
-            folder_path + '/data.csv',
+            folder_path / 'data.csv',
             [indep_var, survival_rates, survival_rate_errs],
             delimiter=',',
         )
     else:
-        tweezer_correlator.plot_survival_rate(
+        tweezer_stats.plot_survival_rate(
             fig=subfigs[1],
             fit_type_1d=FIT_TYPE_1D,
             require_exact_rearrangement=EXACT_REARRANGEMENT,
@@ -71,7 +69,7 @@ if not SHOW_IMG_ONLY:
             show_hist=SHOW_HIST,
         )
 
-    tweezer_correlator.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
+    tweezer_stats.plot_tweezing_statistics(fig=subfigs[2], avg_loading_rate=False)
 
     # TODO: this function right now doesn't work with 2d parameter scan
 
@@ -103,20 +101,30 @@ def correlation_plot(correlator):
 
     return fig_corr
 
+# try:
+#     tweezer_correlator = TweezerCorrelator(
+#         preproc_h5_path=processed_results_fname,
+#         require_exact_rearrangement=EXACT_REARRANGEMENT,
+#         parity_selection=PARITY_SELECTION,
+#     )
+# except ValueError:
+#     sys.exit(0)
 
-if tweezer_correlator.polymer_length > 1:
-    fig_corr = correlation_plot(tweezer_correlator)
+# if tweezer_correlator.polymer_length > 1:
+#     fig_corr = correlation_plot(tweezer_correlator)
 
-if tweezer_correlator.is_final_shot:
-    figname = folder_path + '/tweezer_single_shot.pdf'
+if tweezer_stats.is_final_shot:
+    figname = folder_path / 'tweezer_single_shot.pdf'
     fig.savefig(figname)
 
     # play a sound after a long run
-    if tweezer_correlator.n_runs >= 50:
+    if tweezer_stats.n_runs >= 50:
         notes = np.array([12, 7, 4, 0])  # do' sol mi do
         freqs = 440 * 2.0 ** ((notes - 9) / 12)
         for freq in freqs:
             winsound.Beep(int(freq), 300)
         winsound.PlaySound('SystemQuestion', winsound.SND_ALIAS)
 
-# tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])
+#     if tweezer_correlator.polymer_length > 1:
+#         fig_corr.savefig(folder_path / 'tweezer_polymer_analysis.pdf')
+# # tweezer_statistician.plot_survival_rate_by_site(fig=subfigs[1])

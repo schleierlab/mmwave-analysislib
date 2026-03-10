@@ -147,6 +147,11 @@ class BaseStatistician(ABC):
     def exponential(t,a,tau,offset):
         return a*np.exp(-t/tau) + offset
 
+    # TODO switch to using usual definition of width
+    @staticmethod
+    def gaussian(t, amplitude, t2star, offset):
+        return amplitude * np.exp(- (t / t2star) ** 2) + offset
+
     def fit_quadratic(self, x_data, y_data, sigma=None, peak_direction=+1):
         '''
         peak direction: {-1, +1}
@@ -172,7 +177,7 @@ class BaseStatistician(ABC):
         p0 = guess #[a_guess, x0_guess, y0_guess]
         return optimize.curve_fit(self.quadratic, x_data, y_data, p0=p0, sigma=sigma)
     
-    def fit_decay(self, t_data, y_data, envelope: Literal['gaussian', 'exp'], sigma=None, peak_direction=+1):
+    def fit_fringe_decay(self, t_data, y_data, envelope: Literal['gaussian', 'exp'], sigma=None, peak_direction=+1):
         # Initial guess
         y_range = (np.max(y_data) - np.min(y_data)) * peak_direction
         t_range = np.max(t_data) - np.min(t_data)
@@ -199,6 +204,36 @@ class BaseStatistician(ABC):
             bounds=(
                 (-np.inf, 1 / (2 * t_range)     , -2 * pi, t_resolution , -np.inf),
                 (+np.inf, 1 / (2 * t_resolution), +2 * pi, 100 * t_range, +np.inf),
+            ),
+        )
+    
+    def fit_decay(self, t_data, y_data, envelope: Literal['gaussian', 'exp'], sigma=None, peak_direction=+1):
+        # Initial guess
+        y_range = (np.max(y_data) - np.min(y_data)) * peak_direction
+        t_range = np.max(t_data) - np.min(t_data)
+        t_resolution = t_data[1] - t_data[0]
+
+        if peak_direction == +1:
+            p0 = (y_range/2, t_range, np.mean(y_data))
+        elif peak_direction == -1:
+            p0 = (y_range/2, t_range, np.mean(y_data))
+
+        if envelope == 'gaussian':
+            fitfunc = self.gaussian
+        elif envelope == 'exp':
+            fitfunc = self.exponential
+        else:
+            assert_never(envelope)
+        
+        return optimize.curve_fit(
+            fitfunc,
+            t_data,
+            y_data,
+            p0=p0,
+            sigma=sigma,
+            bounds=(
+                (-np.inf, t_resolution , -np.inf),
+                (+np.inf, 100 * t_range, +np.inf),
             ),
         )
 

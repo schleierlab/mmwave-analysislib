@@ -106,22 +106,24 @@ class TweezerCorrelator(TweezerStatistician):
             plot_config,
             shot_index=shot_index,
         )
-        if not self.rearrangement:
-            raise ValueError('TweezerCorrelator can only be run on shots with rearrangement')
         self.require_exact_rearrangement = require_exact_rearrangement
         self.parity_selection = parity_selection
-
-        with h5py.File(preproc_h5_path, 'r') as f:
-            try:
-                self.polymers = np.asarray(f.attrs['target_array'][:], dtype=int)
-            except KeyError:
-                # deprecate this soon
-                self.polymers = np.asarray(polymers, dtype=int)
-            if self.polymers.ndim != 2:
-                raise ValueError(
-                    'TW_target_array was not 2D as expected for polymer grouping. '
-                    'Please ensure TW_target_array is a 2D array of shape (n_polymers, polymer_length).'
-                )
+        
+        if not self.rearrangement:
+            self.polymers = np.array([[]])
+            # raise ValueError('TweezerCorrelator can only be run on shots with rearrangement')
+        else:
+            with h5py.File(preproc_h5_path, 'r') as f:
+                try:
+                    self.polymers = np.asarray(f.attrs['target_array'][:], dtype=int)
+                except KeyError:
+                    # deprecate this soon
+                    self.polymers = np.asarray(polymers, dtype=int)
+                if self.polymers.ndim != 2:
+                    raise ValueError(
+                        'TW_target_array was not 2D as expected for polymer grouping. '
+                        'Please ensure TW_target_array is a 2D array of shape (n_polymers, polymer_length).'
+                    )
 
     def _polymer_grouper(self, sites):
         # binary search on the flattened view of self.polymers
