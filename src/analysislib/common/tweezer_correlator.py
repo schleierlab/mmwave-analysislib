@@ -263,6 +263,37 @@ class TweezerCorrelator(TweezerStatistician):
         """
         return ''.join(str(int(b)) for b in bools)
 
+    def bitstrings(self) -> pd.DataFrame:
+        """
+        Give the final bitstring of each polymer.
+        Will be post-selected for exact rearrangement,
+        if so specified at object instantiation.
+
+        Example
+        -------
+        >>> tc = TweezerCorrelator(...)
+        >>> tc.bitstrings()
+
+        shot  polymer_id
+        0     0             000
+              1             000
+              2             010
+              3             100
+        1     0             010
+                           ...
+        2495  3             010
+        2496  0             101
+              1             110
+              2             000
+              3             100
+        Name: bitstring, Length: 4860, dtype: object
+        """
+        bitstrings = self.polymer_survivals() \
+            .unstack() \
+            .agg(self._bools_to_bitstring, axis=1)
+        bitstrings.rename('bitstring', inplace=True)
+        return bitstrings
+
     @staticmethod
     def _normalize_with_laplace_errors(counts: pd.Series) -> pd.Series:
         """
@@ -340,25 +371,7 @@ class TweezerCorrelator(TweezerStatistician):
                    3.354167e-06             0.32+/-0.07    0.12+/-0.05    0.05+/-0.04
                    3.500000e-06             0.39+/-0.07    0.13+/-0.05  0.019+/-0.025
         """
-        bitstrings = self.polymer_survivals() \
-            .unstack() \
-            .agg(self._bools_to_bitstring, axis=1)
-        bitstrings.rename('bitstring', inplace=True)
-        """
-        shot  polymer_id
-        0     0             000
-              1             000
-              2             010
-              3             100
-        1     0             010
-                           ...
-        2495  3             010
-        2496  0             101
-              1             110
-              2             000
-              3             100
-        Name: bitstring, Length: 4860, dtype: object
-        """
+        bitstrings = self.bitstrings()
 
         scan_params = self.scan_param_df()
         bitstrings_filtered = bitstrings[self._parity_filter()]
