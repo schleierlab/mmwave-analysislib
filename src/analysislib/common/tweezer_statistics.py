@@ -1156,12 +1156,56 @@ class TweezerStatistician(BaseStatistician):
                 fig.suptitle(
                     f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; offset: ${upopt[1]:SL}$'
                 )
-            elif fit_type == 'rabi_oscillation':
-                popt, pcov = self.fit_rabi_oscillation(indep_var, survival_rates, sigma=survival_rate_errs)
+            elif fit_type == 'fringe_exp_decay':
+                popt, pcov = self.fit_fringe_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='exp')
                 upopt = uncertainties.correlated_values(popt, pcov)
-                x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
-                ax_plot.plot(x_plot, self.rabi_model(x_plot, *popt), color='r', label=fR'$\Omega/2\pi = {upopt[1]/(2*np.pi*1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu s$')
-                ax_plot.legend(fontsize='x-small')
+                ax_plot.plot(
+                    x_plot_scaled, self.decaying_fringes_exp(x_plot, *popt), color='r',
+                    label='\n'.join([
+                        R'$A \cos(\Omega t + \phi) e^{-t/T_2} + c$',
+                        fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu$s'
+                    ]),
+                )
+                ax_plot.legend(fontsize='small')
+            elif fit_type == 'fringe_gauss_decay':
+                popt, pcov = self.fit_fringe_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='gaussian')
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax_plot.plot(
+                    x_plot_scaled,
+                    self.decaying_fringes_gaussian(x_plot, *popt),
+                    color='r',
+                    label='\n'.join([
+                        R'$A \cos(\Omega t + \phi) e^{-(t/T_2)^2} + c$',
+                        fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu s$, $\phi = {360 /(2*np.pi) * upopt[2]:SL}$ deg'
+                    ]),
+                )
+                ax_plot.legend(fontsize='small')
+            elif fit_type == 'exp_decay':
+                popt, pcov = self.fit_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='exp')
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax_plot.plot(
+                    x_plot_scaled,
+                    self.exponential(x_plot, *popt),
+                    color='r',
+                    label='\n'.join([
+                        R'$A e^{-(t/T_2)} + c$',
+                        fR'$T_2 = {1e6*upopt[1]:SL} \mu s$'
+                    ]),
+                )
+                ax_plot.legend(fontsize='small')
+            elif fit_type == 'gaussian_decay':
+                popt, pcov = self.fit_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='gaussian')
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax_plot.plot(
+                    x_plot_scaled,
+                    self.gaussian(x_plot, *popt),
+                    color='r',
+                    label='\n'.join([
+                        R'$A e^{-(t/T_2)^2} + c$',
+                        fR'$T_2 = {1e6*upopt[1]:SL} \mu s$'
+                    ]),
+                )
+                ax_plot.legend(fontsize='small')
             elif fit_type == 'rabispec':
                 popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
                 upopt = uncertainties.correlated_values(popt, pcov)
@@ -1175,6 +1219,8 @@ class TweezerStatistician(BaseStatistician):
                 )
                 ax_plot.plot(x_plot_scaled, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
                 ax_plot.legend(fontsize='x-small')
+            else:
+                raise ValueError
 
         if self.is_final_shot and self.params[0].name == 'repetition_index':
             mean_df = self.dataframe_survival(df)

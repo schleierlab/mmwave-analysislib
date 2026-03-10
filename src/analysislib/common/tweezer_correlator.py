@@ -100,34 +100,30 @@ class TweezerCorrelator(TweezerStatistician):
             parity_selection: Literal[0, 1, None] = None,
             shot_index = -1,
     ):
-        if polymers is None:
-            target_sites = np.array([], dtype=int)
-        else:
-            target_sites = np.asarray(polymers).flatten()
-
         super().__init__(
             preproc_h5_path,
             shot_h5_path,
             plot_config,
             shot_index=shot_index,
-            target_sites=target_sites,  # remove in 2 wks after 2026-02-27
         )
-        if not self.rearrangement:
-            raise ValueError('TweezerCorrelator can only be run on shots with rearrangement')
         self.require_exact_rearrangement = require_exact_rearrangement
         self.parity_selection = parity_selection
-
-        with h5py.File(preproc_h5_path, 'r') as f:
-            try:
-                self.polymers = np.asarray(f.attrs['target_array'][:], dtype=int)
-            except KeyError:
-                # deprecate this soon
-                self.polymers = np.asarray(polymers, dtype=int)
-            if self.polymers.ndim != 2:
-                raise ValueError(
-                    'TW_target_array was not 2D as expected for polymer grouping. '
-                    'Please ensure TW_target_array is a 2D array of shape (n_polymers, polymer_length).'
-                )
+        
+        if not self.rearrangement:
+            self.polymers = np.array([[]])
+            # raise ValueError('TweezerCorrelator can only be run on shots with rearrangement')
+        else:
+            with h5py.File(preproc_h5_path, 'r') as f:
+                try:
+                    self.polymers = np.asarray(f.attrs['target_array'][:], dtype=int)
+                except KeyError:
+                    # deprecate this soon
+                    self.polymers = np.asarray(polymers, dtype=int)
+                if self.polymers.ndim != 2:
+                    raise ValueError(
+                        'TW_target_array was not 2D as expected for polymer grouping. '
+                        'Please ensure TW_target_array is a 2D array of shape (n_polymers, polymer_length).'
+                    )
 
     def _polymer_grouper(self, sites):
         # binary search on the flattened view of self.polymers
@@ -613,10 +609,13 @@ class TweezerCorrelator(TweezerStatistician):
             axs = fig.subplots()
 
         if isinstance(axs, Axes):
+            ax = axs
             # Single axis mode: aggregate
             bitstring_freqs = self.bitstring_frequencies()
-            self._plot_ufreqs(axs, bitstring_freqs)
-            axs.set_ylabel('Population')
+            self._plot_ufreqs(ax, bitstring_freqs)
+            ax.set_ylabel('Population')
+            ax.legend()
+            ax.grid()
         else:
             # Sequence of axes: per-polymer
             bitstring_freqs = self.bitstring_frequencies(grouped_by=[self.KEY_POLYMER_ID])
@@ -625,6 +624,8 @@ class TweezerCorrelator(TweezerStatistician):
                 group_data = group.droplevel(self.KEY_POLYMER_ID)
                 self._plot_ufreqs(ax, group_data)
                 ax.set_ylabel('Population')
+                ax.legend()
+                ax.grid()
 
     def plot_bitstring_heatmap(self, axs: Optional[Axes | Sequence[Axes]] = None):
         """Plot bitstring frequency heatmap.
