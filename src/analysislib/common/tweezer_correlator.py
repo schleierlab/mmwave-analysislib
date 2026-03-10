@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, ClassVar, Literal, Optional, Sequence, Union
 
 import h5py
@@ -18,6 +19,7 @@ from numpy.typing import NDArray
 from scipy.special import comb
 
 from analysislib.common.plot_config import PlotConfig
+from analysislib.common.tweezer_preproc import TweezerPreprocessor
 from analysislib.common.tweezer_statistics import TweezerStatistician
 from analysislib.common.typing import StrPath
 
@@ -91,7 +93,7 @@ class TweezerCorrelator(TweezerStatistician):
 
     def __init__(
             self,
-            preproc_h5_path,
+            preproc_h5_path: StrPath,
             require_exact_rearrangement: bool,
             shot_h5_path = None,
             plot_config = None,
@@ -108,22 +110,27 @@ class TweezerCorrelator(TweezerStatistician):
         )
         self.require_exact_rearrangement = require_exact_rearrangement
         self.parity_selection = parity_selection
-        
-        if not self.rearrangement:
-            self.polymers = np.array([[]])
-            # raise ValueError('TweezerCorrelator can only be run on shots with rearrangement')
+
+        if polymers is not None:
+            self.polymers = np.asarray(polymers, dtype=int)
+            if self.polymers.ndim != 2:
+                raise ValueError('polymers must be 2D')
+            return
+
+        user_supplied_path = Path(preproc_h5_path)
+        if user_supplied_path.is_dir():
+            h5_path = user_supplied_path / TweezerPreprocessor.PROCESSED_RESULTS_FNAME
         else:
-            with h5py.File(preproc_h5_path, 'r') as f:
-                try:
-                    self.polymers = np.asarray(f.attrs['target_array'][:], dtype=int)
-                except KeyError:
-                    # deprecate this soon
-                    self.polymers = np.asarray(polymers, dtype=int)
-                if self.polymers.ndim != 2:
-                    raise ValueError(
-                        'TW_target_array was not 2D as expected for polymer grouping. '
-                        'Please ensure TW_target_array is a 2D array of shape (n_polymers, polymer_length).'
-                    )
+            h5_path = user_supplied_path
+
+        with h5py.File(h5_path, 'r') as f:
+            self.polymers = np.asarray(f.attrs['target_array'][:], dtype=int)
+            if self.polymers.ndim != 2:
+                raise ValueError(
+                    'TW_target_array was not 2D as expected for polymer grouping. '
+                    'Please ensure TW_target_array is a 2D array of shape (n_polymers, polymer_length).'
+                )
+            self.target_sites = self.polymers.flatten()
 
     def _polymer_grouper(self, sites):
         # binary search on the flattened view of self.polymers
