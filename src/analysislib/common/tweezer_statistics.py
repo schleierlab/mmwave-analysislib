@@ -821,18 +821,24 @@ class TweezerStatistician(BaseStatistician):
         nmer_size: int,
         require_exact_rearrangement: bool = True,
         explicit_groups: Optional[Sequence[Sequence[int]]] = None,
-        parity_postselect: Optional[str] = None,  # None | "even" | "odd"
+        postselect: Optional[str] = None,  # None | "even" | "odd" | "extremes"
+        plot_parity_fringe: bool = True,
         save_data: bool = False,
     ):
         """
         Plot P(k excited) for k=0..nmer_size, where "excited" means occupied in image-3.
 
-        If parity_postselect is "even" or "odd", we keep only shots with that parity
-        (k even/odd) and renormalize probabilities within the kept subset.
+        If postselect is:
+        - None: keep all shots
+        - "even": keep only even k
+        - "odd": keep only odd k
+        - "extremes": keep only k = 0 or k = nmer_size
+
+        Probabilities are renormalized within the kept subset.
         """
 
-        if parity_postselect not in (None, "even", "odd"):
-            raise ValueError('parity_postselect must be one of: None, "even", "odd".')
+        if postselect not in (None, "even", "odd", "extremes"):
+            raise ValueError('postselect must be one of: None, "even", "odd", "extremes".')
 
         if not self.rearrangement:
             raise ValueError("Requires rearrangement=True and 3 images (0,1,2).")
@@ -870,11 +876,14 @@ class TweezerStatistician(BaseStatistician):
 
         xvals = self.current_params[mask, 0]
         x_arr = np.asarray(indep_var)
-        use_isclose = (np.issubdtype(xvals.dtype, np.floating) or np.issubdtype(x_arr.dtype, np.floating))
+        use_isclose = (
+            np.issubdtype(xvals.dtype, np.floating)
+            or np.issubdtype(x_arr.dtype, np.floating)
+        )
 
         K = nmer_size
         counts_k = np.zeros((K + 1, x_arr.size), dtype=float)
-        N = np.zeros(x_arr.size, dtype=float)  # denominator AFTER any post-selection
+        N = np.zeros(x_arr.size, dtype=float)  # denominator AFTER post-selection
 
         for g in groups:
             g = np.asarray(g, dtype=int)
@@ -885,24 +894,26 @@ class TweezerStatistician(BaseStatistician):
             # k excited from image-3
             k_exc = np.sum(img_after_science[:, g], axis=1).astype(int)
 
-            # parity mask per shot (only if post-selecting)
-            if parity_postselect is None:
-                parity_mask = np.ones_like(loaded, dtype=bool)
-            elif parity_postselect == "even":
-                parity_mask = (k_exc % 2 == 0)
-            else:  # "odd"
-                parity_mask = (k_exc % 2 == 1)
+            # post-selection mask per shot
+            if postselect is None:
+                post_mask = np.ones_like(loaded, dtype=bool)
+            elif postselect == "even":
+                post_mask = (k_exc % 2 == 0)
+            elif postselect == "odd":
+                post_mask = (k_exc % 2 == 1)
+            elif postselect == "extremes":
+                post_mask = (k_exc == 0) | (k_exc == K)
 
             for i, xv in enumerate(x_arr):
                 bin_idx = np.isclose(xvals, xv) if use_isclose else (xvals == xv)
 
                 # apply all selection conditions
-                sel = bin_idx & loaded & parity_mask
+                sel = bin_idx & loaded & post_mask
                 n_sel = int(sel.sum())
                 if n_sel == 0:
                     continue
 
-                # denominator is number of KEPT trials
+                # denominator is number of kept trials
                 N[i] += n_sel
 
                 kk = k_exc[sel]
@@ -920,7 +931,7 @@ class TweezerStatistician(BaseStatistician):
             var = division(a * b, (a + b) ** 2 * (a + b + 1.0))
             return p, np.sqrt(var)
 
-        p_k = np.full_like(counts_k, np.nan, dtype=float)  # shape (K+1, len(x))
+        p_k = np.full_like(counts_k, np.nan, dtype=float)
         e_k = np.full_like(counts_k, np.nan, dtype=float)
 
         for k in range(K + 1):
@@ -928,55 +939,51 @@ class TweezerStatistician(BaseStatistician):
 
         # Plot
         for k in range(K + 1):
-            # hide the parity-forbidden curves to avoid confusing legends
-            if parity_postselect == "even" and (k % 2 == 1):
+            if postselect == "even" and (k % 2 == 1):
                 continue
-            if parity_postselect == "odd" and (k % 2 == 0):
+            if postselect == "odd" and (k % 2 == 0):
+                continue
+            if postselect == "extremes" and (k not in (0, K)):
                 continue
 
             pk = p_k[k, :]
             ek = e_k[k, :]
             label = f"{k} excited"
-            if parity_postselect is not None:
-                label += f" (postsel {parity_postselect})"
-            ax.errorbar(x_arr, pk, yerr=ek, label=label, **self.plot_config.errorbar_kw)
+            if postselect is not None:
+                label += f" (postsel {postselect})"
 
+        if plot_parity_fringe:
+            parity = np.nansum(p_k[::2, :], axis=0) - np.nansum(p_k[1::2, :], axis=0)
+            parity_err = np.sqrt(np.nansum(e_k**2, axis=0))
+            ax.errorbar(x_arr, parity, yerr=parity_err, **self.plot_config.errorbar_kw)
+            ax.set_ylabel(f"{nmer_size}-mer parity fringe", fontsize=self.plot_config.label_font_size)
+            ax.set_ylim(-1, 1)
+        else:
+            ax.errorbar(x_arr, pk, yerr=ek, label=label, **self.plot_config.errorbar_kw)
+            ax.set_ylabel(f"{nmer_size}-mer population", fontsize=self.plot_config.label_font_size)
+            ax.set_ylim(0, 1)
         ax.set_xlabel(self.params[0].axis_label, fontsize=self.plot_config.label_font_size)
-        ax.set_ylabel(f"{nmer_size}-mer population", fontsize=self.plot_config.label_font_size)
-        ax.set_ylim(0, 1)
         ax.legend()
         ax.tick_params(axis="both", which="major", labelsize=self.plot_config.label_font_size)
 
         if save_data:
-            parity_tag = "nopostsel" if parity_postselect is None else f"{parity_postselect}_parity"
-            save_filename = f"ramsey_{nmer_size}mer_kexcited_{parity_tag}.npz"
-
+            post_tag = "nopostsel" if postselect is None else postselect
+            save_filename = f"ramsey_{nmer_size}mer_kexcited_{post_tag}.npz"
             file_path = os.path.join(f"{self.folder_path}/", save_filename)
 
             np.savez(
                 file_path,
                 x_arr=x_arr,
-                p_k=p_k,              # shape (K+1, len(x))
+                p_k=p_k,
                 e_k=e_k,
                 counts_k=counts_k,
                 N=N,
                 nmer_size=nmer_size,
-                parity_postselect=parity_postselect,
+                postselect=postselect,
                 groups=np.array(groups, dtype=object),
             )
 
             print(f"Saved N-mer population data to:\n{file_path}")
-
-        # return x_arr, p_k, e_k, counts_k, N, groups
-        # file_path = os.path.join(f"{self.folder_path}/", '2026-02-12-0150_ramsey_dimer_data.npz')
-        # np.savez(file_path,
-        #  x_arr=x_arr,
-        #  pSS=pSS, eSS=eSS,
-        #  pPP=pPP, ePP=ePP,
-        #  pPS=pPS, ePS=ePS,
-        #  pSP=pSP, eSP=eSP,
-        #  pD=pD, eD=eD,
-        #  pEO=pEO, eEO=eEO, N=N)
 
     def _save_mloop_params(self, shot_h5_path: str | os.PathLike) -> None:
         """Save values and uncertainties to be used by MLOOP for optimization.
@@ -1362,7 +1369,6 @@ class TweezerStatistician(BaseStatistician):
             fit_type_1d = None,
             plot_gaussian: bool = False,
             require_exact_rearrangement: bool = False,
-            plot_pair_states: bool = False,
             show_hist: bool = False,
     ):
         """
