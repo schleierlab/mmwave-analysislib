@@ -47,11 +47,10 @@ folder_path = tweezer_preproc.h5_path.parent
 if not SHOW_IMG_ONLY:
     if SAVE_DATA_CSV_FILE:
         indep_var, survival_rates, survival_rate_errs = (
-            tweezer_stats.plot_survival_rate_1d(
+            tweezer_stats.plot_survival_rate_1d_fig(
                 fig=subfigs[1],
                 fit_type=FIT_TYPE_1D,
                 require_exact_rearrangement=EXACT_REARRANGEMENT,
-                plot_pair_states=PLOT_PAIR_STATES,
                 show_hist=SHOW_HIST,
             )
         )

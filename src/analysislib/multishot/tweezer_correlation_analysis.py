@@ -51,7 +51,7 @@ thresholder.plot_infidelity(ax=axs[2])
 tweezer_correlator.plot_survival_rate_by_site(ax=axs[3])
 
 # fig = plt.figure(figsize=(10, 6))
-# tweezer_correlator.plot_survival_rate_1d(fig, plot_pair_states = True)
+# tweezer_correlator.plot_survival_rate_1d_fig(fig, plot_pair_states = True)
 
 
 #Correlation stuff

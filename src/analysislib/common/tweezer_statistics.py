@@ -21,7 +21,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
-from matplotlib.ticker import MaxNLocator
+from matplotlib.ticker import MaxNLocator, MultipleLocator
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
 from typing_extensions import assert_never
@@ -1034,13 +1034,165 @@ class TweezerStatistician(BaseStatistician):
         offset, scale, scaled_unit = find_offset_and_scale(indep_var, param.unit)
         return indep_var / scale, param.axis_label(unit=scaled_unit), scale
 
+    def _setup_xaxis(self, ax: Axes, index: pd.Index):
+        indep_var_scaled, xlabel, xscale = self._scale_independent_variable(index)
+        ax.set_xlabel(xlabel)
+
+        param = self.params[index.name]
+        if param.unit == 'deg':
+            degree_range = index.max() - index.min()
+            if 30 < degree_range <= 90:
+                ax.xaxis.set_major_locator(MultipleLocator(15))
+            elif 90 < degree_range <= 180:
+                ax.xaxis.set_major_locator(MultipleLocator(30))
+            elif 180 < degree_range <= 360:
+                ax.xaxis.set_major_locator(MultipleLocator(45))
+
+
     def plot_survival_rate_1d(
+        self,
+        ax: Axes,
+        fit_type = None,
+        require_exact_rearrangement: bool = False,
+        averaging_window: Optional[int] = None,
+    ):
+        # build dataframe (optionally filtered to exact rearrangement at image 1)
+        df = self.dataframe(require_exact_rearrangement=require_exact_rearrangement)
+        gb = df.groupby([param.name for param in self.params])
+        survival_df = self.dataframe_survival(gb)
+
+        indep_var = survival_df.index
+        indep_var_scaled, xlabel, xscale = self._scale_independent_variable(survival_df.index)
+
+        subplotspec = ax.get_subplotspec()
+        if subplotspec is None:
+            raise ValueError
+        if subplotspec.is_last_row():
+            ax.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
+
+        survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
+        survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
+        ax.errorbar(
+            indep_var_scaled,
+            survival_rates,
+            yerr=survival_rate_errs,
+            **self.plot_config.errorbar_kw,
+        )
+
+        ax.set_ylabel(
+            'Survival rate',
+        )
+
+        if averaging_window is not None:
+            # TODO add errorbars to this
+            ax.plot(
+                indep_var_scaled,
+                survival_rates.rolling(averaging_window).mean(),
+                color='C1',
+                marker='.',
+            )
+
+        if self.is_final_shot and fit_type is not None and len(indep_var) > 2:
+            x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
+            x_plot_scaled = x_plot / xscale
+
+            if fit_type == 'lorentzian':
+                popt, pcov = self.fit_lorentzian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax.plot(
+                    x_plot_scaled,
+                    self.lorentzian(x_plot, *popt),
+                    label=(
+                        f'Center frequency: ${upopt[0]:SL}$ {self.params[0].unit}; \n'
+                        f'Width: ${upopt[1]:SL}$ {self.params[0].unit}, amplitude: ${4 * upopt[2] / upopt[1]:SL}$'
+                    )
+                )
+            elif fit_type == 'quadratic':
+                popt, pcov = self.fit_quadratic(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=+1)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax.plot(
+                    x_plot_scaled,
+                    self.quadratic(x_plot, *popt),
+                    color = 'r',
+                    label=f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; offset: ${upopt[1]:SL}$'
+                )
+            elif fit_type == 'fringe_exp_decay':
+                popt, pcov = self.fit_fringe_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='exp')
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax.plot(
+                    x_plot_scaled, self.decaying_fringes_exp(x_plot, *popt), color='r',
+                    label='\n'.join([
+                        R'$A \cos(\Omega t + \phi) e^{-t/T_2} + c$',
+                        fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu$s'
+                    ]),
+                )
+            elif fit_type == 'fringe_gauss_decay':
+                popt, pcov = self.fit_fringe_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='gaussian')
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax.plot(
+                    x_plot_scaled,
+                    self.decaying_fringes_gaussian(x_plot, *popt),
+                    color='r',
+                    label='\n'.join([
+                        R'$A \cos(\Omega t + \phi) e^{-(t/T_2)^2} + c$',
+                        fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu s$, $\phi = {360 /(2*np.pi) * upopt[2]:SL}$ deg'
+                    ]),
+                )
+            elif fit_type == 'exp_decay':
+                popt, pcov = self.fit_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='exp')
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax.plot(
+                    x_plot_scaled,
+                    self.exponential(x_plot, *popt),
+                    color='r',
+                    label='\n'.join([
+                        R'$A e^{-(t/T_2)} + c$',
+                        fR'$T_2 = {1e6*upopt[1]:SL} \mu s$'
+                    ]),
+                )
+            elif fit_type == 'gaussian_decay':
+                popt, pcov = self.fit_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='gaussian')
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax.plot(
+                    x_plot_scaled,
+                    self.gaussian(x_plot, *popt),
+                    color='r',
+                    label='\n'.join([
+                        R'$A e^{-(t/T_2)^2} + c$',
+                        fR'$T_2 = {1e6*upopt[1]:SL} \mu s$'
+                    ]),
+                )
+            elif fit_type == 'rabispec':
+                popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
+                upopt = uncertainties.correlated_values(popt, pcov)
+
+                freq_unit = self.params[0].unit
+                label = textwrap.dedent(fR'''\
+                    transition at ${upopt[0]:SL}$ {freq_unit}
+                    $\Omega/2\pi = {upopt[1]:SL}$ {freq_unit}
+                    effective pulse length ${upopt[2]:SL}$ ({freq_unit})$^{{-1}}$
+                    contrast ${upopt[3]:SL}$, offset ${upopt[4]:SL}$'''
+                )
+                ax.plot(x_plot_scaled, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
+            else:
+                raise ValueError
+            
+            ax.legend(fontsize='x-small')
+
+
+        if self.is_final_shot and self.params[0].name == 'repetition_index':
+            mean_df = self.dataframe_survival(df)
+            umean = uncertainties.ufloat(mean_df[self.KEY_SURVIVAL_RATE], mean_df[self.KEY_SURVIVAL_RATE_STD])
+            ax.axhline(umean.n, label=f'Mean: {umean:S}')
+            ax.legend()
+
+        return indep_var, survival_rates, survival_rate_errs
+
+    def plot_survival_rate_1d_fig(
         self,
         fig: Figure,
         fit_type = None,
         require_exact_rearrangement: bool = False,
-        plot_pair_states: bool = False,
-        explicit_pairs: Optional[Sequence[tuple[int, int]]] = None,
         show_hist: bool = False,
         averaging_window: Optional[int] = None,
     ):
@@ -1073,16 +1225,6 @@ class TweezerStatistician(BaseStatistician):
             )
             ax_plot = cast(Axes, _ax_plot)
             ax_hist = cast(Axes, _ax_hist)
-        elif plot_pair_states:
-            _ax_plot, _ax_pairs = fig.subplots(
-                ncols=1,
-                nrows=2,
-                sharey=True,
-            )
-            ax_plot = cast(Axes, _ax_plot)
-            ax_pairs = cast(Axes, _ax_pairs)
-            self.plot_config.configure_grids(ax_pairs)
-            ax_pairs.set_ylim(bottom=0)
         else:
             ax_plot = fig.subplots()
 
@@ -1091,35 +1233,14 @@ class TweezerStatistician(BaseStatistician):
 
         fig.suptitle(str(self.folder_path), fontsize=8)
 
-        # build dataframe (optionally filtered to exact rearrangement at image 1)
-        df = self.dataframe(require_exact_rearrangement=require_exact_rearrangement)
-
         if len(self.params) != 1:
             raise ValueError("plot_survival_rate_1d expects exactly one scanned parameter")
 
-        gb = df.groupby([param.name for param in self.params])
-        survival_df = self.dataframe_survival(gb)
-
-        indep_var = survival_df.index
-        indep_var_scaled, xlabel, xscale = self._scale_independent_variable(survival_df.index)
-        ax_plot.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
-        survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
-        survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
-        ax_plot.errorbar(
-            indep_var_scaled,
-            survival_rates,
-            yerr=survival_rate_errs,
-            **self.plot_config.errorbar_kw,
-        )
-
-        ax_plot.set_ylabel(
-            'Survival rate',
-            fontsize=self.plot_config.label_font_size,
-        )
-        ax_plot.tick_params(
-            axis='both',
-            which='major',
-            labelsize=self.plot_config.label_font_size,
+        indep_var, survival_rates, survival_rate_errs = self.plot_survival_rate_1d(
+            ax_plot,
+            fit_type=fit_type,
+            require_exact_rearrangement=require_exact_rearrangement,
+            averaging_window=averaging_window,
         )
 
         ax_plot.set_title('Survival rate over all sites', fontsize=self.plot_config.title_font_size)
@@ -1129,107 +1250,6 @@ class TweezerStatistician(BaseStatistician):
                 survival_rates,
                 orientation='horizontal',
             )
-        if averaging_window is not None:
-            # TODO add errorbars to this
-            ax_plot.plot(
-                indep_var_scaled,
-                survival_rates.rolling(averaging_window).mean(),
-                color='C1',
-                marker='.',
-            )
-
-        if self.is_final_shot and fit_type is not None and len(indep_var) > 2:
-            x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
-            x_plot_scaled = x_plot / xscale
-
-            if fit_type == 'lorentzian':
-                popt, pcov = self.fit_lorentzian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
-                upopt = uncertainties.correlated_values(popt, pcov)
-                ax_plot.plot(x_plot_scaled, self.lorentzian(x_plot, *popt))
-                fig.suptitle(
-                    f'Center frequency: ${upopt[0]:SL}$ {self.params[0].unit}; Width: ${upopt[1]:SL}$ {self.params[0].unit}, amplitude: ${4 * upopt[2] / upopt[1]:SL}$'
-                )
-            elif fit_type == 'quadratic':
-                popt, pcov = self.fit_quadratic(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=+1)
-                upopt = uncertainties.correlated_values(popt, pcov)
-                ax_plot.plot(x_plot_scaled, self.quadratic(x_plot, *popt), color = 'r')
-                fig.suptitle(
-                    f'Center: ${upopt[2]:SL}$ {self.params[0].unit}; offset: ${upopt[1]:SL}$'
-                )
-            elif fit_type == 'fringe_exp_decay':
-                popt, pcov = self.fit_fringe_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='exp')
-                upopt = uncertainties.correlated_values(popt, pcov)
-                ax_plot.plot(
-                    x_plot_scaled, self.decaying_fringes_exp(x_plot, *popt), color='r',
-                    label='\n'.join([
-                        R'$A \cos(\Omega t + \phi) e^{-t/T_2} + c$',
-                        fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu$s'
-                    ]),
-                )
-                ax_plot.legend(fontsize='small')
-            elif fit_type == 'fringe_gauss_decay':
-                popt, pcov = self.fit_fringe_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='gaussian')
-                upopt = uncertainties.correlated_values(popt, pcov)
-                ax_plot.plot(
-                    x_plot_scaled,
-                    self.decaying_fringes_gaussian(x_plot, *popt),
-                    color='r',
-                    label='\n'.join([
-                        R'$A \cos(\Omega t + \phi) e^{-(t/T_2)^2} + c$',
-                        fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu s$, $\phi = {360 /(2*np.pi) * upopt[2]:SL}$ deg'
-                    ]),
-                )
-                ax_plot.legend(fontsize='small')
-            elif fit_type == 'exp_decay':
-                popt, pcov = self.fit_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='exp')
-                upopt = uncertainties.correlated_values(popt, pcov)
-                ax_plot.plot(
-                    x_plot_scaled,
-                    self.exponential(x_plot, *popt),
-                    color='r',
-                    label='\n'.join([
-                        R'$A e^{-(t/T_2)} + c$',
-                        fR'$T_2 = {1e6*upopt[1]:SL} \mu s$'
-                    ]),
-                )
-                ax_plot.legend(fontsize='small')
-            elif fit_type == 'gaussian_decay':
-                popt, pcov = self.fit_decay(indep_var, survival_rates, sigma=survival_rate_errs, envelope='gaussian')
-                upopt = uncertainties.correlated_values(popt, pcov)
-                ax_plot.plot(
-                    x_plot_scaled,
-                    self.gaussian(x_plot, *popt),
-                    color='r',
-                    label='\n'.join([
-                        R'$A e^{-(t/T_2)^2} + c$',
-                        fR'$T_2 = {1e6*upopt[1]:SL} \mu s$'
-                    ]),
-                )
-                ax_plot.legend(fontsize='small')
-            elif fit_type == 'rabispec':
-                popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
-                upopt = uncertainties.correlated_values(popt, pcov)
-
-                freq_unit = self.params[0].unit
-                label = textwrap.dedent(fR'''\
-                    transition at ${upopt[0]:SL}$ {freq_unit}
-                    $\Omega/2\pi = {upopt[1]:SL}$ {freq_unit}
-                    effective pulse length ${upopt[2]:SL}$ ({freq_unit})$^{{-1}}$
-                    contrast ${upopt[3]:SL}$, offset ${upopt[4]:SL}$'''
-                )
-                ax_plot.plot(x_plot_scaled, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
-                ax_plot.legend(fontsize='x-small')
-            else:
-                raise ValueError
-
-        if self.is_final_shot and self.params[0].name == 'repetition_index':
-            mean_df = self.dataframe_survival(df)
-            umean = uncertainties.ufloat(mean_df[self.KEY_SURVIVAL_RATE], mean_df[self.KEY_SURVIVAL_RATE_STD])
-            ax_plot.axhline(umean.n, label=f'Mean: {umean:S}')
-            ax_plot.legend()
-
-        if plot_pair_states:
-            self._plot_nmer_kexcited_population(ax_pairs, indep_var, 2, require_exact_rearrangement, parity_postselect="even")
 
         return indep_var, survival_rates, survival_rate_errs
 
@@ -1363,19 +1383,17 @@ class TweezerStatistician(BaseStatistician):
             )
 
         if loop_params.ndim == 0:
-            self.plot_survival_rate_1d(
+            self.plot_survival_rate_1d_fig(
                 fig,
                 require_exact_rearrangement=require_exact_rearrangement,
-                plot_pair_states=plot_pair_states,
                 show_hist=True,
                 averaging_window=10,
             )
         if loop_params.ndim == 1:
-            self.plot_survival_rate_1d(
+            self.plot_survival_rate_1d_fig(
                 fig,
                 fit_type=fit_type_1d,
                 require_exact_rearrangement=require_exact_rearrangement,
-                plot_pair_states=plot_pair_states,
                 show_hist=show_hist,
                 averaging_window=None,
             )

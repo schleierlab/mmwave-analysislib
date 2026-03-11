@@ -17,6 +17,7 @@ from matplotlib.figure import Figure
 from matplotlib.typing import ColorType
 from numpy.typing import NDArray
 from scipy.special import comb
+from uncertainties import ufloat
 
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.tweezer_preproc import TweezerPreprocessor
@@ -505,7 +506,8 @@ class TweezerCorrelator(TweezerStatistician):
             axs = fig.subplots()
 
         def label_mapper(survival_number: int) -> str:
-            return f'$S_z = {survival_number - self.polymer_length/2:+}$'
+            # return f'$S_z = {survival_number - self.polymer_length/2:+}$'
+            return f'{survival_number} survivors'
 
         colormap = cmap
         if cmap is None:
@@ -520,6 +522,7 @@ class TweezerCorrelator(TweezerStatistician):
             # Single axis mode: aggregate
             ufreqs = self._compute_total_survivals_ufreqs()
             self._plot_ufreqs(ax, ufreqs, label_mapper=label_mapper, color_mapper=color_mapper)
+            ax.set_ylabel('Population')
             ax.legend()
         else:
             # Sequence of axes: per-polymer
@@ -530,6 +533,30 @@ class TweezerCorrelator(TweezerStatistician):
                 self._plot_ufreqs(ax, group_data, label_mapper=label_mapper, color_mapper=color_mapper)
                 ax.set_ylabel(f'Polymer {polymer_id} population')
             axs[0].legend()
+
+    @staticmethod
+    def _mean_with_std_err(series: pd.Series):
+        return ufloat(series.mean(), series.std(ddof=1) / np.sqrt(series.count()))
+
+    def plot_parity(self, ax: Axes):
+        # +/-1 for even/odd number of survivals
+        polymer_parities = (-1) ** (self.polymer_total_survival() % 2)
+
+        scan_params = self.scan_param_df()
+        mean_parities: pd.Series = polymer_parities.to_frame() \
+            .join(scan_params, on='shot') \
+            .groupby(scan_params.columns.to_list()) \
+            .agg(self._mean_with_std_err) \
+            .iloc[:, 0]
+
+        ax.errorbar(
+            mean_parities.index,
+            unp.nominal_values(mean_parities),
+            yerr=unp.std_devs(mean_parities),
+            **self.plot_config.errorbar_kw,
+        )
+
+        ax.set_ylabel('Parity')
 
     def _plot_heatmap_on_axis(
             self,
@@ -564,6 +591,7 @@ class TweezerCorrelator(TweezerStatistician):
             x_scaled,
             data.columns,
             unp.nominal_values(data.T),
+            shading='nearest',
             cmap=cmap,
             vmin=vmin,
             vmax=vmax,
