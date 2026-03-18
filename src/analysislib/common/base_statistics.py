@@ -177,16 +177,30 @@ class BaseStatistician(ABC):
         p0 = guess #[a_guess, x0_guess, y0_guess]
         return optimize.curve_fit(self.quadratic, x_data, y_data, p0=p0, sigma=sigma)
     
+    def _estimate_freq_fft(self, t, y):
+        y = y - np.mean(y)
+        dt = t[1] - t[0]
+
+        fft = np.fft.rfft(y)
+        freqs = np.fft.rfftfreq(len(t), dt)
+
+        peak = np.argmax(np.abs(fft[1:])) + 1
+        return freqs[peak]
+    
     def fit_fringe_decay(self, t_data, y_data, envelope: Literal['gaussian', 'exp'], sigma=None, peak_direction=+1):
         # Initial guess
         y_range = (np.max(y_data) - np.min(y_data)) * peak_direction
         t_range = np.max(t_data) - np.min(t_data)
         t_resolution = t_data[1] - t_data[0]
 
+        freq_guess = self._estimate_freq_fft(t_data, y_data)
+
+        A_guess = 0.5 * (np.percentile(y_data, 95) - np.percentile(y_data, 5))
+
         if peak_direction == +1:
-            p0 = (y_range/2, 3/t_range, pi, t_range, np.mean(y_data))
+            p0 = (A_guess, freq_guess, pi, t_range, np.mean(y_data)) #(y_range/2, 2/t_range, pi, t_range, np.mean(y_data))
         elif peak_direction == -1:
-            p0 = (y_range/2, 3/t_range, pi, t_range, np.mean(y_data))
+            p0 = (A_guess, freq_guess, pi, t_range, np.mean(y_data))
 
         if envelope == 'gaussian':
             fitfunc = self.decaying_fringes_gaussian
