@@ -194,7 +194,7 @@ class BaseStatistician(ABC):
         t_resolution = t_data[1] - t_data[0]
 
         freq_guess = self._estimate_freq_fft(t_data, y_data)
-        p0 = (y_range / 2, freq_guess, pi, t_range, np.mean(y_data))
+        p0 = (y_range / 2, freq_guess, 0, t_range, np.mean(y_data))
 
         if envelope == 'gaussian':
             fitfunc = self.decaying_fringes_gaussian
@@ -209,6 +209,7 @@ class BaseStatistician(ABC):
             y_data,
             p0=p0, #amplitude, freq, phase, t2star, offset
             sigma=sigma,
+            absolute_sigma=True,
             bounds=(
                 (-np.inf, 1 / (2 * t_range)     , -2 * pi, t_resolution , -np.inf),
                 (+np.inf, 1 / (2 * t_resolution), +2 * pi, 100 * t_range, +np.inf),
