@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import matplotlib.pyplot as plt
 import winsound
 
@@ -14,9 +16,11 @@ FIT_TYPE_1D = None #'fringe_gauss_decay' #None
 # options: 'lorentzian', 'quadratic', 'fringe_exp_decay', 'fringe_gauss_decay', 'rabispec', None
 
 SHOW_IMG_ONLY = False
-SHOW_HIST = False  # show histogram for survival rate
-PLOT_METRIC = 'parity'
-PLOT_EVERY = 25
+PLOT_METRIC = 'bitstrings' # options: 'bitstrings', 'parity'
+PLOT_EVERY = 100
+
+# 0, 1, or None
+PARITY_SELECTION = None
 
 # Initialize analysis with background ROI and standard ROI loading
 tweezer_preproc = TweezerPreprocessor(
@@ -37,7 +41,7 @@ else:
 
 
 folder_path = tweezer_preproc.h5_path.parent
-
+subfigs[1].suptitle(f'Parity selection: {PARITY_SELECTION} mod 2')
 
 def data_plots(correlator: TweezerCorrelator):
     data_axs = subfigs[1].subplots(sharex=True, nrows=3)
@@ -76,9 +80,17 @@ def data_plots(correlator: TweezerCorrelator):
 
 
 if tweezer_preproc.run_number % PLOT_EVERY == 0 or tweezer_preproc.run_number + 1 == tweezer_preproc.n_runs:
+    start = datetime.now()
     tweezer_correlator = TweezerCorrelator(
         preproc_h5_path=processed_results_fname,
         require_exact_rearrangement=True,
+        parity_selection=PARITY_SELECTION,
     )
 
+    init_end = datetime.now()
+
     data_plots(tweezer_correlator)
+
+    plot_end = datetime.now()
+
+    print(f'{init_end-start=}, {plot_end-init_end=}')
