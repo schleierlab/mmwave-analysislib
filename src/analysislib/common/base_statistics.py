@@ -183,10 +183,7 @@ class BaseStatistician(ABC):
         t_range = np.max(t_data) - np.min(t_data)
         t_resolution = t_data[1] - t_data[0]
 
-        if peak_direction == +1:
-            p0 = (y_range/2, 3/t_range, pi, t_range, np.mean(y_data))
-        elif peak_direction == -1:
-            p0 = (y_range/2, 3/t_range, pi, t_range, np.mean(y_data))
+        p0 = (y_range/2, 20/t_range, 0, t_range, np.mean(y_data))
 
         if envelope == 'gaussian':
             fitfunc = self.decaying_fringes_gaussian
@@ -199,7 +196,7 @@ class BaseStatistician(ABC):
             fitfunc,
             t_data,
             y_data,
-            p0=p0,
+            p0=p0, #amplitude, freq, phase, t2star, offset
             sigma=sigma,
             bounds=(
                 (-np.inf, 1 / (2 * t_range)     , -2 * pi, t_resolution , -np.inf),

@@ -1,20 +1,19 @@
 from __future__ import annotations
 
+import functools
 import logging
 import os
 import re
-import textwrap
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Literal, Optional, Union, cast, overload
+from typing import ClassVar, Literal, Optional, Union, cast
 
 import h5py  # type: ignore
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pandas.api.typing as pdt
 import uncertainties  # type: ignore
 import uncertainties.unumpy as unp  # type: ignore
 from matplotlib.axes import Axes
@@ -386,6 +385,7 @@ class TweezerStatistician(BaseStatistician):
         return pd.Series(self.run_times_strs, dtype='datetime64[ns]')
 
     # this is intended to supersede the above dataframe() eventually, since it has shot number information
+    @functools.cache
     def series(self) -> pd.Series:
         """
         Pandas Series describing site occupancy across all shots and images in this run.
@@ -897,18 +897,22 @@ class TweezerStatistician(BaseStatistician):
         if subplotspec.is_last_row():
             ax.set_xlabel(xlabel, fontsize=self.plot_config.label_font_size)
 
+        plotting_fit = self.is_final_shot and fit_type is not None and len(indep_var) > 2
+
         survival_rates = survival_df[self.KEY_SURVIVAL_RATE]
         survival_rate_errs = survival_df[self.KEY_SURVIVAL_RATE_STD]
         ax.errorbar(
             indep_var_scaled,
             survival_rates,
             yerr=survival_rate_errs,
+            linestyle=('None' if plotting_fit else 'solid'),
             **self.plot_config.errorbar_kw,
         )
 
         ax.set_ylabel(
             'Survival rate',
         )
+        ax.set_ylim(0, 1)
 
         if averaging_window is not None:
             # TODO add errorbars to this
@@ -919,7 +923,7 @@ class TweezerStatistician(BaseStatistician):
                 marker='.',
             )
 
-        if self.is_final_shot and fit_type is not None and len(indep_var) > 2:
+        if plotting_fit:
             x_plot = np.linspace(np.min(indep_var), np.max(indep_var), 1000)
             x_plot_scaled = x_plot / xscale
 
@@ -950,7 +954,8 @@ class TweezerStatistician(BaseStatistician):
                     x_plot_scaled, self.decaying_fringes_exp(x_plot, *popt), color='r',
                     label='\n'.join([
                         R'$A \cos(\Omega t + \phi) e^{-t/T_2} + c$',
-                        fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu$s'
+                        fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz, $T_2 = {1e6*upopt[3]:SL} \mu$s, $\phi = {180/np.pi * upopt[2]:SL}$ deg',
+                        fR'$A = {upopt[0]:SL}$, $c = {upopt[4]:SL}$',
                     ]),
                 )
             elif fit_type == 'fringe_gauss_decay':
@@ -994,12 +999,12 @@ class TweezerStatistician(BaseStatistician):
                 upopt = uncertainties.correlated_values(popt, pcov)
 
                 freq_unit = self.params[0].unit
-                label = textwrap.dedent(fR'''\
-                    transition at ${upopt[0]:SL}$ {freq_unit}
-                    $\Omega/2\pi = {upopt[1]:SL}$ {freq_unit}
-                    effective pulse length ${upopt[2]:SL}$ ({freq_unit})$^{{-1}}$
-                    contrast ${upopt[3]:SL}$, offset ${upopt[4]:SL}$'''
-                )
+                label = '\n'.join([
+                    f'transition at ${upopt[0]:SL}$ {freq_unit}',
+                    f'$\Omega/2\pi = {upopt[1]:SL}$ {freq_unit}',
+                    f'effective pulse length ${upopt[2]:SL}$ ({freq_unit})$^{{-1}}$',
+                    f'contrast ${upopt[3]:SL}$, offset ${upopt[4]:SL}$',
+                ])
                 ax.plot(x_plot_scaled, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
             else:
                 raise ValueError

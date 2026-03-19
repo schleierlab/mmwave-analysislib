@@ -78,7 +78,6 @@ class PlotConfig:
 
     errorbar_kw = ErrorbarKwarg(
         marker='.',
-        linestyle='-',
         alpha=0.5,
         capsize=3,
     )

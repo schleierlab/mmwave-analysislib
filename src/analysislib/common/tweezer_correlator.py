@@ -549,8 +549,10 @@ class TweezerCorrelator(TweezerStatistician):
             .agg(self._mean_with_std_err) \
             .iloc[:, 0]
 
+        
+        variable_scaled, xlabel, xscale = self._scale_independent_variable(mean_parities.index)
         ax.errorbar(
-            mean_parities.index,
+            variable_scaled,
             unp.nominal_values(mean_parities),
             yerr=unp.std_devs(mean_parities),
             **self.plot_config.errorbar_kw,
