@@ -1,9 +1,10 @@
 from abc import abstractmethod, ABC
 from os import PathLike
-from typing import Literal
+from typing import ClassVar, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from scipy import optimize
 from scipy.constants import pi
 from typing_extensions import assert_never
@@ -20,6 +21,8 @@ from typing import Union
 class BaseStatistician(ABC):
     _shot_index: int
     '''Shot index, but can be -1'''
+    
+    KEY_SHOT: ClassVar[str] = 'shot'
 
     """Base class for statistical analysis of tweezer or bulk gas imaging data."""
     def __init__(
@@ -31,6 +34,37 @@ class BaseStatistician(ABC):
         # TODO: move common init tasks here from child classes
         self._shot_index = shot_index
 
+    # TODO refactor param handling logic fully into here
+    def scan_param_df(self) -> pd.DataFrame:
+        """
+        Pandas DataFrame containing experimental parameters corresponding to each shot,
+        indexed by shot number. Only varied parameters are provided.
+
+        Example
+        -------
+              ryd_456_duration
+        shot
+        0         0.000000e+00
+        1         1.428571e-07
+        2         2.857143e-07
+        3         4.285714e-07
+        4         5.714286e-07
+        ...                ...
+        995       6.428571e-06
+        996       6.571429e-06
+        997       6.714286e-06
+        998       6.857143e-06
+        999       7.000000e-06
+
+        [1000 rows x 1 columns]
+        """
+        index = pd.RangeIndex(self.shots_processed, name=self.KEY_SHOT)
+        return pd.DataFrame(
+            self.current_params,
+            index=index,
+            columns=[param.name for param in self.params],
+        )
+
     @property
     @abstractmethod
     def shots_processed(self) -> int:
@@ -39,11 +73,6 @@ class BaseStatistician(ABC):
     @abstractmethod
     def _load_processed_quantities(self, preproc_h5_path: str) -> None:
         """Load processed quantities from an h5 file."""
-        raise NotImplementedError("Subclasses must implement this method.")
-
-    @abstractmethod
-    def _save_mloop_params(self, shot_h5_path: str) -> None:
-        """Save values and uncertainties to be used by MLOOP for optimization."""
         raise NotImplementedError("Subclasses must implement this method.")
 
     @staticmethod

@@ -4,8 +4,7 @@ import functools
 import logging
 import os
 import re
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, Union, cast
 
@@ -23,12 +22,12 @@ from matplotlib.patches import Patch
 from matplotlib.ticker import MaxNLocator, MultipleLocator
 from numpy.typing import NDArray
 from scipy.optimize import curve_fit
-from typing_extensions import assert_never
 
 from analysislib.common.base_statistics import BaseStatistician
 from analysislib.common.image import ROI
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
+from analysislib.common.scanning_params import ScanningParameters
 
 logger = logging.getLogger(__name__)
 
@@ -106,65 +105,6 @@ def find_offset_and_scale(values, unitstr):
     return 0, 10**exponent_offset, newprefix + baseunit
 
 
-@dataclass(frozen=True)
-class ScanningParameter:
-    name: str
-    unit: str
-    friendly_name: Optional[str] = None
-
-    def __str__(self) -> str:
-        return self.name
-
-    @classmethod
-    def from_h5_tuple(cls, tup) -> ScanningParameter:
-        name: bytes
-        units: bytes
-        expr: bytes
-        name, units, expr = tup
-        return cls(name.decode('utf-8'), units.decode('utf-8'))
-
-    def axis_label(self, unit: Optional[str] = None):
-        namestr = self.friendly_name if self.friendly_name is not None else self.name
-        if unit is None:
-            plot_unit = self.unit
-        else:
-            plot_unit = unit
-        unitstr = f' ({plot_unit})' if plot_unit != '' else ''
-        return f'{namestr}{unitstr}'
-
-
-class ScanningParameters:
-    params: tuple[ScanningParameter, ...]
-    param_inds: dict[str, int]  # maybe just store dict[str, ScanningParameter]?
-
-    def __init__(self, params: Sequence[ScanningParameter]):
-        self.params = tuple(params)
-        self.param_inds = {
-            param.name: i
-            for i, param in enumerate(self.params)
-        }
-
-    def __getitem__(self, key: int | str) -> ScanningParameter:
-        if isinstance(key, int):
-            index = key
-            return self.params[index]
-        elif isinstance(key, str):
-            name = key
-            return self.params[self.param_inds[name]]
-        else:
-            assert_never(key)
-
-    def __len__(self) -> int:
-        return len(self.params)
-
-    def __iter__(self):
-        return iter(self.params)
-
-    @classmethod
-    def from_h5_tuples(cls, iterable: Iterable) -> ScanningParameters:
-        return cls([ScanningParameter.from_h5_tuple(tup) for tup in iterable])
-
-
 class TweezerStatistician(BaseStatistician):
     """Class for statistical analysis of tweezer imaging data.
 
@@ -197,7 +137,6 @@ class TweezerStatistician(BaseStatistician):
     target_sites: NDArray
 
     # TODO clean this up
-    KEY_SHOT: ClassVar[str] = 'shot'
     KEY_IMAGE: ClassVar[str] = 'image'
     KEY_SITE: ClassVar[str] = 'site'
     KEY_INITIAL: ClassVar[str] = 'initial'
@@ -823,7 +762,8 @@ class TweezerStatistician(BaseStatistician):
         run = lyse.Run(h5_path=shot_h5_path)  # type: ignore
         my_condition = True
         # run.save_result(name='survival_rate', value=survival_rate if my_condition else np.nan)
-        survival_rate = 0; survival_uncertainty = 0.1
+        survival_rate = 0
+        survival_uncertainty = 0.1
         mloop_result = (survival_rate, survival_uncertainty)
         run.save_results_dict(
             {
@@ -1009,10 +949,10 @@ class TweezerStatistician(BaseStatistician):
             else:
                 raise ValueError
             
-            ax.legend(fontsize='x-small')
+            ax.legend(fontsize='medium')
 
 
-        if self.is_final_shot and self.params[0].name == 'repetition_index':
+        if self.params[0].name == 'repetition_index':
             mean_df = self.dataframe_survival(df)
             umean = uncertainties.ufloat(mean_df[self.KEY_SURVIVAL_RATE], mean_df[self.KEY_SURVIVAL_RATE_STD])
             ax.axhline(umean.n, label=f'Mean: {umean:S}')

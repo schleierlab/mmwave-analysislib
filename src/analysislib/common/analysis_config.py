@@ -156,12 +156,21 @@ manta_tweezer = ImagingCamera(
     image_name_stem='manta',
 )
 
-manta_local_addr = ImagingCamera(
+manta_la_coll = ImagingCamera(
     pixel_size=5.5e-6,
     image_size=2048,
     quantum_efficiency=0.4,
     gain=1,
-    image_group_name='manta419b_local_addr_images',
+    image_group_name='manta419b_la_coll_images',
+    image_name_stem='manta',
+)
+
+manta_la_focal = ImagingCamera(
+    pixel_size=5.5e-6,
+    image_size=2048,
+    quantum_efficiency=0.4,
+    gain=1,
+    image_group_name='manta419b_la_focal_images',
     image_name_stem='manta',
 )
 
@@ -185,12 +194,20 @@ manta_tweezer_system = ImagingSystem(
 # TODO update these numbers...
 #Some of these need to be fixed, but it doesn't quite matter if the alignment calibration is just using pixels.
 #Either way, should note down what we're actually using.
-manta_local_addr_align_system = ImagingSystem(
+manta_la_coll_system = ImagingSystem(
     imaging_f=50e-3,
     objective_f=125e-3,
     lens_diameter=25.4e-3,
     imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
-    camera=manta_local_addr,
+    camera=manta_la_coll,
+)
+
+manta_la_focal_system = ImagingSystem(
+    imaging_f=500e-3 * (640/410),
+    objective_f=40.4e-3,
+    lens_diameter=25.4e-3,
+    imaging_loss=1/1.028,  # from Thorlabs FBH850-10 line filter
+    camera=manta_la_focal,
 )
 
 kinetix_camera = ImagingCamera(
