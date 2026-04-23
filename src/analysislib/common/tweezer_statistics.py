@@ -452,7 +452,7 @@ class TweezerStatistician(BaseStatistician):
         img1 = self.site_occupancies[:, 1, :].astype(bool)
         return img1 & (~tgt_mask[None, :])
 
-    def rearragne_statistics(self, target_array):
+    def rearrange_statistics(self, target_array):
         n_target = len(target_array)
         # Sum over atoms for each shot, for the first image (axis=1 is atoms)
         first_img_atom_counts = self.site_occupancies[:, 0, :].sum(axis=1)  # shape: (num_shots,)
@@ -492,7 +492,7 @@ class TweezerStatistician(BaseStatistician):
         Histogram of number of loaded target sites after rearrangement (image 1),
         plus optional breakdown of "full target but extra atoms exist outside".
         """
-        success_rearrange, atom_count_in_target_list, n_rearrange_shots, _ = self.rearragne_statistics(target_array)
+        success_rearrange, atom_count_in_target_list, n_rearrange_shots, _ = self.rearrange_statistics(target_array)
 
         atom_counts_all_shots = atom_count_in_target_list[0]
         n_target = len(target_array)
@@ -698,7 +698,7 @@ class TweezerStatistician(BaseStatistician):
 
     def plot_rearrange_site_success_rate(self, target_array, ax: Axes):
         # Site success rate plot
-        _, _, n_rearrange_shots, avg_site_success_rate = self.rearragne_statistics(target_array)
+        _, _, n_rearrange_shots, avg_site_success_rate = self.rearrange_statistics(target_array)
 
         # n_sites = self.site_occupancies.shape[2]
         ax.plot(target_array, avg_site_success_rate, 'o')
