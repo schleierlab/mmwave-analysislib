@@ -3,6 +3,9 @@ from pathlib import Path
 from typing import cast
 
 import h5py  # type: ignore
+import numpy as np
+import pandas as pd
+import uncertainties
 
 from analysislib.common.base_statistics import BaseStatistician
 from analysislib.common.scanning_params import ScanningParameters
@@ -48,6 +51,25 @@ class BeamspotStatistician(BaseStatistician):
             # self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
 
             self.params = ScanningParameters.from_h5_tuples(self.params_list)
+
+    def dataframe_u(self):
+        noms = self.gaussian_spot_params_nom.reshape(-1, 6)
+        covs = self.gaussian_spot_params_cov.reshape(-1, 6, 6)
+        arr = np.array([
+            uncertainties.correlated_values(n, c)
+            for n, c in zip(noms, covs)
+        ]).reshape(self.gaussian_spot_params_nom.shape)
+
+        nshots, ncams, nexpos, nparams = arr.shape
+        mi = pd.MultiIndex.from_product(
+            [range(nshots), ('fo', 'co'), range(nexpos)],
+            names=('shot', 'camera', 'exposure'),
+        )
+        return pd.DataFrame.from_records(
+            arr.reshape(-1, 6),
+            index=mi,
+            columns=self.fit_param_names,
+        )
 
     def calibrated_move_matrix(self):
         raise NotImplementedError
