@@ -54,6 +54,7 @@ class TweezerThresholder:
             weights: Sequence[NDArray | float] | float = 1,
             background_subtract: bool = False,
             processed_results_fname: Optional[Path] = None,
+            shot_index: int = 0, # Which image to compute thresholds based on. Used for rearrangement-based thresholding.
     ):
         self.rois = list(rois)
         self.thresholds = None
@@ -77,7 +78,7 @@ class TweezerThresholder:
             tweezer_statistician = TweezerStatistician(
                 preproc_h5_path=processed_results_fname,
             )
-            roi_counts = tweezer_statistician.camera_counts[:, 0, :] # the 1st images
+            roi_counts = tweezer_statistician.camera_counts[:, shot_index, :] # the 1st images
         self.df = pd.DataFrame(roi_counts).melt(var_name=self.INDEX_NAME, value_name=self.COUNTS_NAME)
 
     @property
@@ -136,12 +137,12 @@ class TweezerThresholder:
         # we could load the atom_roi to be copied in the same way that the threshold is copied below.
 
         roi_config_path = ROI_CONFIG_PATH
-        output_path = TweezerPreprocessor.dump_to_yaml(
-            self.rois,
-            atom_roi,
-            new_global_threshold,
-            new_site_thresholds,
-            roi_config_path,
+        output_path = TweezerPreprocessor.update_yaml(
+            site_rois = self.rois,
+            atom_roi = atom_roi,
+            global_threshold = new_global_threshold,
+            site_thresholds = new_site_thresholds,
+            yaml_path = roi_config_path,
         )
         print(f'Site thresholds dumped to {output_path}')
 

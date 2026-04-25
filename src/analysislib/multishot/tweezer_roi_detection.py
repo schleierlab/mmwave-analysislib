@@ -10,7 +10,7 @@ from typing import cast
 #     You can avoid it by setting the environment variable OMP_NUM_THREADS=1.
 # must be imported before numpy
 # os.environ['OMP_NUM_THREADS'] = '1'  # doesn't work since this is run from Lyse rather than from a standalone process
-
+import h5py  # type: ignore
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
@@ -86,12 +86,31 @@ def detect_rois(
     else:
         weights = 1
 
+    # Slightly hacky, assumes all shots in the multishot analysis have the same values for `do_rearrangement` and `target_sites`.
+    preproc: TweezerPreprocessor = next(iter(multishot_analyzer.preprocessors.values()))
+    rearrangement = False
+    target_sites = None
+    with h5py.File(preproc.h5_path, 'r') as f:
+        rearrangement = f['do_rearrangement']
+        if rearrangement:
+            target_sites = f['target_sites']
+
     thresholder = TweezerThresholder(
         multishot_analyzer.images(),
         new_site_rois,
         background_subtract=background_subtract,
         weights=weights,
     )
+
+    # NOTE for tomorrow, do the casing in the Thresholder instead, give it all the images instead of one row
+    thresholder_rearranged = (TweezerThresholder(
+        multishot_analyzer.images(1), 
+        new_site_rois,
+        background_subtract=background_subtract,
+        weights=weights,
+    ) 
+    if rearrangement else None)
+
 
     # ignore KMeans memory leak warnings while fitting Gaussian mixture models
     with warnings.catch_warnings():
@@ -115,7 +134,8 @@ def detect_rois(
     padding = 50
     if thresholder.thresholds is None:
         raise ValueError  # this should not happen since we have already found the thresholds first
-    TweezerPreprocessor.dump_to_yaml(
+
+    TweezerPreprocessor.update_yaml(
         new_site_rois,
         atom_roi=ROI(
             ymin=ymin,
@@ -125,8 +145,9 @@ def detect_rois(
         ),
         global_threshold=np.mean(thresholder.thresholds),
         site_thresholds=thresholder.thresholds,
-        output_path=ROI_CONFIG_PATH,
+        out_path=ROI_CONFIG_PATH,
     )
+
 
     multishot_analyzer.analyze()
 

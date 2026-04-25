@@ -173,6 +173,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         output_path: StrPath,
     ) -> str:
         """
+        DEPRECATED in favor of `update_yaml`.
         Dump site ROIs to a YAML file in the same format as roi_config.yml.
 
         Want this to be static so that it can be used by TweezerFinder.
@@ -238,6 +239,82 @@ class TweezerPreprocessor(ImagePreprocessor):
             stream.write('\n')  # trailing newline!
 
         return str(output_file)
+    
+
+    @staticmethod
+    def update_yaml(
+        site_rois: Optional[Sequence[ROI]] = None,
+        atom_roi: Optional[ROI] = None,
+        global_threshold: Optional[float] = None,
+        site_thresholds: Optional[list[float]] = None,
+        rearranged_thresholds: dict[list[int], list[float]] = {},
+        yaml_path: StrPath = ROI_CONFIG_PATH,
+        out_path: Optional[StrPath] = None,
+    ) -> str:
+        """
+        Update the same format as roi_config.yml.
+
+        Want this to be static so that it can be used by TweezerFinder.
+
+        Parameters (all are optional, if not supplied will default to keeping the current values in `roi_config.yml`)
+        ----------
+        site_rois : Optional[Sequence[ROI]], default=None
+            List of ROI objects for each site
+        atom_roi : Optional[ROI], default=None
+            ROI object for the atom region.
+        global_threshold : Optional[float], default=None
+            Global threshold value for atom detection.
+        site_thresholds : Optional[list[float]], default=None
+            List of site-specific threshold values for atom detection.
+        rearranged_thresholds: Optional[dict[list[int], list[float]]], default=None
+            Dict of thresholds for rearrangement patterns. 
+        yaml_path : str, optional
+            Path to the YAML file to update. Defaults to `ROI_CONFIG_PATH`.
+        out_path : str, optional
+            Path to the file to output to, if different from `yaml_path`. If None, will overwrite the file in `yaml_path`.
+
+        Returns
+        -------
+        str
+            Path to the written YAML file
+        """
+
+        yaml_file = Path(yaml_path)
+        yaml_dict = {}
+        with yaml_file.open('rt') as stream:
+            yaml_dict = yaml.safe_load(stream)
+
+
+        # Populate dictionary with all supplied fields
+        if site_rois is not None :
+            # Convert ROI objects to the format used in the YAML file
+            site_rois_formatted = []
+            for roi in site_rois:
+                # Each site ROI is represented as [[xmin, xmax], [ymin, ymax]]
+                site_rois_formatted.append([[roi.xmin, roi.xmax], [roi.ymin, roi.ymax]])
+            yaml_dict['site_rois'] = site_rois_formatted
+
+        if global_threshold is not None :
+            yaml_dict['threshold'] = float(global_threshold)
+
+        if atom_roi is not None :
+            # Get atom_roi_xlims and atom_roi_ylims from the atom_roi object
+            atom_roi_xlims = [int(atom_roi.xmin), int(atom_roi.xmax)]
+            atom_roi_ylims = [int(atom_roi.ymin), int(atom_roi.ymax)]
+            yaml_dict['atom_roi_xlims'] = atom_roi_xlims
+            yaml_dict['atom_roi_ylims'] = atom_roi_ylims
+
+        for pattern, thresholds in rearranged_thresholds :
+            yaml_dict['rearranged_thresholds'][pattern] = thresholds
+
+        out_file = yaml_file
+        if out_path is not None :
+            out_file = Path(out_path)
+        with out_file.open('w') as stream:
+            yaml_out = yaml.dump(yaml_dict)
+            stream.write(yaml_out)
+
+        return str(out_file)
 
     def process_shot(self, use_global_threshold: bool = False):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
