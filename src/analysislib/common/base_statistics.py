@@ -181,6 +181,10 @@ class BaseStatistician(ABC):
     def gaussian(t, amplitude, t2star, offset):
         return amplitude * np.exp(- (t / t2star) ** 2) + offset
 
+    @staticmethod
+    def gaussian_peak(x, x0, sigma, amplitude, offset):
+        return amplitude * np.exp(-0.5 * ((x - x0) / sigma) ** 2) + offset
+
     def fit_quadratic(self, x_data, y_data, sigma=None, peak_direction=+1):
         '''
         peak direction: {-1, +1}
@@ -330,6 +334,42 @@ class BaseStatistician(ABC):
         offset_guess = np.min(y_data)
         p0 = [x0_guess, width_guess, a_guess, offset_guess]
         return optimize.curve_fit(self.lorentzian, x_data, y_data, p0=p0, sigma=sigma)
+
+    def fit_gaussian(self, x_data, y_data, sigma=None, peak_direction=+1):
+        """
+        Fits a Gaussian peak to provided data.
+
+        Parameters
+        ----------
+        x_data, y_data
+            Independent and dependent variables
+        sigma : optional
+            Uncertainties on y_data values
+        peak_direction : {-1, +1}
+            +1 for a peak (maximum), -1 for a dip (minimum)
+
+        Returns
+        -------
+        popt, pcov
+            Optimal parameters and covariance matrix.
+            Parameters are ordered as: [x0, sigma, amplitude, offset]
+        """
+        if len(x_data) < 3:
+            raise ValueError
+
+        if peak_direction > 0:
+            x0_guess = x_data[np.argmax(y_data)]
+            amplitude_guess = np.max(y_data) - np.min(y_data)
+            offset_guess = np.min(y_data)
+        else:
+            x0_guess = x_data[np.argmin(y_data)]
+            amplitude_guess = np.min(y_data) - np.max(y_data)
+            offset_guess = np.max(y_data)
+
+        x_range = np.max(x_data) - np.min(x_data)
+        sigma_guess = x_range / 4
+        p0 = [x0_guess, sigma_guess, amplitude_guess, offset_guess]
+        return optimize.curve_fit(self.gaussian_peak, x_data, y_data, p0=p0, sigma=sigma)
 
     def fit_rabispec(self, freqs, populations, sigma=None, peak_direction=-1):
         if len(freqs) < 3:

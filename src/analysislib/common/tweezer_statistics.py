@@ -946,6 +946,19 @@ class TweezerStatistician(BaseStatistician):
                     f'contrast ${upopt[3]:SL}$, offset ${upopt[4]:SL}$',
                 ])
                 ax.plot(x_plot_scaled, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
+            elif fit_type == 'gaussian':
+                popt, pcov = self.fit_gaussian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax.plot(
+                    x_plot_scaled,
+                    self.gaussian_peak(x_plot, *popt),
+                    color='r',
+                    label='\n'.join([
+                        f'Center: ${upopt[0]:SL}$ {self.params[0].unit}',
+                        f'Width ($\\sigma$): ${upopt[1]:SL}$ {self.params[0].unit}',
+                        f'Amplitude: ${upopt[2]:SL}$, offset: ${upopt[3]:SL}$',
+                    ]),
+                )
             else:
                 raise ValueError
             
