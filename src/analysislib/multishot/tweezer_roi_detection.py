@@ -30,6 +30,7 @@ from analysislib.multishot.util import select_data_directory
 background_subtract = True
 USE_AVERAGED_BACKGROUND = True
 weighted_counts = True
+rearrangement_threshold_min_shots = 50
 
 
 def detect_rois(
@@ -86,14 +87,16 @@ def detect_rois(
     else:
         weights = 1
 
-    # Slightly hacky, assumes all shots in the multishot analysis have the same values for `do_rearrangement` and `target_sites`.
     preproc: TweezerPreprocessor = next(iter(multishot_analyzer.preprocessors.values()))
-    rearrangement = False
+    rearrangement_calibration = False
     target_sites = None
-    with h5py.File(preproc.h5_path, 'r') as f:
-        rearrangement = f['do_rearrangement']
-        if rearrangement:
-            target_sites = f['target_sites']
+    if preproc.parameters['do_rearrangement'] :
+        if  multishot_analyzer.n_shots >= rearrangement_threshold_min_shots :
+            rearrangement_calibration = True
+        else :
+            print("Recalibrating rearrangement-based thresholding requires at least {rearrangement_threshold_min_shots} shots.")
+    if rearrangement_calibration:
+        target_sites = preproc.parameters['TW_target_array']
 
     thresholder = TweezerThresholder(
         multishot_analyzer.images(),
@@ -102,14 +105,17 @@ def detect_rois(
         weights=weights,
     )
 
-    # NOTE for tomorrow, do the casing in the Thresholder instead, give it all the images instead of one row
+
+    # Rearrangement based adaptive thresholding. For each rearrangement pattern, run a calibrate_rearrangement sequence.
+    # Sequence drops some tweezers
     thresholder_rearranged = (TweezerThresholder(
         multishot_analyzer.images(1), 
         new_site_rois,
         background_subtract=background_subtract,
         weights=weights,
+        rearrangement_targets=target_sites
     ) 
-    if rearrangement else None)
+    if rearrangement_calibration else None)
 
 
     # ignore KMeans memory leak warnings while fitting Gaussian mixture models
@@ -117,6 +123,9 @@ def detect_rois(
         warnings.simplefilter('ignore', category=UserWarning)
         print('Fitting histograms...')
         thresholder.fit_gmms()
+        thresholder.fit_aggregate_gmm()
+        if thresholder_rearranged is not None:
+            thresholder_rearranged.fit_aggregate_gmm()
 
     # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
     # TODO: Include survival rate if taking two shots
@@ -143,11 +152,12 @@ def detect_rois(
             xmin=min(roi.xmin for roi in new_site_rois) - padding,
             xmax=max(roi.xmax for roi in new_site_rois) + padding,
         ),
-        global_threshold=np.mean(thresholder.thresholds),
+        global_threshold=thresholder.agg_threshold,
         site_thresholds=thresholder.thresholds,
+        rearranged_thresholds={(tuple([int(i) for i in target_sites])) : float(thresholder_rearranged.agg_threshold),},
         out_path=ROI_CONFIG_PATH,
     )
-
+    ### TODO 5/1:  Switch site occupancy calculation to using rearrangement threshold if available.
 
     multishot_analyzer.analyze()
 

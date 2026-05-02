@@ -19,6 +19,15 @@ from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
 
 
+class _ConfigLoader(yaml.SafeLoader):
+    pass
+
+_ConfigLoader.add_constructor(
+    'tag:yaml.org,2002:python/tuple',
+    lambda loader, node: tuple(loader.construct_sequence(node))
+)
+
+
 class TweezerPreprocessor(ImagePreprocessor):
     """Analysis class for tweezer imaging data.
 
@@ -131,7 +140,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             List of ROI objects for each site.
         """
         with roi_config_path.open('rt') as stream:
-            loaded_yaml = yaml.safe_load(stream)
+            loaded_yaml = yaml.load(stream, Loader=_ConfigLoader)
 
         site_roi_arr = loaded_yaml['site_rois']
         atom_roi_xlims = loaded_yaml['atom_roi_xlims']
@@ -158,9 +167,9 @@ class TweezerPreprocessor(ImagePreprocessor):
             Threshold value for atom detection.
         """
         with roi_config_path.open('rt') as stream:
-            global_threshold = yaml.safe_load(stream)['threshold']
+            global_threshold = yaml.load(stream, Loader=_ConfigLoader)['threshold']
         with roi_config_path.open('rt') as stream:
-            site_thresholds = yaml.safe_load(stream)['site_thresholds']
+            site_thresholds = yaml.load(stream, Loader=_ConfigLoader)['site_thresholds']
 
         return global_threshold, site_thresholds
 
@@ -247,7 +256,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         atom_roi: Optional[ROI] = None,
         global_threshold: Optional[float] = None,
         site_thresholds: Optional[list[float]] = None,
-        rearranged_thresholds: dict[list[int], list[float]] = {},
+        rearranged_thresholds: dict[list[int], float] = {},
         yaml_path: StrPath = ROI_CONFIG_PATH,
         out_path: Optional[StrPath] = None,
     ) -> str:
@@ -266,7 +275,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             Global threshold value for atom detection.
         site_thresholds : Optional[list[float]], default=None
             List of site-specific threshold values for atom detection.
-        rearranged_thresholds: Optional[dict[list[int], list[float]]], default=None
+        rearranged_thresholds: Optional[dict[list[int], float]], default=None
             Dict of thresholds for rearrangement patterns. 
         yaml_path : str, optional
             Path to the YAML file to update. Defaults to `ROI_CONFIG_PATH`.
@@ -282,7 +291,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         yaml_file = Path(yaml_path)
         yaml_dict = {}
         with yaml_file.open('rt') as stream:
-            yaml_dict = yaml.safe_load(stream)
+            yaml_dict = yaml.load(stream, Loader=_ConfigLoader)
 
 
         # Populate dictionary with all supplied fields
@@ -304,8 +313,13 @@ class TweezerPreprocessor(ImagePreprocessor):
             yaml_dict['atom_roi_xlims'] = atom_roi_xlims
             yaml_dict['atom_roi_ylims'] = atom_roi_ylims
 
-        for pattern, thresholds in rearranged_thresholds :
-            yaml_dict['rearranged_thresholds'][pattern] = thresholds
+        if site_thresholds is not None :
+            yaml_dict['site_thresholds'] = [float(t) for t in site_thresholds]
+
+        if 'rearranged_thresholds' not in yaml_dict:
+            yaml_dict['rearranged_thresholds'] = {}
+        for pattern, threshold in rearranged_thresholds.items() :
+            yaml_dict['rearranged_thresholds'][pattern] = threshold
 
         out_file = yaml_file
         if out_path is not None :

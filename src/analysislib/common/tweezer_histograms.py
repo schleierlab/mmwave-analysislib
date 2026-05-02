@@ -54,9 +54,9 @@ class TweezerThresholder:
             weights: Sequence[NDArray | float] | float = 1,
             background_subtract: bool = False,
             processed_results_fname: Optional[Path] = None,
-            shot_index: int = 0, # Which image to compute thresholds based on. Used for rearrangement-based thresholding.
+            rearrangement_targets: Optional[list[int]] = None, # Which sites are populated by rearrangement, used for rearrangement-based thresholding only.
     ):
-        self.rois = list(rois)
+        self.rois = ([rois[i] for i in rearrangement_targets] if rearrangement_targets is not None else list(rois))
         self.thresholds = None
 
         weight_fns = weights
@@ -70,7 +70,7 @@ class TweezerThresholder:
                         (image if background_subtract else image.raw_image()).roi_view(roi)
                         * weight_fn
                     )
-                    for roi, weight_fn in zip(rois, weight_fns)
+                    for roi, weight_fn in zip(rois, (np.array([weight_fns[i] for i in rearrangement_targets]) if rearrangement_targets is not None else weight_fns))
                 ]
                 for image in images
             ]
@@ -78,7 +78,7 @@ class TweezerThresholder:
             tweezer_statistician = TweezerStatistician(
                 preproc_h5_path=processed_results_fname,
             )
-            roi_counts = tweezer_statistician.camera_counts[:, shot_index, :] # the 1st images
+            roi_counts = tweezer_statistician.camera_counts[:, 0, :] # the 0th images
         self.df = pd.DataFrame(roi_counts).melt(var_name=self.INDEX_NAME, value_name=self.COUNTS_NAME)
 
     @property
@@ -94,6 +94,21 @@ class TweezerThresholder:
             linewidth=0.3,
             ax=ax,
         )
+
+    def fit_aggregate_gmm(self):
+        '''
+        Fit Gaussian mixture models to tweezer fluorescence histogram aggregated across all sites.
+        '''
+        agmm = TweezerCountGMM([count for site_counts in [self.df[self.df['Tweezer index'] == i]['Counts']
+                             for i in range(self.n_sites)
+                        ] for count in site_counts])
+                    
+            
+        self.agg_means = agmm.means
+        self.agg_stds = agmm.stds
+        self.agg_threshold = agmm.balanced_threshold()
+        self.agg_loading_rate = agmm.weights[1]
+        self.agg_infidelity = agmm.infidelity_at_threshold()
 
     def fit_gmms(self):
         '''
