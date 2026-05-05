@@ -109,7 +109,7 @@ class TweezerPreprocessor(ImagePreprocessor):
 
     def load_rois_threshs(self):
         self.atom_roi, self.site_rois = TweezerPreprocessor._load_rois_from_yaml(ROI_CONFIG_PATH, self._load_ylims_from_globals())
-        self.threshold, self.site_thresholds = self._load_threshold_from_yaml(ROI_CONFIG_PATH)
+        self.threshold, self.site_thresholds, self.rearranged_thresholds = self._load_threshold_from_yaml(ROI_CONFIG_PATH)
 
     @property
     def n_sites(self):
@@ -167,11 +167,12 @@ class TweezerPreprocessor(ImagePreprocessor):
             Threshold value for atom detection.
         """
         with roi_config_path.open('rt') as stream:
-            global_threshold = yaml.load(stream, Loader=_ConfigLoader)['threshold']
-        with roi_config_path.open('rt') as stream:
-            site_thresholds = yaml.load(stream, Loader=_ConfigLoader)['site_thresholds']
+            yaml_dict = yaml.load(stream, Loader=_ConfigLoader)
+            global_threshold = yaml_dict['threshold']
+            site_thresholds = yaml_dict['site_thresholds']
+            rearranged_thresholds = yaml_dict['rearranged_thresholds']
 
-        return global_threshold, site_thresholds
+        return global_threshold, site_thresholds, rearranged_thresholds
 
     @staticmethod
     def dump_to_yaml(
@@ -334,7 +335,11 @@ class TweezerPreprocessor(ImagePreprocessor):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
 
         # Implement the thresholding to determine site occupancy
-        if use_global_threshold: # means we use the same threshold for all sites
+        if self.parameters['do_rearrangement'] and tuple(self.parameters['TW_target_array']) in self.rearranged_thresholds :
+            # Use only if rearrangement_based thresholds have been computed, otherwise fall back to global threshold.
+            self.site_occupancies = camera_counts > self.rearranged_thresholds[tuple(self.parameters['TW_target_array'])]
+            self.site_occupancies[0] = camera_counts[0] > self.threshold
+        elif use_global_threshold: # means we use the same threshold for all sites
             self.site_occupancies = camera_counts > self.threshold
         else:
             self.site_occupancies = camera_counts > self.site_thresholds

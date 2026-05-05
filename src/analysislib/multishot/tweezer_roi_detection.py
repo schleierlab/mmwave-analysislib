@@ -124,7 +124,7 @@ def detect_rois(
         print('Fitting histograms...')
         thresholder.fit_gmms()
         thresholder.fit_aggregate_gmm()
-        if thresholder_rearranged is not None:
+        if rearrangement_calibration:
             thresholder_rearranged.fit_aggregate_gmm()
 
     # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
@@ -154,7 +154,10 @@ def detect_rois(
         ),
         global_threshold=thresholder.agg_threshold,
         site_thresholds=thresholder.thresholds,
-        rearranged_thresholds={(tuple([int(i) for i in target_sites])) : float(thresholder_rearranged.agg_threshold),},
+        rearranged_thresholds=
+            ({(tuple([int(i) for i in target_sites])) : float(thresholder_rearranged.agg_threshold),} 
+                if rearrangement_calibration else {}
+            ),
         out_path=ROI_CONFIG_PATH,
     )
     ### TODO 5/1:  Switch site occupancy calculation to using rearrangement threshold if available.
