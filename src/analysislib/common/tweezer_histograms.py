@@ -184,7 +184,7 @@ class TweezerThresholder:
             self.thresholds,
             color='red',
             linestyle='dashed',
-            label=f'mean: {np.mean(self.thresholds)}',
+            label=f'mean: {np.mean(self.thresholds):.2f}',
         )
         for i in range(2):
             mean_i = self.means[:, i]

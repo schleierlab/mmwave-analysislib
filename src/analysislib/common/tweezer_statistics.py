@@ -1388,7 +1388,7 @@ class TweezerStatistician(BaseStatistician):
             mean_survival_rate = np.sum(surviving_atoms)/np.sum(initial_atoms)
             ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
 
-        ax.set_xlabel('Site number', fontsize=self.plot_config.label_font_size)
+        # ax.set_xlabel('Site number', fontsize=self.plot_config.label_font_size)
         ax.set_ylabel(('Loading rate' if initial_image is None else 'Survival rate'), fontsize=self.plot_config.label_font_size)
         ax.tick_params(
             axis='both',
