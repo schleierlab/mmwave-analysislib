@@ -1313,46 +1313,90 @@ class TweezerStatistician(BaseStatistician):
     # LEGACY CODE
 
     # TODO: this method needs updates that have already been applied to plot_survival_rate
+    # TODO 5/5/26: This method is still being used for analysis of roi_detection and multishot tweezer analysis.
     # Can redundant code here be consolidated with plot_survival_rate?
-    def plot_survival_rate_by_site(self, ax: Optional[Axes] = None):
+    def plot_survival_rate_by_site(self, 
+                                   ax: Optional[Axes] = None, 
+                                   initial_image : Optional[int] = 0, 
+                                   final_image : Optional[int] = None, 
+                                   target_sites : Optional[list[int]] = None,
+                                   include_non_target : bool = False
+                                ):
         """
-        Plots the survival rate of atoms in the tweezers, site by site.
+        Plots the survival or loading rate of atoms in the tweezers, site by site.
 
         Parameters
         ----------
-        fig : Optional[Figure]
-            The figure to plot on. If None, a new figure is created.
+        ax : Optional[Axes]
+            The axes to plot on. If None, a new figure is created.
+        initial_image : Optional[int]
+            The initial image index to base survival on. Defaults to 0. If set to None, computes absolute loading rate of `final_image` instead.
+        final_image : Optional[int]
+            The final image index to base survival on. If None, defaults to the final image of the shot.
+        target_sites : Optional[list[int]]
+            Target site indices for rearrangement. If specified, survival/loading is computed separately for target vs non-target sites.
+        include_non_target : bool
+            Flag for whether to plot non-rearrangement sites. Only used if `target_sites` is specified.
         """
         if ax is None:
-            fig, ax = plt.subplots(
+            _, ax = plt.subplots(
                 figsize=self.plot_config.figure_size,
                 constrained_layout=self.plot_config.constrained_layout,
             )
         else:
             ax = ax
 
-        initial_atoms = self.site_occupancies[:, 0, :].sum(axis=0) # sum over all shots for the first image
+        if initial_image is not None :
+            initial_atoms = self.site_occupancies[:, initial_image, :].sum(axis=0) # sum over all shots for the first image
         # site_occupancies is of shape (num_shots, num_images, num_atoms)
         # axis=1 corresponds to the before/after tweezer images
         # multiplying along this axis gives 1 for (1, 1) (= survived atoms) and 0 otherwise
-        surviving_atoms = np.prod(self.site_occupancies[:, :2, :], axis=1).sum(axis=0)
+            surviving_atoms = np.prod((
+                                    self.site_occupancies[:, initial_image:, :]
+                                if final_image is None else
+                                    self.site_occupancies[:, initial_image:final_image+1, :]), axis=1).sum(axis=0)
 
-        survival_rates = surviving_atoms / initial_atoms
-        ax.plot(
-            np.arange(len(initial_atoms)),
-            survival_rates,
-            marker='.',
-        )
+            survival_rates = surviving_atoms / initial_atoms
+        else :
+            survival_rates = (self.site_occupancies[:, (-1 if final_image is None else final_image), :]).mean(axis=0)
+
+        if target_sites is not None :
+            site_indexes = np.arange(len(survival_rates))
+            non_target_sites = [i for i in site_indexes if i not in target_sites]
+            tgs = ax.plot(
+                site_indexes[target_sites],
+                survival_rates[target_sites],
+                marker='.',
+            )
+            mean_survival_rate_tgs = np.mean(survival_rates[target_sites])
+            ax.axhline(mean_survival_rate_tgs, color=tgs[0].get_color(), linestyle='dashed', label=f'targets = {mean_survival_rate_tgs*100:.1f}% ')
+            if include_non_target :
+                ntgs = ax.plot(
+                    site_indexes[non_target_sites],
+                    survival_rates[non_target_sites],
+                    marker='.',
+                )
+                mean_survival_rate_ntgs = np.mean(survival_rates[non_target_sites])
+                ax.axhline(mean_survival_rate_ntgs, color=ntgs[0].get_color(), linestyle='dashed', label=f'non-targets = {mean_survival_rate_ntgs*100:.1f}% ')
+
+        else :
+            ax.plot(
+                np.arange(len(initial_atoms)),
+                survival_rates,
+                marker='.',
+            )
+            mean_survival_rate = np.sum(surviving_atoms)/np.sum(initial_atoms)
+            ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
+
         ax.set_xlabel('Site number', fontsize=self.plot_config.label_font_size)
-        ax.set_ylabel('Survival rate', fontsize=self.plot_config.label_font_size)
+        ax.set_ylabel(('Loading rate' if initial_image is None else 'Survival rate'), fontsize=self.plot_config.label_font_size)
         ax.tick_params(
             axis='both',
             which='major',
             labelsize=self.plot_config.label_font_size,
         )
-        mean_survival_rate = np.sum(surviving_atoms)/np.sum(initial_atoms)
-        ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
         ax.legend()
+
 
     def loop_param_and_site_survival_rate_matrix(self, num_time_groups = 1):
         '''

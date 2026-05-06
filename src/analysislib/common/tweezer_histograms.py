@@ -56,7 +56,8 @@ class TweezerThresholder:
             processed_results_fname: Optional[Path] = None,
             rearrangement_targets: Optional[list[int]] = None, # Which sites are populated by rearrangement, used for rearrangement-based thresholding only.
     ):
-        self.rois = ([rois[i] for i in rearrangement_targets] if rearrangement_targets is not None else list(rois))
+        self.raw_rois = list(rois)
+        self.rois = ([self.raw_rois[i] for i in rearrangement_targets] if rearrangement_targets is not None else self.raw_rois)
         self.thresholds = None
 
         weight_fns = weights
@@ -64,7 +65,17 @@ class TweezerThresholder:
             weight_fns = (weights,) * len(self.n_sites)
 
         if images is not None:
-            roi_counts = [
+            self.raw_roi_counts = [
+                [
+                    np.sum(
+                        (image if background_subtract else image.raw_image()).roi_view(roi)
+                        * weight_fn
+                    )
+                    for roi, weight_fn in zip(rois, weight_fns)
+                ]
+                for image in images
+            ]
+            self.roi_counts = [
                 [
                     np.sum(
                         (image if background_subtract else image.raw_image()).roi_view(roi)
@@ -74,12 +85,14 @@ class TweezerThresholder:
                 ]
                 for image in images
             ]
+            self.roi_counts = [[im[i] for i in rearrangement_targets] for im in self.raw_roi_counts] if rearrangement_targets is not None else self.raw_roi_counts
         else:
             tweezer_statistician = TweezerStatistician(
                 preproc_h5_path=processed_results_fname,
             )
-            roi_counts = tweezer_statistician.camera_counts[:, 0, :] # the 0th images
-        self.df = pd.DataFrame(roi_counts).melt(var_name=self.INDEX_NAME, value_name=self.COUNTS_NAME)
+            self.roi_counts = tweezer_statistician.camera_counts[:, 0, :] # the 0th images
+        self.df = pd.DataFrame(self.roi_counts).melt(var_name=self.INDEX_NAME, value_name=self.COUNTS_NAME)
+        self.raw_df = self.df if rearrangement_targets is None else pd.DataFrame(self.raw_roi_counts).melt(var_name=self.INDEX_NAME, value_name=self.COUNTS_NAME)
 
     @property
     def n_sites(self):
@@ -87,7 +100,7 @@ class TweezerThresholder:
 
     def violinplot(self, ax: Optional[Axes] = None):
         sns.violinplot(
-            self.df,
+            self.raw_df,
             x='Tweezer index',
             y='Counts',
             inner='point',

@@ -124,7 +124,7 @@ def detect_rois(
         print('Fitting histograms...')
         thresholder.fit_gmms()
         thresholder.fit_aggregate_gmm()
-        if rearrangement_calibration:
+        if thresholder_rearranged is not None:
             thresholder_rearranged.fit_aggregate_gmm()
 
     # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
@@ -152,7 +152,7 @@ def detect_rois(
             xmin=min(roi.xmin for roi in new_site_rois) - padding,
             xmax=max(roi.xmax for roi in new_site_rois) + padding,
         ),
-        global_threshold=thresholder.agg_threshold,
+        global_threshold=np.mean(thresholder.thresholds),
         site_thresholds=thresholder.thresholds,
         rearranged_thresholds=
             ({(tuple([int(i) for i in target_sites])) : float(thresholder_rearranged.agg_threshold),} 
@@ -160,18 +160,33 @@ def detect_rois(
             ),
         out_path=ROI_CONFIG_PATH,
     )
-    ### TODO 5/1:  Switch site occupancy calculation to using rearrangement threshold if available.
 
     multishot_analyzer.analyze()
 
-    ax_violin = fig_violin.subplots()
-    thresholder.violinplot(ax_violin)
+    ax_violin = fig_violin.subplots(nrows = (2 if preproc.parameters['do_rearrangement'] else 1), ncols=1, sharex=True)
+    thresholder.violinplot(ax_violin[0])
+    ax_violin[0].axhline(np.mean(thresholder.thresholds), color='red', linestyle='dashed', label=f'threshold = {np.mean(thresholder.thresholds)}% ')
+    ax_violin[0].legend()
+    if preproc.parameters['do_rearrangement'] :
+        thresholder_rearranged.violinplot(ax_violin[1])
+        ax_violin[1].axhline(thresholder_rearranged.agg_threshold, color='red', linestyle='dashed', label=f'threshold = {thresholder_rearranged.agg_threshold}% ')
+        ax_violin[1].legend()
 
-    axs = fig_thresholding.subplots(nrows=4, ncols=1, sharex=True)
+
+    axs = fig_thresholding.subplots(nrows=(5 if preproc.parameters['do_rearrangement'] else 4), ncols=1, sharex=True)
     thresholder.plot_spreads(ax=axs[0])
     thresholder.plot_loading_rate(ax=axs[1])
     thresholder.plot_infidelity(ax=axs[2])
-    multishot_analyzer.tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
+
+    # TODO: Look into Gaussian fitting, do we normalize gaussians before finding intersection?
+
+    if preproc.parameters['do_rearrangement'] :
+        # Plot tweezer loading rates
+        multishot_analyzer.tweezer_statistician.plot_survival_rate_by_site(ax=axs[3], initial_image=None, final_image=1, target_sites = target_sites, include_non_target=True)
+        # Plot in-tweezer survival rates
+        multishot_analyzer.tweezer_statistician.plot_survival_rate_by_site(ax=axs[4], initial_image=1, target_sites = target_sites)
+    else :
+        multishot_analyzer.tweezer_statistician.plot_survival_rate_by_site(ax=axs[3])
 
     axs[0].set_ylabel('Counts')
     axs[1].set_ylabel('Loading rate')
