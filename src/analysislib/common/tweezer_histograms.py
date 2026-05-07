@@ -108,9 +108,14 @@ class TweezerThresholder:
             ax=ax,
         )
 
-    def fit_aggregate_gmm(self):
+    def fit_aggregate_gmm(self, normalize=False):
         '''
         Fit Gaussian mixture models to tweezer fluorescence histogram aggregated across all sites.
+
+        Parameters
+        ----------
+        normalize : bool
+            Whether to normalize the amplitudes of the individual Gaussians in the mixture when determining threshold.
         '''
         agmm = TweezerCountGMM([count for site_counts in [self.df[self.df['Tweezer index'] == i]['Counts']
                              for i in range(self.n_sites)
@@ -119,13 +124,18 @@ class TweezerThresholder:
             
         self.agg_means = agmm.means
         self.agg_stds = agmm.stds
-        self.agg_threshold = agmm.balanced_threshold()
+        self.agg_threshold = agmm.balanced_threshold(weighted= not normalize)
         self.agg_loading_rate = agmm.weights[1]
         self.agg_infidelity = agmm.infidelity_at_threshold()
 
-    def fit_gmms(self):
+    def fit_gmms(self, normalize=False):
         '''
         Fit Gaussian mixture models to the tweezer fluorescence histograms.
+        
+        Parameters
+        ----------
+        normalize : bool
+            Whether to normalize the amplitudes of the individual Gaussians in the mixture when determining thresholds.
         '''
         self.gmms = [
             TweezerCountGMM(self.df[self.df['Tweezer index'] == i]['Counts'])
@@ -133,7 +143,7 @@ class TweezerThresholder:
         ]
         self.means = np.array([gmm.means for gmm in self.gmms])
         self.stds = np.array([gmm.stds for gmm in self.gmms])
-        self.thresholds = np.array([gmm.balanced_threshold() for gmm in self.gmms])
+        self.thresholds = np.array([gmm.balanced_threshold(weighted= not normalize) for gmm in self.gmms])
         self.loading_rates = np.array([gmm.weights[1] for gmm in self.gmms])
         self.infidelities = np.array([gmm.infidelity_at_threshold() for gmm in self.gmms])
 
@@ -253,11 +263,16 @@ class TweezerCountGMM:
     def weights(self):
         return self.gmm.weights_.flatten()[self._order]
 
-    def balanced_threshold(self):
+    def balanced_threshold(self, weighted=True):
         '''
         Threshold for which the infidelity is minimized given the inferred filling fraction.
         Balances the probability of observing a false negative P(0_actual, 1_predicted)
         and the probability of observing a false positive P(1_actual, 0_predicted).
+
+        Parameters
+        -------
+        weighted: bool
+            Whether to weight the Gaussian PDFs by their relative sizes or normalize when computing the infidelity.
 
         Returns
         -------
@@ -268,9 +283,14 @@ class TweezerCountGMM:
         weight0, weight1 = self.weights
 
         def d_err_d_thresh(x):
+            if weighted :
+                return (
+                    weight1 * norm.pdf(x, loc=mean1, scale=std1)
+                    - weight0 * norm.pdf(x, loc=mean0, scale=std0)
+                )
             return (
-                weight1 * norm.pdf(x, loc=mean1, scale=std1)
-                - weight0 * norm.pdf(x, loc=mean0, scale=std0)
+                norm.pdf(x, loc=mean1, scale=std1)
+                - norm.pdf(x, loc=mean0, scale=std0)
             )
 
         return scipy.optimize.fsolve(d_err_d_thresh, x0=(mean0 + mean1)/2).item()

@@ -122,14 +122,13 @@ def detect_rois(
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=UserWarning)
         print('Fitting histograms...')
-        thresholder.fit_gmms()
-        thresholder.fit_aggregate_gmm()
+        thresholder.fit_gmms(normalize=True)
+        thresholder.fit_aggregate_gmm(normalize=True)
         if thresholder_rearranged is not None:
-            thresholder_rearranged.fit_aggregate_gmm()
+            thresholder_rearranged.fit_aggregate_gmm(normalize=True)
 
     # TODO: evaluate whether or not we actually should be subtracting the background for tweezers
-    # TODO: Include survival rate if taking two shots
-
+    
     # we use ImagePreprocessor because TweezerPreprocessor requires the existence of roi_config.yml already,
     # which would be circular (we're trying to generate that file here!)
     shots_h5s = folder.glob('20*.h5')
@@ -164,9 +163,10 @@ def detect_rois(
     multishot_analyzer.analyze()
 
     ax_violin = fig_violin.subplots(nrows = (2 if preproc.parameters['do_rearrangement'] else 1), ncols=1, sharex=True)
-    thresholder.violinplot(ax_violin[0])
-    ax_violin[0].axhline(np.mean(thresholder.thresholds), color='red', linestyle='dashed', label=f'threshold = {np.mean(thresholder.thresholds):.1f}')
-    ax_violin[0].legend()
+    ax_v0 = ax_violin[0] if preproc.parameters['do_rearrangement'] else ax_violin
+    thresholder.violinplot(ax_v0)
+    ax_v0.axhline(np.mean(thresholder.thresholds), color='red', linestyle='dashed', label=f'threshold = {np.mean(thresholder.thresholds):.1f}')
+    ax_v0.legend()
     if preproc.parameters['do_rearrangement'] :
         thresholder_rearranged.violinplot(ax_violin[1])
         ax_violin[1].axhline(thresholder_rearranged.agg_threshold, color='red', linestyle='dashed', label=f'threshold = {thresholder_rearranged.agg_threshold:.1f}')
@@ -177,9 +177,6 @@ def detect_rois(
     thresholder.plot_spreads(ax=axs[0])
     thresholder.plot_loading_rate(ax=axs[1])
     thresholder.plot_infidelity(ax=axs[2])
-
-    # TODO: Look into Gaussian fitting, do we normalize gaussians before finding intersection?
-    # TODO: Also check non-rearranged analysis didn't break
 
     if preproc.parameters['do_rearrangement'] :
         # Plot tweezer loading rates
