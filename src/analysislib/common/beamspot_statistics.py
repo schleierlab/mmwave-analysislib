@@ -45,12 +45,12 @@ class BeamspotStatistician(BaseStatistician):
                 raise ValueError
 
             self.params_list = f['params'][:]
+            self.params = ScanningParameters.from_h5_tuples(self.params_list)
+
             self.n_runs = cast(int, f.attrs['n_runs'])
 
             self.current_params = f['current_params'][:]
             # self.run_times_strs = np.char.decode(np.asarray(f['run_times'][:], dtype=bytes), encoding='utf-8')
-
-            self.params = ScanningParameters.from_h5_tuples(self.params_list)
 
     def dataframe_u(self):
         noms = self.gaussian_spot_params_nom.reshape(-1, 6)

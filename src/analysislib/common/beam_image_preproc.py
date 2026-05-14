@@ -16,6 +16,7 @@ from analysislib.common.analysis_config import (
     ImagingSystem,
     manta_la_coll_system,
     manta_la_focal_system,
+    manta_tweezer_system,
 )
 from analysislib.common.image import Image
 from analysislib.common.image_preprocessor import ImagePreprocessor
@@ -40,19 +41,33 @@ class BeamImagePreprocessor(ImagePreprocessor):
     
     # fmt: off
     calibration_matrices: ClassVar[dict[float, NDArray]] = {
-        5: np.array([
-            [15.65802422,  1.68282449, 16.50980262,  1.14479492],
-            [ 0.56843174,  7.2145768 , -0.04303005, 10.51652239],
-            [ 1.77589503,  0.13247189,  2.93465913,  0.13795331],
-            [-0.12240782,  0.38489431, -0.19054875,  1.22636743],
+        10: np.array([
+            [-5.45786373e+01, -5.80006349e+00, -3.02090656e+01, -3.14879954e+00],
+            [-7.20055001e-01, -1.61494764e+01,  1.64580944e+00, -2.58167949e+01],
+            [ 4.84636929e+00,  4.19192123e-01,  5.30617600e+00,  2.78971054e-02],
+            [-2.01117198e-01,  5.13286733e-01, -3.31150327e-01,  3.17914301e+00],
         ]),
         2: np.array([
-            [ 6.17492986e+00,  3.08326503e-01,  4.74149003e+00,  4.78027755e-01],
-            [ 8.23625520e-02,  1.85786561e+00,  5.40426312e-04,  3.75291389e+00],
-            [ 8.65453489e-01, -1.04856101e-01,  1.00405746e+00, -3.30885754e-01],
-            [-2.25465429e-01,  1.86361046e-01, -2.20564850e-01,  7.38594993e-01],
+            [-8.76489713e+00, -9.82237294e-01, -5.31897975e+00, -5.74300889e-01],
+            [ 4.17014015e-01, -2.74255103e+00,  3.51430352e-01, -3.95787614e+00],
+            [ 6.65295442e-01,  7.94262309e-03,  8.39548104e-01,  1.20939191e-02],
+            [ 2.15401425e-01,  1.90916659e-01,  1.25663462e-01,  5.37215736e-01],
         ])
     }
+    # calibration_matrices: ClassVar[dict[float, NDArray]] = {
+    #     5: np.array([
+    #         [15.65802422,  1.68282449, 16.50980262,  1.14479492],
+    #         [ 0.56843174,  7.2145768 , -0.04303005, 10.51652239],
+    #         [ 1.77589503,  0.13247189,  2.93465913,  0.13795331],
+    #         [-0.12240782,  0.38489431, -0.19054875,  1.22636743],
+    #     ]),
+    #     2: np.array([
+    #         [ 6.17492986e+00,  3.08326503e-01,  4.74149003e+00,  4.78027755e-01],
+    #         [ 8.23625520e-02,  1.85786561e+00,  5.40426312e-04,  3.75291389e+00],
+    #         [ 8.65453489e-01, -1.04856101e-01,  1.00405746e+00, -3.30885754e-01],
+    #         [-2.25465429e-01,  1.86361046e-01, -2.20564850e-01,  7.38594993e-01],
+    #     ])
+    # }
     """Calibration matrices; rows are the camera displacements
     [fo_dx, fo_dy, co_dx, co_dy] in px (image plane cam and collimated plane cam),
     while columns are [1h, 1v, 2h, 2v] in seconds.
@@ -140,6 +155,7 @@ class BeamImagePreprocessor(ImagePreprocessor):
         crop: Mapping[ImagingSystem, bool] = {
             manta_la_focal_system: True,
             manta_la_coll_system: True,
+            manta_tweezer_system: True,
         },
     ):
         axs = fig.subplots(
@@ -153,6 +169,7 @@ class BeamImagePreprocessor(ImagePreprocessor):
         min_halfsizes = {
             manta_la_focal_system: 50,
             manta_la_coll_system: 200,
+            manta_tweezer_system: 50,
         }
         markers = ['+', 'x']
         for col, (imaging_system, exposures) in enumerate(self.exposures_dict.items()):
