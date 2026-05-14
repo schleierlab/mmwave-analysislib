@@ -8,7 +8,7 @@ from matplotlib.figure import Figure
 from analysislib.common.analysis_config import (
     ImagingSystem,
     manta_la_coll_system,
-    manta_la_focal_system,
+    manta_tweezer_system,
 )
 from analysislib.common.beam_image_preproc import BeamImagePreprocessor
 from analysislib.common.beam_image_preproc import BeamDetectionConfig
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 la_align_detection_configs: dict[ImagingSystem, Union[BeamDetectionConfig, tuple[BeamDetectionConfig, ...]]] = {
-    manta_la_focal_system: BeamDetectionConfig(
+    manta_tweezer_system: BeamDetectionConfig(
         scaling_factor=16,
         roi_size=21,
         blur_block=3,

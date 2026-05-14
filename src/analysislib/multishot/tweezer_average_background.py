@@ -40,7 +40,16 @@ def compute_averaged_background(folder: Path, fig: Figure) -> None:
     fig.savefig(folder / 'tweezers_average_background.pdf')
 
     np.save(folder / 'avg_shot_bkg.npy', averaged_background)
-    np.save(USERLIB_PATH / 'analysislib/multishot/avg_shot_bkg.npy', averaged_background)
+    np.save(USERLIB_PATH  / 'mmwave-analysislib/src/analysislib/multishot/avg_shot_bkg.npy', averaged_background)
+    
+    # Save to remote location on mmwave-hypatia
+    remote_path = Path(r'\\mmwave-hypatia.stanford.edu\tweezer_rearrangement_files')
+    try:
+        remote_path.mkdir(parents=True, exist_ok=True)
+        np.save(remote_path / 'avg_shot_bkg.npy', averaged_background)
+        print(f'Successfully saved averaged_background to {remote_path / "avg_shot_bkg.npy"}')
+    except OSError as e:
+        print(f'Warning: Could not save to remote location {remote_path}: {e}')
 
 
 if __name__ == '__main__':

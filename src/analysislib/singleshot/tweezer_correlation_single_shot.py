@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import matplotlib.pyplot as plt
+import addcopyfighandler
 import winsound
 
 import numpy as np
@@ -11,13 +12,13 @@ from analysislib.common.tweezer_preproc import TweezerPreprocessor
 SHOW_ROIS = True
 SHOW_INDEX = True  # site index will not show up if show_rois is set to False
 USE_AVERAGED_BACKGROUND = True
-FIT_TYPE_1D = None #'fringe_gauss_decay' #None
+FIT_TYPE_1D = 'fringe_exp_decay' #'fringe_gauss_decay' #None
 # do a curve fit at the final shot, set to None when don't do curve fit
 # options: 'lorentzian', 'quadratic', 'fringe_exp_decay', 'fringe_gauss_decay', 'rabispec', None
 
 SHOW_IMG_ONLY = False
-PLOT_METRIC = 'bitstrings' # options: 'bitstrings', 'parity'
-PLOT_EVERY = 100
+PLOT_METRIC = 'parity' # options: 'bitstrings', 'parity'
+PLOT_EVERY = 200
 
 # 0, 1, or None
 PARITY_SELECTION = None
@@ -65,6 +66,7 @@ def data_plots(correlator: TweezerCorrelator):
     if correlator.is_final_shot:
         figname = folder_path / 'tweezer_single_shot.pdf'
         fig.savefig(figname)
+        addcopyfighandler.copyfig(fig)
 
         # play a sound after a long run
         if correlator.n_runs >= 50:

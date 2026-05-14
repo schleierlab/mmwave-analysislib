@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import uncertainties
 import uncertainties.unumpy as unp
+from scipy.odr import ODR, Model, RealData
 
 from analysislib.common.tweezer_finding import TweezerFinder
 from analysislib.common.image_preprocessor import ImagePreprocessor
@@ -36,7 +37,9 @@ fitted_upopts = np.array([
     for roi in site_rois
 ])
 
-fig, axs = plt.subplots(nrows=3, layout='constrained', sharex=True)
+fig, axs = plt.subplots(nrows=4, layout='constrained')
+for ax in axs[1:3]:
+    ax.sharex(axs[0])
 x_uopt, y_uopt, width_uopt, amp_uopt, offset_uopt = fitted_upopts.T
 # integrated_counts_u = 2 * pi * width_uopt**2 * amp_uopt
 
@@ -76,8 +79,30 @@ axs[2].axhline(
     label=f'Mean distance: {mean_distance_um_u:S} $\mu$m',
 )
 axs[2].set_ylabel(R'Atom plane neighbor distance $d$ ($\mu$m)')
+axs[2].set_xlabel('Tweezer site')
 
-axs[-1].set_xlabel('Tweezer site')
+x_nom = unp.nominal_values(x_uopt)
+y_nom = unp.nominal_values(y_uopt)
+x_err = unp.std_devs(x_uopt)
+y_err = unp.std_devs(y_uopt)
+
+odr_result = ODR(
+    RealData(x_nom, y_nom, sx=x_err, sy=y_err),
+    Model(lambda p, x: p[0] * x + p[1]),
+    beta0=[1.0, 0.0],
+).run()
+slope_u = uncertainties.ufloat(odr_result.beta[0], odr_result.sd_beta[0])
+offset_u = uncertainties.ufloat(odr_result.beta[1], odr_result.sd_beta[1])
+
+axs[3].errorbar(x_nom, y_nom, xerr=x_err, yerr=y_err, fmt='.')
+x_fit = np.linspace(x_nom.min(), x_nom.max(), 200)
+axs[3].plot(
+    x_fit, odr_result.beta[0] * x_fit + odr_result.beta[1],
+    label=f'Slope: {slope_u:S} px/px\nOffset: {offset_u:S} px',
+)
+axs[3].set_xlabel('x position (px)')
+axs[3].set_ylabel('y position (px)')
+
 for ax in axs[1:]:
     ax.legend()
 

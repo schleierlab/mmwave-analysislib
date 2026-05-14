@@ -324,66 +324,50 @@ class TweezerStatistician(BaseStatistician):
         return pd.Series(self.run_times_strs, dtype='datetime64[ns]')
 
     # this is intended to supersede the above dataframe() eventually, since it has shot number information
-    @functools.cache
+    # @functools.cache
+    # def series(self) -> pd.Series:
+    #     """
+    #     Pandas Series describing site occupancy across all shots and images in this run.
+
+    #     Example
+    #     -------
+    #     ```
+    #     shot  image  site
+    #     0     0      0        True
+    #                  1       False
+    #                  2        True
+    #                  3        True
+    #                  4        True
+    #                          ...
+    #     999   1      45       True
+    #                  46      False
+    #                  47      False
+    #                  48      False
+    #                  49      False
+    #     Name: occupancy, Length: 100000, dtype: bool
+    #     ```
+    #     """
+    #     # ignoring typechecker pending pandas-stubs#1285
+    #     mi = pd.MultiIndex.from_product(
+    #         [range(self.shots_processed), range(self.n_images), range(self.n_sites)],  # type: ignore
+    #         sortorder=0,
+    #         names=[self.KEY_SHOT, self.KEY_IMAGE, self.KEY_SITE],
+    #     )
+    #     return pd.Series(data=self.site_occupancies.flatten(), index=mi, name='occupancy', dtype=bool)
+    
     def series(self) -> pd.Series:
-        """
-        Pandas Series describing site occupancy across all shots and images in this run.
-
-        Example
-        -------
-        ```
-        shot  image  site
-        0     0      0        True
-                     1       False
-                     2        True
-                     3        True
-                     4        True
-                             ...
-        999   1      45       True
-                     46      False
-                     47      False
-                     48      False
-                     49      False
-        Name: occupancy, Length: 100000, dtype: bool
-        ```
-        """
-        # ignoring typechecker pending pandas-stubs#1285
-        mi = pd.MultiIndex.from_product(
-            [range(self.shots_processed), range(self.n_images), range(self.n_sites)],  # type: ignore
-            sortorder=0,
-            names=[self.KEY_SHOT, self.KEY_IMAGE, self.KEY_SITE],
-        )
-        return pd.Series(data=self.site_occupancies.flatten(), index=mi, name='occupancy', dtype=bool)
-
-    def scan_param_df(self) -> pd.DataFrame:
-        """
-        Pandas DataFrame containing experimental parameters corresponding to each shot,
-        indexed by shot number. Only varied parameters are provided.
-
-        Example
-        -------
-              ryd_456_duration
-        shot
-        0         0.000000e+00
-        1         1.428571e-07
-        2         2.857143e-07
-        3         4.285714e-07
-        4         5.714286e-07
-        ...                ...
-        995       6.428571e-06
-        996       6.571429e-06
-        997       6.714286e-06
-        998       6.857143e-06
-        999       7.000000e-06
-
-        [1000 rows x 1 columns]
-        """
-        index = pd.RangeIndex(self.shots_processed, name=self.KEY_SHOT)
-        return pd.DataFrame(
-            self.current_params,
-            index=index,
-            columns=[param.name for param in self.params],
-        )
+        if not hasattr(self, "_series_cache"):
+            mi = pd.MultiIndex.from_product(
+                [range(self.shots_processed), range(self.n_images), range(self.n_sites)],
+                names=[self.KEY_SHOT, self.KEY_IMAGE, self.KEY_SITE],
+            )
+            self._series_cache = pd.Series(
+                data=self.site_occupancies.flatten(),
+                index=mi,
+                name='occupancy',
+                dtype=bool,
+            )
+        return self._series_cache
 
     def dataframe_binomial_error(
             self,
@@ -919,7 +903,7 @@ class TweezerStatistician(BaseStatistician):
                     color='r',
                     label='\n'.join([
                         R'$A e^{-(t/T_2)} + c$',
-                        fR'$T_2 = {1e6*upopt[1]:SL} \mu s$'
+                        fR'$T_2 = {1e6*upopt[1]:SL} \mu s$, A = {upopt[0]:SL}, c = {upopt[2]:SL}'
                     ]),
                 )
             elif fit_type == 'gaussian_decay':
@@ -935,7 +919,7 @@ class TweezerStatistician(BaseStatistician):
                     ]),
                 )
             elif fit_type == 'rabispec':
-                popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
+                popt, pcov = self.fit_rabispec(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=1)
                 upopt = uncertainties.correlated_values(popt, pcov)
 
                 freq_unit = self.params[0].unit
@@ -947,7 +931,7 @@ class TweezerStatistician(BaseStatistician):
                 ])
                 ax.plot(x_plot_scaled, self.rabi_spectrum_model(x_plot, *popt), color='r', label=label)
             elif fit_type == 'gaussian':
-                popt, pcov = self.fit_gaussian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=-1)
+                popt, pcov = self.fit_gaussian(indep_var, survival_rates, sigma=survival_rate_errs, peak_direction=+1)
                 upopt = uncertainties.correlated_values(popt, pcov)
                 ax.plot(
                     x_plot_scaled,
