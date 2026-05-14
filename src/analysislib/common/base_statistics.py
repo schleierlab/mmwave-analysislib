@@ -386,9 +386,19 @@ class BaseStatistician(ABC):
 
         x_resolution = freqs[1] - freqs[0]
         rabi_freq_guess = 3 * x_resolution
-        p0 = [center_guess, rabi_freq_guess, 0.5 / rabi_freq_guess, amplitude_guess, offset_guess]
+        # p0 = [center_guess, rabi_freq_guess, 0.5 / rabi_freq_guess, amplitude_guess, offset_guess]
+        #  center, rabi_freq, pulse_time, amplitude, offset
+        # p0 = [7.509, 0.0123, 0.35/0.0123, 0.8, 0]
+        # print('p0 guess', p0)
+        # lower_limits = [7,0.006,0.1/0.0123,0,-0.1]
+        # upper_limits = [8,0.02,0.7/0.0123,0.85,0.5]
 
-        return optimize.curve_fit(self.rabi_spectrum_model, freqs, populations, p0=p0, sigma=sigma)
+        p0 = [590, 1.5, 0.45/2, 0.8, 1]
+        print('p0 guess', p0)
+        lower_limits = [585,1,0.1/2,0,0.5]
+        upper_limits = [595,3,0.7/2,1,1.1]
+
+        return optimize.curve_fit(self.rabi_spectrum_model, freqs, populations, p0=p0, sigma=sigma, bounds = (lower_limits, upper_limits))
 
     @staticmethod
     def gaussian_2d(coords, A, x0, y0, sigma_x, sigma_y, theta, offset):
