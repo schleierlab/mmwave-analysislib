@@ -335,9 +335,14 @@ class TweezerPreprocessor(ImagePreprocessor):
         camera_counts = np.array([image.roi_sums(self.site_rois) for image in self.images])
 
         # Implement the thresholding to determine site occupancy
-        if self.parameters['do_rearrangement'] and tuple(self.parameters['TW_target_array']) in self.rearranged_thresholds :
-            # Use only if rearrangement_based thresholds have been computed, otherwise fall back to global threshold.
-            self.site_occupancies = camera_counts > self.rearranged_thresholds[tuple(self.parameters['TW_target_array'])]
+        if self.parameters['do_rearrangement'] :
+            if tuple(self.parameters['TW_target_array']) in self.rearranged_thresholds :
+                # Use only if rearrangement_based thresholds have been computed, otherwise fall back to global threshold.
+                self.site_occupancies = camera_counts > self.rearranged_thresholds[tuple(self.parameters['TW_target_array'])]
+            elif self.rearranged_thresholds :
+                self.site_occupancies = camera_counts > np.mean(list(self.rearranged_thresholds.values()))
+            else :
+                self.site_occupancies = camera_counts > self.threshold
             self.site_occupancies[0] = camera_counts[0] > self.threshold
         elif use_global_threshold: # means we use the same threshold for all sites
             self.site_occupancies = camera_counts > self.threshold
