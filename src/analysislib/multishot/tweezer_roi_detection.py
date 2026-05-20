@@ -95,8 +95,7 @@ def detect_rois(
             rearrangement_calibration = True
         else :
             print("Recalibrating rearrangement-based thresholding requires at least {rearrangement_threshold_min_shots} shots.")
-    if rearrangement_calibration:
-        target_sites = preproc.parameters['TW_target_array']
+        target_sites = list(TweezerPreprocessor.flatten_to_tuple(preproc.parameters['TW_target_array']))
 
     thresholder = TweezerThresholder(
         multishot_analyzer.images(),
@@ -154,7 +153,7 @@ def detect_rois(
         global_threshold=np.mean(thresholder.thresholds),
         site_thresholds=thresholder.thresholds,
         rearranged_thresholds=
-            ({(tuple([int(i) for i in target_sites])) : float(thresholder_rearranged.agg_threshold),} 
+            ({tuple(target_sites) : float(thresholder_rearranged.agg_threshold),} 
                 if rearrangement_calibration else {}
             ),
         out_path=ROI_CONFIG_PATH,
@@ -162,12 +161,12 @@ def detect_rois(
 
     multishot_analyzer.analyze()
 
-    ax_violin = fig_violin.subplots(nrows = (2 if preproc.parameters['do_rearrangement'] else 1), ncols=1, sharex=True)
-    ax_v0 = ax_violin[0] if preproc.parameters['do_rearrangement'] else ax_violin
+    ax_violin = fig_violin.subplots(nrows = (2 if rearrangement_calibration else 1), ncols=1, sharex=True)
+    ax_v0 = ax_violin[0] if rearrangement_calibration else ax_violin
     thresholder.violinplot(ax_v0)
     ax_v0.axhline(np.mean(thresholder.thresholds), color='red', linestyle='dashed', label=f'threshold = {np.mean(thresholder.thresholds):.1f}')
     ax_v0.legend()
-    if preproc.parameters['do_rearrangement'] :
+    if rearrangement_calibration :
         thresholder_rearranged.violinplot(ax_violin[1])
         ax_violin[1].axhline(thresholder_rearranged.agg_threshold, color='red', linestyle='dashed', label=f'threshold = {thresholder_rearranged.agg_threshold:.1f}')
         ax_violin[1].legend()

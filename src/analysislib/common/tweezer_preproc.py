@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Sequence, Iterable
 from pathlib import Path
 from typing import ClassVar, Literal, Optional, cast
 
@@ -18,6 +18,7 @@ from analysislib.common.lab_constants import ROI_CONFIG_PATH, USERLIB_PATH
 from analysislib.common.plot_config import PlotConfig
 from analysislib.common.typing import StrPath
 
+from itertools import chain
 
 class _ConfigLoader(yaml.SafeLoader):
     pass
@@ -85,6 +86,11 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         if initialize:
             self.initialize(load_rois_threshs, use_averaged_background)
+
+    def flatten_to_tuple(coll) :
+        if isinstance(coll, Iterable) :
+            return tuple(chain.from_iterable([TweezerPreprocessor.flatten_to_tuple(i) for i in coll]))
+        return (int(coll),)
 
     def initialize(self, load_rois_threshs: bool, use_averaged_background: bool):
         self.background_subtraction(use_averaged_background)
@@ -320,7 +326,7 @@ class TweezerPreprocessor(ImagePreprocessor):
         if 'rearranged_thresholds' not in yaml_dict:
             yaml_dict['rearranged_thresholds'] = {}
         for pattern, threshold in rearranged_thresholds.items() :
-            yaml_dict['rearranged_thresholds'][pattern] = threshold
+            yaml_dict['rearranged_thresholds'][TweezerPreprocessor.flatten_to_tuple(pattern)] = threshold
 
         out_file = yaml_file
         if out_path is not None :
@@ -336,9 +342,9 @@ class TweezerPreprocessor(ImagePreprocessor):
 
         # Implement the thresholding to determine site occupancy
         if self.parameters['do_rearrangement'] :
-            if tuple(self.parameters['TW_target_array']) in self.rearranged_thresholds :
+            if TweezerPreprocessor.flatten_to_tuple(self.parameters['TW_target_array']) in self.rearranged_thresholds :
                 # Use only if rearrangement_based thresholds have been computed, otherwise fall back to global threshold.
-                self.site_occupancies = camera_counts > self.rearranged_thresholds[tuple(self.parameters['TW_target_array'])]
+                self.site_occupancies = camera_counts > self.rearranged_thresholds[TweezerPreprocessor.flatten_to_tuple(self.parameters['TW_target_array'])]
             elif self.rearranged_thresholds :
                 self.site_occupancies = camera_counts > np.mean(list(self.rearranged_thresholds.values()))
             else :

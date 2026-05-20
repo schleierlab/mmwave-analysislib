@@ -1394,11 +1394,11 @@ class TweezerStatistician(BaseStatistician):
 
         else :
             ax.plot(
-                np.arange(len(initial_atoms)),
+                np.arange(len(survival_rates)),
                 survival_rates,
                 marker='.',
             )
-            mean_survival_rate = np.sum(surviving_atoms)/np.sum(initial_atoms)
+            mean_survival_rate = np.mean(survival_rates)
             ax.axhline(mean_survival_rate, color='red', linestyle='dashed', label=f'total = {mean_survival_rate*100:.1f}% ')
 
         # ax.set_xlabel('Site number', fontsize=self.plot_config.label_font_size)
