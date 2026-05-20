@@ -170,7 +170,7 @@ class TweezerPreprocessor(ImagePreprocessor):
             yaml_dict = yaml.load(stream, Loader=_ConfigLoader)
             global_threshold = yaml_dict['threshold']
             site_thresholds = yaml_dict['site_thresholds']
-            rearranged_thresholds = yaml_dict['rearranged_thresholds']
+            rearranged_thresholds = (yaml_dict['rearranged_thresholds'] if 'rearranged_thresholds' in yaml_dict else None)
 
         return global_threshold, site_thresholds, rearranged_thresholds
 

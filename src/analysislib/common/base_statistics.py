@@ -185,6 +185,33 @@ class BaseStatistician(ABC):
     def gaussian_peak(x, x0, sigma, amplitude, offset):
         return amplitude * np.exp(-0.5 * ((x - x0) / sigma) ** 2) + offset
 
+    @staticmethod
+    def sinusoidal(x, amplitude, freq, phase, offset):
+        return amplitude * np.sin(2 * pi * freq * x + phase) + offset
+
+    def fit_sinusoidal(self, x_data, y_data, sigma=None):
+        y_range = np.max(y_data) - np.min(y_data)
+        x_range = np.max(x_data) - np.min(x_data)
+        x_resolution = np.min(np.diff(np.sort(np.unique(x_data)))) if len(x_data) > 1 else x_range
+
+        amplitude_guess = y_range / 2
+        freq_guess = 1 / x_range if x_range > 0 else 1.0
+        phase_guess = 0.0
+        offset_guess = np.mean(y_data)
+
+        p0 = [amplitude_guess, freq_guess, phase_guess, offset_guess]
+        return optimize.curve_fit(
+            self.sinusoidal,
+            x_data,
+            y_data,
+            p0=p0,
+            sigma=sigma,
+            bounds=(
+                (-np.inf, 0.5 / x_range, -np.inf, -np.inf),
+                (+np.inf, 0.5 / x_resolution, +np.inf, +np.inf),
+            ),
+        )
+
     def fit_quadratic(self, x_data, y_data, sigma=None, peak_direction=+1):
         '''
         peak direction: {-1, +1}
@@ -227,7 +254,6 @@ class BaseStatistician(ABC):
         t_resolution = t_data[1] - t_data[0]
 
         freq_guess = self._estimate_freq_fft(t_data, y_data)
-        p0 = (y_range / 2, freq_guess, 0, t_range, np.mean(y_data))
 
         if envelope == 'gaussian':
             fitfunc = self.decaying_fringes_gaussian
@@ -236,48 +262,60 @@ class BaseStatistician(ABC):
         else:
             assert_never(envelope)
 
-        return optimize.curve_fit(
-            fitfunc,
-            t_data,
-            y_data,
-            p0=p0, #amplitude, freq, phase, t2star, offset
-            sigma=sigma,
-            absolute_sigma=True,
-            bounds=(
-                (-np.inf, 1 / (2 * t_range)     , -2 * pi, t_resolution , -np.inf),
-                (+np.inf, 1 / (2 * t_resolution), +2 * pi, 100 * t_range, +np.inf),
-            ),
+        bounds = (
+            (-np.inf, 1 / (2 * t_range)     , -2 * pi, t_resolution , -np.inf),
+            (+np.inf, 1 / (2 * t_resolution), +2 * pi, 100 * t_range, +np.inf),
         )
+
+        best_popt, best_pcov, best_residual = None, None, np.inf
+        for phase_guess in [0, pi/2, pi, 3*pi/2]:
+            p0 = (y_range / 2, freq_guess, phase_guess, t_range, np.mean(y_data))
+            try:
+                popt, pcov = optimize.curve_fit(
+                    fitfunc, t_data, y_data,
+                    p0=p0, sigma=sigma, absolute_sigma=True, bounds=bounds,
+                )
+                residual = np.sum((fitfunc(t_data, *popt) - y_data) ** 2)
+                if residual < best_residual:
+                    best_popt, best_pcov, best_residual = popt, pcov, residual
+            except Exception:
+                continue
+
+        if best_popt is None:
+            raise RuntimeError('fit_fringe_decay: all phase guesses failed')
+        return best_popt, best_pcov
     
-    def fit_decay(self, t_data, y_data, envelope: Literal['gaussian', 'exp'], sigma=None, peak_direction=+1):
-        # Initial guess
+    def fit_decay(self, t_data, y_data, envelope: Literal['gaussian', 'exp'], sigma=None, peak_direction=+1, fix_offset=False):
         y_range = (np.max(y_data) - np.min(y_data)) * peak_direction
         t_range = np.max(t_data) - np.min(t_data)
         t_resolution = t_data[1] - t_data[0]
 
-        if peak_direction == +1:
-            p0 = (y_range/2, t_range, np.mean(y_data))
-        elif peak_direction == -1:
-            p0 = (y_range/2, t_range, np.mean(y_data))
-
         if envelope == 'gaussian':
-            fitfunc = self.gaussian
+            base_func = self.gaussian
         elif envelope == 'exp':
-            fitfunc = self.exponential
+            base_func = self.exponential
         else:
             assert_never(envelope)
-        
-        return optimize.curve_fit(
-            fitfunc,
-            t_data,
-            y_data,
-            p0=p0,
-            sigma=sigma,
-            bounds=(
-                (-np.inf, t_resolution , -np.inf),
-                (+np.inf, 100 * t_range, +np.inf),
-            ),
-        )
+
+        if fix_offset:
+            offset = 1
+            def fitfunc(t, a, tau): return base_func(t, a, tau, offset)
+            p0 = (y_range/2, t_range)
+            bounds = ((-np.inf, t_resolution), (+np.inf, 100 * t_range))
+        else:
+            fitfunc = base_func
+            p0 = (y_range/2, t_range, np.mean(y_data))
+            bounds = ((-np.inf, t_resolution, -np.inf), (+np.inf, 100 * t_range, +np.inf))
+
+        popt, pcov = optimize.curve_fit(fitfunc, t_data, y_data, p0=p0, sigma=sigma, bounds=bounds)
+
+        if fix_offset:
+            popt = np.append(popt, offset)
+            pcov_full = np.zeros((3, 3))
+            pcov_full[:2, :2] = pcov
+            pcov = pcov_full
+
+        return popt, pcov
 
     def fit_rabi_oscillation(self, t_data, y_data, sigma=None, peak_direction=+1):
         # Initial guess

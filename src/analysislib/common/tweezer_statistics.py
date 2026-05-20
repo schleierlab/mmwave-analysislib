@@ -943,6 +943,19 @@ class TweezerStatistician(BaseStatistician):
                         f'Amplitude: ${upopt[2]:SL}$, offset: ${upopt[3]:SL}$',
                     ]),
                 )
+            elif fit_type == 'sinusoidal':
+                popt, pcov = self.fit_sinusoidal(indep_var, survival_rates, sigma=survival_rate_errs)
+                upopt = uncertainties.correlated_values(popt, pcov)
+                ax.plot(
+                    x_plot_scaled,
+                    self.sinusoidal(x_plot, *popt),
+                    color='r',
+                    label='\n'.join([
+                        R'$A \sin(2\pi f x + \phi) + c$',
+                        fR'$f = {upopt[1]:SL}$ {self.params[0].unit}$^{{-1}}$',
+                        fR'$A = {upopt[0]:SL}$, $\phi = {180 / np.pi * upopt[2]:SL}$ deg, $c = {upopt[3]:SL}$',
+                    ]),
+                )
             else:
                 raise ValueError
             
@@ -1541,8 +1554,10 @@ class TweezerStatistician(BaseStatistician):
         n_rows = num_sites // group_size
         n_cols = num_groups
 
-        # Average over site groups
-        averaged_data = data.reshape(n_rows, group_size, num_params, num_groups).mean(axis=1)
+        # Average and SEM over site groups
+        data_reshaped = data.reshape(n_rows, group_size, num_params, num_groups)
+        averaged_data = np.nanmean(data_reshaped, axis=1)
+        error_data = np.nanstd(data_reshaped, axis=1) / np.sqrt(group_size)
         # shape: (n_rows, num_params, num_groups)
 
         # Create subplot grid
@@ -1582,6 +1597,26 @@ class TweezerStatistician(BaseStatistician):
                             f'Phase: {phi_fit:.2f} rad\n'
                             f'T₂*: {T2_fit * 1e6:.2f} µs'
                         )
+                        ax.annotate(annotation_text,
+                                    xy=(0.02, 0.05), xycoords='axes fraction',
+                                    fontsize=9, ha='left', va='bottom')
+                    except Exception:
+                        ax.annotate("Fit failed", xy=(0.02, 0.05), xycoords='axes fraction',
+                                    fontsize=9, ha='left', va='bottom')
+
+                elif fit_type == 'fringe_gauss_decay':
+                    try:
+                        yerr = error_data[row, :, col]
+                        sigma = yerr if np.all(yerr > 0) else None
+                        popt, pcov = self.fit_fringe_decay(unique_params, y, sigma=sigma, envelope='gaussian')
+                        upopt = uncertainties.correlated_values(popt, pcov)
+                        ax.plot(unique_params_smooth, self.decaying_fringes_gaussian(unique_params_smooth, *popt), 'r-', label='Fit')
+                        annotation_text = '\n'.join([
+                            R'$A \cos(\Omega t + \phi) e^{-(t/T_2)^2} + c$',
+                            fR'$\Omega/2\pi = {upopt[1]/(1e6):SL}$ MHz',
+                            fR'$T_2 = {1e6*upopt[3]:SL}$ µs',
+                            fR'$\phi = {360/(2*np.pi)*upopt[2]:SL}$ deg',
+                        ])
                         ax.annotate(annotation_text,
                                     xy=(0.02, 0.05), xycoords='axes fraction',
                                     fontsize=9, ha='left', va='bottom')

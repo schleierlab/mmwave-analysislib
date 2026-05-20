@@ -9,9 +9,9 @@ import numpy as np
 SHOW_ROIS = True
 SHOW_INDEX = True  # site index will not show up if show_rois is set to False
 USE_AVERAGED_BACKGROUND = True
-FIT_TYPE_1D = "fringe_exp_decay"
+FIT_TYPE_1D = None# "fringe_gauss_decay"#'sinusoidal' #"fringe_exp_decay"
 # do a curve fit at the final shot, set to None when don't do curve fit
-# options: 'lorentzian', 'quadratic', 'fringe_exp_decay', 'fringe_gauss_decay', 'rabispec', 'exp_decay', None
+# options: 'lorentzian', 'quadratic', 'fringe_exp_decay', 'fringe_gauss_decay', 'rabispec', 'exp_decay', 'sinusoidal', None
 
 SHOW_IMG_ONLY = False
 EXACT_REARRANGEMENT = True
