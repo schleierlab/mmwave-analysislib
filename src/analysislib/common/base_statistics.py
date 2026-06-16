@@ -212,7 +212,7 @@ class BaseStatistician(ABC):
             ),
         )
 
-    def fit_quadratic(self, x_data, y_data, sigma=None, peak_direction=+1):
+    def fit_quadratic(self, x_data, y_data, sigma=None, peak_direction=-1):
         '''
         peak direction: {-1, +1}
             +1 means to fit quafratic open up
@@ -232,9 +232,9 @@ class BaseStatistician(ABC):
         if peak_direction == +1:
             guess = (y_range/x_range**2, np.min(y_data), np.mean(x_data))
         elif peak_direction == -1:
-            guess = (y_range/x_range**2, np.max(y_data), np.mean(x_data))
+            guess = (-y_range/(2*x_range**2), np.max(y_data), np.mean(x_data))
 
-        p0 = guess #[a_guess, x0_guess, y0_guess]
+        p0 = guess#[-30**12, 0.9, 0] 
         return optimize.curve_fit(self.quadratic, x_data, y_data, p0=p0, sigma=sigma)
     
     def _estimate_freq_fft(self, t, y):

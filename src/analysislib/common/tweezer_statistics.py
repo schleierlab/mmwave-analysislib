@@ -235,7 +235,9 @@ class TweezerStatistician(BaseStatistician):
     def dataframe(
         self,
         shot_mask: Optional[np.ndarray] = None,
-        require_exact_rearrangement: bool = False,) -> pd.DataFrame:
+        require_exact_rearrangement: bool = False,
+        require_no_extra_atoms: bool = False,
+    ) -> pd.DataFrame:
         '''
         Return dataframe of the form:
 
@@ -266,6 +268,15 @@ class TweezerStatistician(BaseStatistician):
                 if shot_mask.shape != exact_mask.shape:
                     raise ValueError("shot_mask has wrong shape")
                 shot_mask = shot_mask & exact_mask
+
+        if require_no_extra_atoms:
+            no_extra_mask = self._shot_mask_no_extra_atoms()
+            if shot_mask is None:
+                shot_mask = no_extra_mask
+            else:
+                if shot_mask.shape != no_extra_mask.shape:
+                    raise ValueError("shot_mask has wrong shape")
+                shot_mask = shot_mask & no_extra_mask
 
         # Slice per-shot arrays and param table if a mask is active
         if shot_mask is not None:
@@ -413,6 +424,22 @@ class TweezerStatistician(BaseStatistician):
 
         img1 = self.site_occupancies[:, 1, :]  # (shots, sites)
         return np.all(img1 == target_bool[None, :], axis=1)
+
+    def _shot_mask_no_extra_atoms(self) -> np.ndarray:
+        """
+        True for shots where no sites outside target_sites are occupied in image 1.
+        Target sites themselves may be partially filled; only extra sites are checked.
+        If not rearrangement mode or no target sites set, returns all True.
+        """
+        if (not self.rearrangement) or (len(self.target_sites) == 0):
+            return np.ones(self.shots_processed, dtype=bool)
+
+        target_bool = np.zeros(self.n_sites, dtype=bool)
+        target_bool[np.asarray(self.target_sites, dtype=int)] = True
+
+        img1 = self.site_occupancies[:, 1, :]  # (shots, sites)
+        outside_occupied = img1[:, ~target_bool]  # (shots, n_outside_sites)
+        return ~np.any(outside_occupied, axis=1)
 
     # ==========================
     # Move elsewhere in codebase
@@ -805,10 +832,14 @@ class TweezerStatistician(BaseStatistician):
         ax: Axes,
         fit_type = None,
         require_exact_rearrangement: bool = False,
+        require_no_extra_atoms: bool = False,
         averaging_window: Optional[int] = None,
     ):
         # build dataframe (optionally filtered to exact rearrangement at image 1)
-        df = self.dataframe(require_exact_rearrangement=require_exact_rearrangement)
+        df = self.dataframe(
+            require_exact_rearrangement=require_exact_rearrangement,
+            require_no_extra_atoms=require_no_extra_atoms,
+        )
         gb = df.groupby([param.name for param in self.params])
         survival_df = self.dataframe_survival(gb)
 
@@ -975,6 +1006,7 @@ class TweezerStatistician(BaseStatistician):
         fig: Figure,
         fit_type = None,
         require_exact_rearrangement: bool = False,
+        require_no_extra_atoms: bool = False,
         show_hist: bool = False,
         averaging_window: Optional[int] = None,
     ):
@@ -1009,6 +1041,8 @@ class TweezerStatistician(BaseStatistician):
             ax_plot = fig.subplots()
 
         ax_plot.set_ylim(bottom=0)
+        ax_plot.yaxis.set_major_locator(MultipleLocator(0.1))
+        ax_plot.xaxis.set_major_locator(MaxNLocator(nbins=10))
         self.plot_config.configure_grids(ax_plot)
 
         fig.suptitle(str(self.folder_path), fontsize=8)
@@ -1020,6 +1054,7 @@ class TweezerStatistician(BaseStatistician):
             ax_plot,
             fit_type=fit_type,
             require_exact_rearrangement=require_exact_rearrangement,
+            require_no_extra_atoms=require_no_extra_atoms,
             averaging_window=averaging_window,
         )
 
@@ -1028,8 +1063,25 @@ class TweezerStatistician(BaseStatistician):
         if show_hist:
             ax_hist.hist(
                 survival_rates,
+                bins=20,
                 orientation='horizontal',
             )
+            if self.is_final_shot and len(survival_rates) > 2:
+                try:
+                    counts, bin_edges = np.histogram(survival_rates, bins=20)
+                    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+                    popt, pcov = self.fit_gaussian(bin_centers, counts.astype(float))
+                    upopt = uncertainties.correlated_values(popt, pcov)
+                    y_smooth = np.linspace(0, 1, 300)
+                    ax_hist.plot(
+                        self.gaussian_peak(y_smooth, *popt),
+                        y_smooth,
+                        color='C1',
+                        label=f'μ={upopt[0]:SL}\nσ={upopt[1]:SL}',
+                    )
+                    ax_hist.legend(fontsize='small')
+                except Exception:
+                    pass
 
         return indep_var, survival_rates, survival_rate_errs
 
@@ -1142,6 +1194,7 @@ class TweezerStatistician(BaseStatistician):
             fit_type_1d = None,
             plot_gaussian: bool = False,
             require_exact_rearrangement: bool = False,
+            require_no_extra_atoms: bool = False,
             show_hist: bool = False,
     ):
         """
@@ -1165,6 +1218,7 @@ class TweezerStatistician(BaseStatistician):
             self.plot_survival_rate_1d_fig(
                 fig,
                 require_exact_rearrangement=require_exact_rearrangement,
+                require_no_extra_atoms=require_no_extra_atoms,
                 show_hist=True,
                 averaging_window=10,
             )
@@ -1173,6 +1227,7 @@ class TweezerStatistician(BaseStatistician):
                 fig,
                 fit_type=fit_type_1d,
                 require_exact_rearrangement=require_exact_rearrangement,
+                require_no_extra_atoms=require_no_extra_atoms,
                 show_hist=show_hist,
                 averaging_window=None,
             )
